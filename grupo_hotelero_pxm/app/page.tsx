@@ -25,9 +25,7 @@ export default async function HomePage() {
         New here? <Link className="text-black underline" href="/sign-up">Create your account</Link>
       </div>
     </div>
+    
   );
 }
-
-export const dynamic = "force-static";
-
 

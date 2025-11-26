@@ -41,44 +41,53 @@ async function main() {
     });
   }
 
-  // Demo Hotel with two sample listings and images (idempotent by name)
-  const demoExists = await prisma.hotel.findFirst({ where: { name: "Demo Hotel" } });
-  if (!demoExists) {
-    await prisma.hotel.create({
+  // Ensure a Demo Hotel exists, then populate it with multiple randomized listings
+  const demoHotel =
+    (await prisma.hotel.findFirst({ where: { name: "Demo Hotel" } })) ||
+    (await prisma.hotel.create({
       data: {
         name: "Demo Hotel",
-        description: "A demo property with two sample listings for testing.",
+        description: "A demo property with multiple sample listings.",
         location: "Anywhere, Earth",
-        listings: {
+      },
+    }));
+
+  const titles = [
+    "Ocean View Suite",
+    "Garden Studio",
+    "City Loft",
+    "Mountain Retreat",
+    "Cozy Bungalow",
+    "Sunset Apartment",
+  ];
+
+  // Create 12 listings if they don't already exist (idempotent by airbnbId + hotel)
+  for (let i = 1; i <= 12; i++) {
+    const airbnbId = `demo-auto-${i}`;
+    const existing = await prisma.listing.findFirst({
+      where: { hotelId: demoHotel.id, airbnbId },
+      select: { id: true },
+    });
+    if (existing) continue;
+
+    const title = `${titles[i % titles.length]} #${i}`;
+    const nightlyBasePrice = 8000 + Math.floor(Math.random() * 15000); // $80 - $230
+
+    // Use Picsum photos to avoid 404s and vary images
+    const imgBaseId = 100 + i * 7;
+    await prisma.listing.create({
+      data: {
+        hotelId: demoHotel.id,
+        airbnbId,
+        airbnbUrl: "",
+        title,
+        nightlyBasePrice,
+        baseCurrency: "USD",
+        images: {
           create: [
-            {
-              airbnbId: "demo-listing-1",
-              airbnbUrl: "https://example.com/demo-listing-1",
-              title: "Ocean View Suite",
-              nightlyBasePrice: 18000,
-              baseCurrency: "USD",
-              images: {
-                create: [
-                  { url: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?q=80&w=1600&auto=format&fit=crop", position: 0 },
-                  { url: "https://images.unsplash.com/photo-1505691723518-36a5ac3b2d95?q=80&w=1600&auto=format&fit=crop", position: 1 },
-                  { url: "https://images.unsplash.com/photo-1505691938893-1f2e1b5aa0eb?q=80&w=1600&auto=format&fit=crop", position: 2 },
-                ],
-              },
-            },
-            {
-              airbnbId: "demo-listing-2",
-              airbnbUrl: "https://example.com/demo-listing-2",
-              title: "Garden Studio",
-              nightlyBasePrice: 9500,
-              baseCurrency: "USD",
-              images: {
-                create: [
-                  { url: "https://images.unsplash.com/photo-1505691723518-36a5ac3b2d95?q=80&w=1600&auto=format&fit=crop", position: 0 },
-                  { url: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=1600&auto=format&fit=crop", position: 1 },
-                  { url: "https://images.unsplash.com/photo-1505691728513-36a5ac3b2d95?q=80&w=1600&auto=format&fit=crop", position: 2 },
-                ],
-              },
-            },
+            { url: `https://picsum.photos/id/${imgBaseId}/1600/900`, position: 0 },
+            { url: `https://picsum.photos/id/${imgBaseId + 1}/1600/900`, position: 1 },
+            { url: `https://picsum.photos/id/${imgBaseId + 2}/1600/900`, position: 2 },
           ],
         },
       },
