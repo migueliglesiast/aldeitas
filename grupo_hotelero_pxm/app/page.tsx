@@ -21,6 +21,9 @@ export default async function HomePage() {
       </div>
 
       <ListingGrid hotels={hotels as any} />
+      <div className="text-sm text-gray-600">
+        New here? <Link className="text-black underline" href="/sign-up">Create your account</Link>
+      </div>
     </div>
   );
 }

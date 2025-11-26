@@ -5,12 +5,11 @@ const nextConfig = {
       allowedOrigins: ["localhost:3000"],
     },
   },
-  // enable static HTML export for GitHub Pages
-  output: 'export',
   basePath: process.env.NEXT_BASE_PATH || '',
   assetPrefix: process.env.NEXT_ASSET_PREFIX || (process.env.NEXT_BASE_PATH ? process.env.NEXT_BASE_PATH + '/' : ''),
   images: {
-    unoptimized: true,
+    // keep remote images working in dev and prod
+    unoptimized: false,
     remotePatterns: [
       { protocol: 'https', hostname: 'a0.muscache.com' },
       { protocol: 'https', hostname: 'a1.muscache.com' },
