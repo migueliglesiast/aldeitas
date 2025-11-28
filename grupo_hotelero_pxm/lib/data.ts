@@ -21,4 +21,16 @@ export async function getListingDetail(id: string) {
   });
 }
 
+export async function getHotelDetail(id: string) {
+  return prisma.hotel.findUnique({
+    where: { id },
+    include: {
+      listings: {
+        include: { images: { orderBy: { position: "asc" } } },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+}
+
 

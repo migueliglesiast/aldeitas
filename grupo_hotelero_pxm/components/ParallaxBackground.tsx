@@ -20,14 +20,14 @@ export default function ParallaxBackground() {
         position: "fixed",
         left: 0,
         right: 0,
-        top: "-35%",          // extra top to allow translating without gaps
-        height: "220%",        // taller than viewport to avoid bottom whitespace
+        top: "-30%",
+        height: "180%",
         zIndex: -1,
         pointerEvents: "none",
         transform: `translateY(${-offset}px)`,
-        backgroundImage: "url('/images/background.jpeg')",
+        backgroundImage: "url('/images/background_image.png')",
         backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundPosition: "center top",
         backgroundRepeat: "no-repeat",
         backgroundColor: "#000",
       }}

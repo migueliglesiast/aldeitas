@@ -66,7 +66,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
           Total: {(total / 100).toFixed(2)} {currency}
         </span>
       </div>
-      <button disabled={loading} className="w-full rounded bg-black py-2 text-white disabled:opacity-50">
+      <button disabled={loading} className="w-full rounded bg-[#00a19c] py-2 text-white hover:bg-[#008a86] disabled:opacity-50">
         {loading ? "Processing..." : "Reserve"}
       </button>
       {message && <p className="text-sm text-red-600">{message}</p>}

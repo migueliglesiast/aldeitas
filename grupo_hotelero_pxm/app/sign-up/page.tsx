@@ -136,7 +136,7 @@ export default function SignUpPage() {
         <div className="space-y-3">
           <h2 className="text-xl font-medium">Youre all set!</h2>
           <p className="text-gray-600">Click Finish to create your account and publish your hotel.</p>
-          <button disabled={loading} onClick={onSubmit as any} className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:opacity-60">{loading ? "Submitting..." : "Finish"}</button>
+          <button disabled={loading} onClick={onSubmit as any} className="rounded bg-[#00a19c] px-4 py-2 text-white hover:bg-[#008a86] disabled:opacity-60">{loading ? "Submitting..." : "Finish"}</button>
         </div>
       ),
     },

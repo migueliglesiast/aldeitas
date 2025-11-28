@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getHotelsWithListings } from "@/lib/data";
-import ListingGrid from "@/components/ListingGrid";
+import HotelGrid from "@/components/HotelGrid";
 
 export default async function HomePage() {
   const hotels = await getHotelsWithListings();
@@ -14,13 +14,13 @@ export default async function HomePage() {
         </div>
         <Link
           href="/admin/calendars"
-          className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800"
+          className="rounded bg-[#00a19c] px-4 py-2 text-white hover:bg-[#008a86]"
         >
           Manage Calendars
         </Link>
       </div>
 
-      <ListingGrid hotels={hotels as any} />
+      <HotelGrid hotels={hotels as any} />
       <div className="text-sm text-gray-600">
         New here? <Link className="text-black underline" href="/sign-up">Create your account</Link>
       </div>

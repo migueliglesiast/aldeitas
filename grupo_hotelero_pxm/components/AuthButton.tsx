@@ -28,7 +28,7 @@ export default function AuthButton() {
     return (
       <div className="flex gap-2">
         <Link href="/sign-in" className="rounded border px-3 py-2 hover:bg-gray-50">Sign in</Link>
-        <Link href="/sign-up" className="rounded bg-black px-3 py-2 text-white hover:bg-gray-800">Sign up</Link>
+        <Link href="/sign-up" className="rounded bg-[#00a19c] px-3 py-2 text-white hover:bg-[#008a86]">Sign up</Link>
       </div>
     );
   }

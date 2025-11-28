@@ -46,7 +46,7 @@ export default function CalendarForm() {
           required
         />
       </div>
-      <button disabled={loading} className="rounded bg-black px-4 py-2 text-white disabled:opacity-50">Add</button>
+      <button disabled={loading} className="rounded bg-[#00a19c] px-4 py-2 text-white hover:bg-[#008a86] disabled:opacity-50">Add</button>
       {message && <div className="text-sm text-gray-600">{message}</div>}
     </form>
   );
