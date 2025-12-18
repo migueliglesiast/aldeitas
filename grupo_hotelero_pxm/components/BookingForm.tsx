@@ -19,7 +19,7 @@ type PricingData = {
 };
 
 export default function BookingForm({ listingId, basePriceCents, currency }: Props) {
-  const { searchParams } = useHotel();
+  const { searchParams, setSearchParams } = useHotel();
   const [start, setStart] = useState<string>(searchParams?.checkIn || "");
   const [end, setEnd] = useState<string>(searchParams?.checkOut || "");
   const [email, setEmail] = useState("");
@@ -29,13 +29,17 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
 
-  // Update dates when search params change
+  // Update dates when search params change (from calendar or external source)
   useEffect(() => {
     if (searchParams?.checkIn) {
       setStart(searchParams.checkIn);
+    } else if (!searchParams) {
+      setStart("");
     }
-    if (searchParams?.checkOut) {
+    if (searchParams?.checkOut && searchParams.checkOut.trim() !== "") {
       setEnd(searchParams.checkOut);
+    } else {
+      setEnd("");
     }
   }, [searchParams]);
 
@@ -79,6 +83,39 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     // Clear check-out if it's before the new check-in
     if (end && value && new Date(end) <= new Date(value)) {
       setEnd("");
+    }
+    // Update context when form dates change
+    if (value) {
+      setSearchParams({
+        checkIn: value,
+        checkOut: (end && value && new Date(end) > new Date(value)) ? end : "",
+        guests: searchParams?.guests || 1,
+        pets: searchParams?.pets || 0,
+      });
+    } else {
+      // If check-in is cleared, clear the context
+      setSearchParams(null);
+    }
+  };
+
+  const handleEndChange = (value: string) => {
+    setEnd(value);
+    // Update context when form dates change
+    if (value && start) {
+      setSearchParams({
+        checkIn: start,
+        checkOut: value,
+        guests: searchParams?.guests || 1,
+        pets: searchParams?.pets || 0,
+      });
+    } else if (start) {
+      // If check-out is cleared but check-in exists, update context with just check-in
+      setSearchParams({
+        checkIn: start,
+        checkOut: "",
+        guests: searchParams?.guests || 1,
+        pets: searchParams?.pets || 0,
+      });
     }
   };
 
@@ -139,7 +176,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         <input 
           type="date" 
           value={end} 
-          onChange={(e) => setEnd(e.target.value)} 
+          onChange={(e) => handleEndChange(e.target.value)} 
           min={getMinCheckoutDate()}
           disabled={!start}
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c] disabled:bg-gray-100 disabled:cursor-not-allowed" 
