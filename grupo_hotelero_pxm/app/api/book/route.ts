@@ -25,19 +25,37 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   const { listingId, start, end, email, phone } = parsed.data;
 
-  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
+  const listing = await prisma.listing.findUnique({ 
+    where: { id: listingId },
+    include: { calendarSources: true }
+  });
   if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
 
-  // check availability via iCal blocks (Airbnb blocked nights)
+  // check availability via iCal blocks from all calendar sources
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  
+  // Check legacy icalUrl if it exists
   if (listing.icalUrl) {
     const blocks = await fetchIcalBlocks(listing.icalUrl);
-    const startDate = new Date(start);
-    const endDate = new Date(end);
     const conflict = blocks.some((b) =>
-      // overlap if start < b.end and end > b.start
       isBefore(startDate, b.end) && isBefore(b.start, endDate)
     );
     if (conflict) return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+  }
+  
+  // Check all calendar sources linked to this listing
+  for (const calendarSource of listing.calendarSources) {
+    try {
+      const blocks = await fetchIcalBlocks(calendarSource.icalUrl);
+      const conflict = blocks.some((b) =>
+        isBefore(startDate, b.end) && isBefore(b.start, endDate)
+      );
+      if (conflict) return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+    } catch (error) {
+      // Log error but continue checking other calendars
+      console.error(`Error checking calendar ${calendarSource.name}:`, error);
+    }
   }
 
   // check conflicts against local bookings (PENDING or CONFIRMED)

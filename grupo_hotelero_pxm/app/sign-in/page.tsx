@@ -20,7 +20,13 @@ export default function SignInPage() {
     if (res.ok) {
       window.location.href = "/";
     } else {
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        const txt = await res.text();
+        data = { error: txt || "Failed to sign in" };
+      }
       setError(data.error || "Failed to sign in");
     }
     setLoading(false);

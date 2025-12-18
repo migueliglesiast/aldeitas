@@ -5,8 +5,11 @@ const nextConfig = {
       allowedOrigins: ["localhost:3000"],
     },
   },
-  basePath: process.env.NEXT_BASE_PATH || '',
-  assetPrefix: process.env.NEXT_ASSET_PREFIX || (process.env.NEXT_BASE_PATH ? process.env.NEXT_BASE_PATH + '/' : ''),
+  // Only set basePath and assetPrefix if explicitly provided (for production deployments)
+  ...(process.env.NEXT_BASE_PATH ? {
+    basePath: process.env.NEXT_BASE_PATH,
+    assetPrefix: process.env.NEXT_ASSET_PREFIX || process.env.NEXT_BASE_PATH,
+  } : {}),
   images: {
     // keep remote images working in dev and prod
     unoptimized: false,

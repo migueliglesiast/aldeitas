@@ -8,13 +8,16 @@ datasource db {
 }
 
 model Hotel {
-  id           String     @id @default(cuid())
-  name         String
-  description  String
-  location     String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  listings     Listing[]
+  id                String     @id @default(cuid())
+  name              String
+  description       String
+  location          String
+  googleMapsUrl     String?
+  googleDriveFolderId String? // Google Drive folder ID for hotel images
+  coverImageUrl     String?   // Direct URL to cover image (can be Google Drive)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  listings          Listing[]
 }
 
 model Listing {
@@ -23,8 +26,9 @@ model Listing {
   hotel            Hotel     @relation(fields: [hotelId], references: [id])
   airbnbId         String
   airbnbUrl        String
-  icalUrl          String?
+  icalUrl          String?   // Legacy Airbnb iCal URL (deprecated, use CalendarSource instead)
   title            String
+  description      String?   // Room-specific description and characteristics
   baseCurrency     String    @default("USD")
   nightlyBasePrice Int       @default(0)
   images           Image[]

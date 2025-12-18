@@ -62,7 +62,13 @@ export default function SignUpPage() {
     if (res.ok) {
       window.location.href = "/";
     } else {
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        const txt = await res.text();
+        data = { error: txt || "Failed to sign up" };
+      }
       setError(data.error || "Failed to sign up");
     }
     setLoading(false);

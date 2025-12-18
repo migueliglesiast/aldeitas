@@ -11,10 +11,23 @@ export default function AuthButton() {
   useEffect(() => {
     let isMounted = true;
     fetch("/api/auth/me")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return { user: null };
+        const ct = r.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) return { user: null };
+        try {
+          return await r.json();
+        } catch {
+          return { user: null };
+        }
+      })
       .then((d) => {
         if (!isMounted) return;
-        setUser(d.user ?? null);
+        setUser(d?.user ?? null);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setUser(null);
       })
       .finally(() => setLoading(false));
     return () => {
