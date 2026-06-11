@@ -13,23 +13,33 @@ async function main() {
   //   3. Copy the iframe src URL (starts with https://www.google.com/maps/embed?...)
   //   4. Paste it in the googleMapsUrl field below
   //
-  const initialHotels: { name: string; location: string; rooms: number; googleMapsUrl?: string; roomTitles?: string[] }[] = [
-    { name: "Aldeita Mixteca", location: "Tamarindos", rooms: 9, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.275304692342!2d-97.05136672387734!3d15.842121384804926!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9ea9ababb35%3A0x2dc27d4d89815aac!2sAldeita%20Mixteca!5e0!3m2!1sen!2smx!4v1765134111265!5m2!1sen!2smx"},
-    { name: "La Otra Aldeita", location: "Punta Zicatela", rooms: 5, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.275304692342!2d-97.05136672387734!3d15.842121384804926!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9a1e452fcd7%3A0xa6ee699f5f6f4264!2sLa%20Otra%20Aldeita!5e0!3m2!1sen!2smx!4v1765134178380!5m2!1sen!2smx"},
+  const initialHotels: {
+    name: string;
+    location: string;
+    rooms: number;
+    latitude: number;
+    longitude: number;
+    googleMapsUrl?: string;
+    roomTitles?: string[];
+  }[] = [
+    { name: "Aldeita Mixteca", location: "Tamarindos", rooms: 9, latitude: 15.842121, longitude: -97.051367, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.275304692342!2d-97.05136672387734!3d15.842121384804926!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9ea9ababb35%3A0x2dc27d4d89815aac!2sAldeita%20Mixteca!5e0!3m2!1sen!2smx!4v1765134111265!5m2!1sen!2smx"},
+    { name: "La Otra Aldeita", location: "Punta Zicatela", rooms: 5, latitude: 15.8392, longitude: -97.0478, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.275304692342!2d-97.05136672387734!3d15.842121384804926!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9a1e452fcd7%3A0xa6ee699f5f6f4264!2sLa%20Otra%20Aldeita!5e0!3m2!1sen!2smx!4v1765134178380!5m2!1sen!2smx"},
     { 
       name: "La Arbolita", 
       location: "Santa María", 
-      rooms: 7, 
+      rooms: 7,
+      latitude: 15.846468,
+      longitude: -97.052432,
       googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.192660747881!2d-97.052432423726!3d15.846468284801176!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9ba8b18d711%3A0xa2d375bdc91d5464!2sLa%20Arbolita!5e0!3m2!1sen!2smx!4v1765134212453!5m2!1sen!2smx",
       roomTitles: ["Forest Studio 1", "Forest Studio 2", "Forest Studio 3", "Forest Studio 4", "Treehouse 1", "Treehouse 2", "Treehouse 3"]
     },
-    { name: "Nido Escondido", location: "Tamarindos", rooms: 7, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.192660747881!2d-97.052432423726!3d15.846468284801176!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9cbcefdbc8f%3A0xded70dbab6709cfe!2sNido%20Escondido!5e0!3m2!1sen!2smx!4v1765134499157!5m2!1sen!2smx"},
-    { name: "Casa Yahua", location: "Tamarindos", rooms: 8, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2628227266855!2d-97.04870772357482!3d15.842777984804467!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f900465b9627%3A0x7a7a7a854fb822d1!2sHotel%20Boutique%20Casa%20Yahual!5e0!3m2!1sen!2smx!4v1765134542210!5m2!1sen!2smx"},
-    { name: "Casa Guadalupe", location: "Punta Zicatela", rooms: 2, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2876131733597!2d-97.0489054238774!3d15.841473884805495!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f90023abb9dd%3A0xaf2b817c8fc6cc1!2sCasa%20Guadalupe!5e0!3m2!1sen!2smx!4v1765134665925!5m2!1sen!2smx" },
-    { name: "Casa Oaxira", location: "Tamarindos", rooms: 2, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.257518784235!2d-97.0488088238774!3d15.84305698480412!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f92a11662a85%3A0x288675294967ceb6!2sOaxira!5e0!3m2!1sen!2smx!4v1765134736922!5m2!1sen!2smx"},
-    { name: "Coco By-The-Beach", location: "Punta Zicatela", rooms: 1, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d554.7807715785118!2d-97.04637841799085!3d15.838503854166042!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2smx!4v1765134837690!5m2!1sen!2smx" },
-    { name: "Ranchito Zicatela", location: "Punta Zicatela", rooms: 1, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d554.7807715785118!2d-97.04637841799085!3d15.838503854166042!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2smx!4v1765134837690!5m2!1sen!2smx" },
-    { name: "Espacio Malinxhe", location: "Punta Zicatela", rooms: 10, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3840.489980945963!2d-97.04373195916031!3d15.836420561464225!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMTXCsDUwJzA0LjEiTiA5N8KwMDInMjUuNCJX!5e0!3m2!1sen!2smx!4v1765132465505!5m2!1sen!2smx"},
+    { name: "Nido Escondido", location: "Tamarindos", rooms: 7, latitude: 15.8458, longitude: -97.0519, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.192660747881!2d-97.052432423726!3d15.846468284801176!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9cbcefdbc8f%3A0xded70dbab6709cfe!2sNido%20Escondido!5e0!3m2!1sen!2smx!4v1765134499157!5m2!1sen!2smx"},
+    { name: "Casa Yahua", location: "Tamarindos", rooms: 8, latitude: 15.842778, longitude: -97.048708, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2628227266855!2d-97.04870772357482!3d15.842777984804467!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f900465b9627%3A0x7a7a7a854fb822d1!2sHotel%20Boutique%20Casa%20Yahual!5e0!3m2!1sen!2smx!4v1765134542210!5m2!1sen!2smx"},
+    { name: "Casa Guadalupe", location: "Punta Zicatela", rooms: 2, latitude: 15.841474, longitude: -97.048905, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2876131733597!2d-97.0489054238774!3d15.841473884805495!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f90023abb9dd%3A0xaf2b817c8fc6cc1!2sCasa%20Guadalupe!5e0!3m2!1sen!2smx!4v1765134665925!5m2!1sen!2smx" },
+    { name: "Casa Oaxira", location: "Tamarindos", rooms: 2, latitude: 15.843057, longitude: -97.048809, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.257518784235!2d-97.0488088238774!3d15.84305698480412!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f92a11662a85%3A0x288675294967ceb6!2sOaxira!5e0!3m2!1sen!2smx!4v1765134736922!5m2!1sen!2smx"},
+    { name: "Coco By-The-Beach", location: "Punta Zicatela", rooms: 1, latitude: 15.838504, longitude: -97.046378, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d554.7807715785118!2d-97.04637841799085!3d15.838503854166042!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2smx!4v1765134837690!5m2!1sen!2smx" },
+    { name: "Ranchito Zicatela", location: "Punta Zicatela", rooms: 1, latitude: 15.8379, longitude: -97.0459, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d554.7807715785118!2d-97.04637841799085!3d15.838503854166042!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2smx!4v1765134837690!5m2!1sen!2smx" },
+    { name: "Espacio Malinxhe", location: "Punta Zicatela", rooms: 10, latitude: 15.836421, longitude: -97.043732, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3840.489980945963!2d-97.04373195916031!3d15.836420561464225!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMTXCsDUwJzA0LjEiTiA5N8KwMDInMjUuNCJX!5e0!3m2!1sen!2smx!4v1765132465505!5m2!1sen!2smx"},
   ];
   
   for (let hIndex = 0; hIndex < initialHotels.length; hIndex++) {
@@ -43,16 +53,19 @@ async function main() {
           name: spec.name,
           description: `${spec.name} in ${spec.location}`,
           location: spec.location,
+          latitude: spec.latitude,
+          longitude: spec.longitude,
           googleMapsUrl: spec.googleMapsUrl || null,
         },
       });
     } else {
-      // Always update googleMapsUrl from seed file
       await prisma.hotel.update({
         where: { id: hotel.id },
         data: { 
           location: spec.location,
-          googleMapsUrl: spec.googleMapsUrl || null, // Always update from seed file
+          latitude: spec.latitude,
+          longitude: spec.longitude,
+          googleMapsUrl: spec.googleMapsUrl || null,
         },
       });
     }
@@ -75,7 +88,7 @@ async function main() {
       // Update generic rooms to use custom titles (up to the number we need)
       for (let i = 0; i < spec.roomTitles.length; i++) {
         const roomTitle = spec.roomTitles[i];
-        const nightlyBasePrice = 9000 + Math.floor(Math.random() * 12000); // $90 - $210
+        const nightlyBasePrice = 150000 + Math.floor(Math.random() * 200000); // $1,500 - $3,500 MXN
         const imgBaseId = 200 + (hIndex * 20) + i + 1;
         
         // Check if a room with this exact title already exists
@@ -113,7 +126,7 @@ async function main() {
                 airbnbUrl: "",
                 title: roomTitle,
                 nightlyBasePrice,
-                baseCurrency: "USD",
+                baseCurrency: "MXN",
                 images: {
                   create: [
                     { url: `https://picsum.photos/id/${imgBaseId}/1600/900`, position: 0 },
@@ -155,7 +168,7 @@ async function main() {
       const toCreate = Math.max(0, spec.rooms - existingCount);
 
       for (let i = 1; i <= toCreate; i++) {
-        const nightlyBasePrice = 9000 + Math.floor(Math.random() * 12000); // $90 - $210
+        const nightlyBasePrice = 150000 + Math.floor(Math.random() * 200000); // $1,500 - $3,500 MXN
         const imgBaseId = 200 + (hIndex * 20) + i;
         const roomTitle = `Room ${existingCount + i}`;
         
@@ -166,7 +179,7 @@ async function main() {
             airbnbUrl: "",
             title: roomTitle,
             nightlyBasePrice,
-            baseCurrency: "USD",
+            baseCurrency: "MXN",
             images: {
               create: [
                 { url: `https://picsum.photos/id/${imgBaseId}/1600/900`, position: 0 },

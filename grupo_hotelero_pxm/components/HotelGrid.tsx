@@ -1,21 +1,43 @@
 "use client";
 import { useMemo, useState, useRef, useEffect, memo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
+import ImageWithPlaceholder from "@/components/ImageWithPlaceholder";
 import { useHotel } from "@/lib/hotel-context";
+import HotelBrandHeader, { useHotelBrandPalette } from "@/components/HotelBrandHeader";
+import { paletteToCssVars } from "@/lib/hotel-branding";
+import { toHotelMapPin, type HotelMapPin } from "@/lib/hotel-map";
+import { useLocale } from "@/lib/i18n/locale-context";
+import MapLoadingPlaceholder from "@/components/MapLoadingPlaceholder";
+import LocalizedDescription from "@/components/LocalizedDescription";
+import { formatMoneyShort } from "@/lib/currency";
+
+const HotelAreaMap = dynamic(() => import("@/components/HotelAreaMap"), {
+  ssr: false,
+  loading: () => <MapLoadingPlaceholder />,
+});
 
 type ImageType = { id: string; url: string; position: number };
 type Listing = { id: string; title: string; nightlyBasePrice: number; baseCurrency: string; images: ImageType[] };
 type Hotel = { 
   id: string; 
   name: string; 
-  description: string; 
-  location: string; 
+  description: string;
+  descriptionEn?: string | null;
+  descriptionEs?: string | null;
+  location: string;
   googleMapsUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  coverImageUrl?: string | null;
+  logoImageUrl?: string | null;
+  images?: ImageType[];
   listings: Listing[] 
 };
 
 export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
+  const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [expandedHotelId, setExpandedHotelId] = useState<string | null>(null);
   const expandedRef = useRef<HTMLDivElement>(null);
@@ -43,6 +65,11 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
   }, [hotels, query, searchParams, hotelAvailability]);
 
   // Keep hotels in original order to prevent remounting - use CSS order instead
+  const mapPins = useMemo(
+    () => hotels.map((hotel) => toHotelMapPin(hotel)).filter(Boolean) as HotelMapPin[],
+    [hotels]
+  );
+
   const organizedHotels = useMemo(() => {
     return filtered;
   }, [filtered]);
@@ -99,45 +126,46 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
   }
 
   function getHotelImages(hotel: Hotel): string[] {
+    const withoutLogo = (urls: string[]) =>
+      hotel.logoImageUrl ? urls.filter((url) => url !== hotel.logoImageUrl) : urls;
+
+    const dbImages = withoutLogo(hotel.images?.map((image) => image.url) ?? []);
+    if (dbImages.length > 0) return dbImages;
+
     const slug = slugify(hotel.name);
     const images: string[] = [];
-    
-    // Priority 1: Use coverImageUrl from database (can be Google Drive URL)
-    if ((hotel as any).coverImageUrl) {
-      images.push((hotel as any).coverImageUrl);
+
+    if (hotel.coverImageUrl && hotel.coverImageUrl !== hotel.logoImageUrl) {
+      images.push(hotel.coverImageUrl);
     }
-    
-    // Priority 2: Fallback to local public folder
-    images.push(`/images/hotels/${slug}/cover.jpg`);
-    
+
+    const coverPath = `/images/hotels/${slug}/cover.jpg`;
+    if (coverPath !== hotel.logoImageUrl) {
+      images.push(coverPath);
+    }
+
     return images;
   }
 
-  const HotelCard = memo(function HotelCard({ h, isExpanded, expandedHotelId }: { h: Hotel; isExpanded: boolean; expandedHotelId: string | null }) {
+  const HotelCard = memo(function HotelCard({
+    h,
+    isExpanded,
+    expandedHotelId,
+    mapPins,
+    t,
+  }: {
+    h: Hotel;
+    isExpanded: boolean;
+    expandedHotelId: string | null;
+    mapPins: HotelMapPin[];
+    t: ReturnType<typeof useLocale>["t"];
+  }) {
     const [coverIndex, setCoverIndex] = useState(0);
     const [carouselIndex, setCarouselIndex] = useState(0);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
     const slug = slugify(h.name);
+    const brandPalette = useHotelBrandPalette(isExpanded ? h.logoImageUrl : null);
+    const brandStyle = paletteToCssVars(brandPalette);
     
-    // Get the map embed URL directly from the database - memoize to prevent recalculation
-    const mapEmbedUrl = useMemo(() => {
-      const rawUrl = (h as any).googleMapsUrl || h.googleMapsUrl;
-      return rawUrl && String(rawUrl).trim() !== "" ? String(rawUrl).trim() : null;
-    }, [h.googleMapsUrl, h.id]);
-    
-    // Set iframe src only once when it first becomes visible
-    const iframeKey = `map-${h.id}`;
-    const [iframeSrc, setIframeSrc] = useState<string | undefined>(undefined);
-    
-    useEffect(() => {
-      if (isExpanded && mapEmbedUrl && !iframeSrc) {
-        // Only set src once when expanded
-        setIframeSrc(mapEmbedUrl);
-      } else if (!isExpanded) {
-        // Don't clear src when collapsed to prevent reload
-        // setIframeSrc(undefined);
-      }
-    }, [isExpanded, mapEmbedUrl, iframeSrc]);
     const candidates = [
       `/images/hotels/${slug}/cover.jpg`,
       `/images/hotels/${slug}/cover.jpeg`,
@@ -159,6 +187,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
     const minPrice = h.listings?.length ? Math.min(...h.listings.map((l) => l.nightlyBasePrice)) : null;
     
     const galleryImages = getHotelImages(h);
+    const isDimmed = Boolean(expandedHotelId) && !isExpanded;
 
     return (
       <div
@@ -178,11 +207,17 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
               e.preventDefault();
               setExpandedHotelId(h.id);
             }}
-            className="group rounded-lg border border-gray-200 hover:border-[#00a19c]/30 hover:shadow-lg text-left w-full transition-all duration-300 ease-out bg-white overflow-hidden"
+            className={[
+              "group rounded-lg border text-left w-full overflow-hidden bg-white",
+              "transition-all duration-500 ease-out hover:shadow-lg",
+              isDimmed
+                ? "border-slate-300/80 grayscale-[78%] sepia-[28%] brightness-[0.94] opacity-80 hover:grayscale-0 hover:sepia-0 hover:brightness-100 hover:opacity-100 hover:border-[#00a19c]/35"
+                : "border-gray-200 hover:border-[#00a19c]/30",
+            ].join(" ")}
           >
             <div className="relative h-44 w-full overflow-hidden rounded-t">
               {displaySrc ? (
-                <Image
+                <ImageWithPlaceholder
                   src={displaySrc}
                   alt={h.name}
                   fill
@@ -212,165 +247,172 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
             <div className="p-3">
               <div className="flex items-center justify-between">
                 <p className="font-medium">{h.name}</p>
-                {minPrice !== null && <p className="text-sm text-gray-500">from ${(minPrice / 100).toFixed(0)}</p>}
+                {minPrice !== null && (
+                  <p className="text-sm text-gray-500">
+                    {t("fromPrice", { price: formatMoneyShort(minPrice) })}
+                  </p>
+                )}
               </div>
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <p>{h.location}</p>
                 {availableRooms !== null ? (
                   <p>
-                    <span className="font-bold text-[#00a19c]">{rooms}</span> room{rooms === 1 ? "" : "s"} available
+                    {t("roomsAvailable", {
+                      count: rooms,
+                      roomsLabel: rooms === 1 ? t("room") : t("rooms"),
+                    })}
                   </p>
                 ) : (
                   <p>
-                    {rooms} room{rooms === 1 ? "" : "s"}
+                    {rooms} {rooms === 1 ? t("room") : t("rooms")}
                   </p>
                 )}
               </div>
             </div>
           </button>
         ) : (
-          <div className="rounded-lg border-2 border-[#00a19c]/20 p-6 space-y-4 shadow-xl animate-fade-in-scale backdrop-blur-md" style={{ backgroundColor: 'rgba(255, 255, 255, 0.6)' }}>
-            {/* Title at top left */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl md:text-3xl font-semibold text-[#00a19c]">{h.name}</h2>
+          <div
+            className="rounded-lg border-2 p-6 space-y-4 shadow-xl animate-fade-in-scale backdrop-blur-md transition-colors duration-500"
+            style={{
+              ...brandStyle,
+              borderColor: "var(--hotel-brand-ring)",
+              backgroundColor: "color-mix(in srgb, white 88%, var(--hotel-brand-muted))",
+              boxShadow: `0 20px 50px -28px var(--hotel-brand-primary)`,
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <HotelBrandHeader
+                name={h.name}
+                location={h.location}
+                logoImageUrl={h.logoImageUrl}
+                className="flex-1"
+              />
               <button
                 onClick={(e) => {
                   e.preventDefault();
                   setExpandedHotelId(null);
                   setSelectedHotelImage(null);
                 }}
-                className="text-gray-400 hover:text-gray-700 text-3xl leading-none transition-all duration-200 hover:scale-110 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
-                aria-label="Close"
+                className="text-gray-400 hover:text-gray-700 text-3xl leading-none transition-all duration-200 hover:scale-110 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/70 shrink-0"
+                aria-label={t("close")}
               >
                 ×
               </button>
             </div>
 
-            {/* Map and Carousel Row */}
-            <div className="relative w-full overflow-hidden rounded-lg" style={{ minHeight: "450px" }}>
-              {/* Carousel Container - Right 65% (behind map) */}
-              <div className="absolute right-0 top-0 w-[65%] h-full z-0">
-                <div className="relative w-full h-full ml-auto">
+            {/* Map and Carousel Row — mobile: carousel then map; desktop: overlapping layout */}
+            <div className="relative flex w-full flex-col overflow-hidden rounded-lg md:block md:min-h-[450px]">
+              {/* Carousel — first on mobile, right overlay on desktop */}
+              <div className="relative order-1 h-56 w-full shrink-0 sm:h-72 md:absolute md:right-0 md:top-0 md:z-0 md:h-full md:w-[65%]">
+                <div className="relative ml-auto h-full w-full">
                   {galleryImages.length > 0 ? (
-                    <>
-                      <div className="relative w-full h-full overflow-hidden rounded-lg">
-                        <div
-                          className="absolute inset-0"
-                          style={{
-                            maskImage: "linear-gradient(to right, transparent 0%, black 8%, black 100%)",
-                            WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 8%, black 100%)"
+                    <div className="relative h-full w-full overflow-hidden rounded-lg">
+                      <div className="absolute inset-0 [mask-image:none] [-webkit-mask-image:none] md:[mask-image:linear-gradient(to_right,transparent_0%,black_8%,black_100%)] md:[-webkit-mask-image:linear-gradient(to_right,transparent_0%,black_8%,black_100%)]">
+                        <ImageWithPlaceholder
+                          src={galleryImages[carouselIndex] || galleryImages[0]}
+                          alt={`${h.name} - Image ${carouselIndex + 1}`}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 65vw"
+                          className="object-cover"
+                          onError={() => {
+                            setCarouselIndex(0);
                           }}
-                        >
-                          <Image
-                            src={galleryImages[carouselIndex] || galleryImages[0]}
-                            alt={`${h.name} - Image ${carouselIndex + 1}`}
-                            fill
-                            sizes="65vw"
-                            className="object-cover transition-opacity duration-300"
-                            onError={() => {
-                              setCarouselIndex(0);
-                            }}
-                          />
-                        </div>
+                        />
                       </div>
-                    </>
+
+                      {galleryImages.length > 1 && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCarouselIndex(
+                                (prev) => (prev - 1 + galleryImages.length) % galleryImages.length
+                              );
+                            }}
+                            className="absolute bottom-4 left-1/2 z-30 flex h-10 w-10 -translate-x-[52px] items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white/30 hover:shadow-xl md:bottom-6 md:h-12 md:w-12 md:-translate-x-[60px]"
+                            aria-label={t("previousImage")}
+                          >
+                            <span className="text-2xl font-light">‹</span>
+                          </button>
+
+                          <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-sm md:bottom-6">
+                            {galleryImages.map((_, idx) => (
+                              <button
+                                key={idx}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setCarouselIndex(idx);
+                                }}
+                                className={`h-2 w-2 rounded-full transition-all ${
+                                  idx === carouselIndex
+                                    ? "w-6 bg-white"
+                                    : "bg-white/60 hover:bg-white/80"
+                                }`}
+                                aria-label={t("goToImage", { n: idx + 1 })}
+                              />
+                            ))}
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCarouselIndex((prev) => (prev + 1) % galleryImages.length);
+                            }}
+                            className="absolute bottom-4 left-1/2 z-30 flex h-10 w-10 translate-x-[12px] items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white/30 hover:shadow-xl md:bottom-6 md:h-12 md:w-12 md:translate-x-[60px]"
+                            aria-label={t("nextImage")}
+                          >
+                            <span className="text-2xl font-light">›</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-400 rounded-lg">
-                      No images available
+                    <div className="flex h-full w-full items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                      {t("noImages")}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Map Container - Left 38% with transparency fade over carousel (covers ~5% of carousel) */}
-              <div className="absolute left-0 top-0 w-[38%] h-full z-10">
-                <div className="relative w-full h-full rounded-l-lg overflow-visible">
-                  <div 
-                    className="absolute inset-0 rounded-l-lg overflow-hidden"
-                    style={{
-                      maskImage: "linear-gradient(to right, black 0%, black 87%, transparent 100%)",
-                      WebkitMaskImage: "linear-gradient(to right, black 0%, black 87%, transparent 100%)"
-                    }}
-                  >
-                    {mapEmbedUrl ? (
-                      <iframe
-                        ref={iframeRef}
-                        key={iframeKey}
-                        src={iframeSrc}
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        allowFullScreen
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        className="rounded-l-lg"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500 text-sm">
-                        Map URL not available
-                      </div>
-                    )}
+              {/* Map — second on mobile, left overlay on desktop */}
+              <div className="relative order-2 h-52 w-full shrink-0 sm:h-60 md:absolute md:left-0 md:top-0 md:z-10 md:h-full md:w-[38%]">
+                <div className="relative h-full w-full overflow-hidden rounded-lg md:overflow-visible md:rounded-l-lg">
+                  <div className="absolute inset-0 overflow-hidden rounded-lg [mask-image:none] [-webkit-mask-image:none] md:rounded-l-lg md:[mask-image:linear-gradient(to_right,black_0%,black_87%,transparent_100%)] md:[-webkit-mask-image:linear-gradient(to_right,black_0%,black_87%,transparent_100%)]">
+                    <HotelAreaMap
+                      hotels={mapPins}
+                      selectedHotelId={h.id}
+                      className="rounded-lg md:rounded-l-lg"
+                    />
                   </div>
                 </div>
               </div>
-
-              {/* Navigation arrows centered in the row, overlaid on top */}
-              {galleryImages.length > 1 && (
-                <>
-                  {/* Left arrow - centered in the row */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setCarouselIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
-                    }}
-                    className="absolute bottom-6 left-1/2 -translate-x-[60px] bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white rounded-full w-12 h-12 flex items-center justify-center z-30 transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-xl"
-                    aria-label="Previous image"
-                  >
-                    <span className="text-2xl font-light">‹</span>
-                  </button>
-                  
-                  {/* Image indicator dots - centered */}
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20">
-                    {galleryImages.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setCarouselIndex(idx);
-                        }}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          idx === carouselIndex ? "bg-white w-6" : "bg-white/60 hover:bg-white/80"
-                        }`}
-                        aria-label={`Go to image ${idx + 1}`}
-                      />
-                    ))}
-                  </div>
-                  
-                  {/* Right arrow - centered in the row */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setCarouselIndex((prev) => (prev + 1) % galleryImages.length);
-                    }}
-                    className="absolute bottom-6 left-1/2 translate-x-[60px] bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white rounded-full w-12 h-12 flex items-center justify-center z-30 transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-xl"
-                    aria-label="Next image"
-                  >
-                    <span className="text-2xl font-light">›</span>
-                  </button>
-                </>
-              )}
             </div>
+
+            <LocalizedDescription
+              item={h}
+              className="pt-4 text-sm leading-relaxed md:text-base"
+            />
 
             {/* See Rooms and Availability Button */}
             <div className="pt-4 flex justify-start">
               <Link
                 href={`/hotel/${h.id}`}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#00a19c] px-8 py-3 text-white font-medium hover:bg-[#008a86] transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                className="inline-flex items-center gap-2 rounded-lg px-8 py-3 text-white font-medium transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                style={{
+                  backgroundColor: "var(--hotel-brand-primary)",
+                  boxShadow: `0 12px 24px -16px var(--hotel-brand-primary)`,
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.backgroundColor = "var(--hotel-brand-accent)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.backgroundColor = "var(--hotel-brand-primary)";
+                }}
               >
-                See Rooms and Availability
+                {t("seeRooms")}
                 <span className="text-lg">→</span>
               </Link>
             </div>
@@ -384,11 +426,11 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]" style={{ display: 'grid' }}>
         {organizedHotels.map((h) => (
-          <HotelCard key={h.id} h={h} isExpanded={expandedHotelId === h.id} expandedHotelId={expandedHotelId} />
+          <HotelCard key={h.id} h={h} isExpanded={expandedHotelId === h.id} expandedHotelId={expandedHotelId} mapPins={mapPins} t={t} />
         ))}
         {filtered.length === 0 && (
           <div className="col-span-full text-center text-gray-500 py-8">
-            No results found. Try adjusting your search.
+            {t("noResults")}
           </div>
         )}
       </div>

@@ -11,8 +11,9 @@ out/
 
 # Env & local DB
 .env
-.env.*
 .env.local
+.env.*.local
+!.env.example
 *.sqlite
 *.db
 /dev.db
@@ -26,6 +27,15 @@ pnpm-debug.log*
 
 # OS
 .DS_Store
+
+# Local tools
+bin/ngrok
+
+# User uploads (use cloud storage in production)
+public/uploads/
+
+# TypeScript
+tsconfig.tsbuildinfo
 
 # Misc
 .vercel/

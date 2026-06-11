@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import { isBefore } from "date-fns";
+import { blockingBookingWhere, expireStaleUnpaidBookings } from "@/lib/booking-blocks";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,21 +15,14 @@ export async function POST(req: NextRequest) {
     const startDate = new Date(checkIn);
     const endDate = new Date(checkOut);
 
+    await expireStaleUnpaidBookings();
+
     // Get all hotels with their listings and calendar sources
     const hotels = await prisma.hotel.findMany({
       include: {
         listings: {
           include: {
             calendarSources: true,
-            bookings: {
-              where: {
-                status: { in: ["PENDING", "CONFIRMED"] },
-                NOT: [
-                  { endDate: { lte: startDate } },
-                  { startDate: { gte: endDate } },
-                ],
-              },
-            },
           },
         },
       },
@@ -47,9 +41,11 @@ export async function POST(req: NextRequest) {
               return null;
             }
 
-            // Check local bookings first (fastest check)
-            if (listing.bookings.length > 0) {
-              return null; // Has conflicts
+            const blockingCount = await prisma.booking.count({
+              where: blockingBookingWhere(listing.id, startDate, endDate),
+            });
+            if (blockingCount > 0) {
+              return null;
             }
 
             // Check legacy icalUrl if it exists

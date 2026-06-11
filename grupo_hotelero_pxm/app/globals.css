@@ -47,3 +47,19 @@ html, body { height: 100%; }
 }
 
 /* Date input styling - completely hidden, overlay handles display */
+
+@import "leaflet/dist/leaflet.css";
+
+.hotel-area-map {
+  filter: saturate(1.08) brightness(1.03);
+}
+
+.hotel-area-map .leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.hotel-area-map-pin {
+  background: transparent !important;
+  border: none !important;
+}

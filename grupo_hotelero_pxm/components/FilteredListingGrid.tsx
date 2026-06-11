@@ -1,8 +1,10 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import ImageWithPlaceholder from "@/components/ImageWithPlaceholder";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { formatMoneyShort } from "@/lib/currency";
 
 type ImageType = { id: string; url: string; position: number };
 type Listing = { 
@@ -20,6 +22,7 @@ type FilteredListingGridProps = {
 
 export default function FilteredListingGrid({ listings, hotelName }: FilteredListingGridProps) {
   const { searchParams, hotelAvailability } = useHotel();
+  const { t } = useLocale();
   const [listingAvailability, setListingAvailability] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
 
@@ -94,7 +97,7 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
     return (
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="col-span-full text-center py-8 text-gray-500">
-          Checking availability...
+          {t("checkingAvailability")}
         </div>
       </div>
     );
@@ -105,10 +108,10 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
       <div className="space-y-4">
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
           <p className="text-gray-600 mb-2">
-            No rooms available for the selected dates.
+            {t("noRoomsForDates")}
           </p>
           <p className="text-sm text-gray-500">
-            Try adjusting your check-in or check-out dates.
+            {t("adjustDates")}
           </p>
         </div>
       </div>
@@ -121,22 +124,23 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
         <Link key={l.id} href={`/listing/${l.id}`} className="group rounded border hover:shadow transition-shadow">
           <div className="relative h-44 w-full overflow-hidden rounded-t">
             {l.images?.[0] ? (
-              <Image 
-                src={l.images[0].url} 
-                alt={l.title} 
-                fill 
-                className="object-cover transition-transform group-hover:scale-105" 
+              <ImageWithPlaceholder
+                src={l.images[0].url}
+                alt={l.title}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="object-cover transition-transform group-hover:scale-105"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-400">
-                No image yet
+                {t("noImageYet")}
               </div>
             )}
           </div>
           <div className="p-3">
             <div className="flex items-center justify-between">
               <p className="font-medium">{l.title}</p>
-              <p className="text-sm text-gray-500">${(l.nightlyBasePrice / 100).toFixed(0)}</p>
+              <p className="text-sm text-gray-500">{formatMoneyShort(l.nightlyBasePrice, l.baseCurrency)}</p>
             </div>
             {hotelName && (
               <p className="text-sm text-gray-600 mt-1">{hotelName}</p>
@@ -145,9 +149,10 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
         </Link>
       ))}
       {filteredListings.length === 0 && !searchParams && (
-        <div className="text-gray-600 col-span-full">No rooms listed yet.</div>
+        <div className="text-gray-600 col-span-full">{t("noRoomsListed")}</div>
       )}
     </div>
   );
 }
+
 

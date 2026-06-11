@@ -1,20 +1,73 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { useListingBookedDates } from "@/hooks/useListingBookedDates";
 
 type AvailabilityCalendarProps = {
   listingId: string;
   monthsToShow?: number;
+  compact?: boolean;
 };
+
+function formatVisibleMonthRange(
+  startMonth: Date,
+  panelCount: number,
+  locale: string
+): string {
+  const endMonth = new Date(
+    startMonth.getFullYear(),
+    startMonth.getMonth() + panelCount - 1,
+    1
+  );
+
+  if (panelCount === 1) {
+    return startMonth.toLocaleDateString(locale, { month: "long", year: "numeric" });
+  }
+
+  const sameYear = startMonth.getFullYear() === endMonth.getFullYear();
+  const startLabel = startMonth.toLocaleDateString(locale, {
+    month: "long",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  const endLabel = endMonth.toLocaleDateString(locale, {
+    month: "long",
+    year: "numeric",
+  });
+
+  return `${startLabel} – ${endLabel}`;
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      {direction === "left" ? (
+        <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
+  );
+}
 
 export default function AvailabilityCalendar({
   listingId,
   monthsToShow = 6,
+  compact = false,
 }: AvailabilityCalendarProps) {
   const { searchParams, setSearchParams } = useHotel();
-  const [bookedDates, setBookedDates] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { t, dateLocale } = useLocale();
+  const { bookedDates, loading, error } = useListingBookedDates(listingId);
+  const panelsToShow = compact ? Math.min(monthsToShow, 2) : monthsToShow;
+  const maxMonthOffset = Math.max(0, monthsToShow - panelsToShow);
+  const [monthOffset, setMonthOffset] = useState(0);
   
   // Local calendar selection state (before updating context)
   const [calendarCheckIn, setCalendarCheckIn] = useState<string | null>(null);
@@ -62,33 +115,6 @@ export default function AvailabilityCalendar({
     
     return false;
   }, [selectedRange, bookedDates]);
-
-  useEffect(() => {
-    async function fetchAvailability() {
-      try {
-        setLoading(true);
-        // Add ?debug=true to see debug information in console
-        const response = await fetch(`/api/listings/${listingId}/availability?debug=true`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch availability");
-        }
-        const data = await response.json();
-        console.log("[AvailabilityCalendar] Fetched data:", data);
-        if (data.debug) {
-          console.log("[AvailabilityCalendar] Debug info:", data.debug);
-        }
-        setBookedDates(new Set(data.bookedDates || []));
-        setError(null);
-      } catch (err: any) {
-        console.error("Error fetching availability:", err);
-        setError(err.message || "Failed to load availability");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchAvailability();
-  }, [listingId]);
 
   // Sync calendar selection with context when context changes externally (e.g., from form)
   // But don't override if user is actively selecting (local state takes precedence)
@@ -279,24 +305,50 @@ export default function AvailabilityCalendar({
     }
   };
 
+  const monthAnchor = useMemo(() => {
+    const anchor = new Date();
+    anchor.setDate(1);
+    anchor.setMonth(anchor.getMonth() + monthOffset);
+    return anchor;
+  }, [monthOffset]);
+
+  const canGoPrev = monthOffset > 0;
+  const canGoNext = monthOffset < maxMonthOffset;
+  const showMonthNav = maxMonthOffset > 0;
+
   const renderCalendar = () => {
     const months = [];
-    const today = new Date();
-    today.setDate(1); // Start from first day of current month
 
-    for (let i = 0; i < monthsToShow; i++) {
-      const monthDate = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    for (let i = 0; i < panelsToShow; i++) {
+      const monthDate = new Date(
+        monthAnchor.getFullYear(),
+        monthAnchor.getMonth() + i,
+        1
+      );
       const year = monthDate.getFullYear();
       const month = monthDate.getMonth();
       const firstDayOfWeek = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-      const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const monthName = monthDate.toLocaleDateString(dateLocale, {
+        month: "long",
+        year: "numeric",
+      });
+      const dayNames = Array.from({ length: 7 }, (_, dayIndex) =>
+        new Date(2024, 0, dayIndex + 7).toLocaleDateString(dateLocale, {
+          weekday: "short",
+        })
+      );
 
       months.push(
-        <div key={i} className="mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">{monthName}</h3>
+        <div key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`} className={compact ? "mb-2" : "mb-8"}>
+          <h3
+            className={`font-semibold text-gray-900 ${
+              compact ? "text-sm mb-2" : "text-lg mb-4"
+            }`}
+          >
+            {monthName}
+          </h3>
           <div className="grid grid-cols-7 gap-1">
             {/* Day headers */}
             {dayNames.map((day) => (
@@ -432,10 +484,10 @@ export default function AvailabilityCalendar({
 
   if (loading) {
     return (
-      <div className="py-8">
+      <div className={compact ? "py-4" : "py-8"}>
         <div className="flex items-center justify-center">
           <svg
-            className="animate-spin h-8 w-8 text-[#00a19c]"
+            className={`animate-spin text-[#00a19c] ${compact ? "h-6 w-6" : "h-8 w-8"}`}
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -472,38 +524,95 @@ export default function AvailabilityCalendar({
 
   return (
     <div className="w-full">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Availability</h2>
-        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+      <div className={compact ? "mb-3" : "mb-6"}>
+        {!compact && (
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">{t("availability")}</h2>
+        )}
+        <div className={`flex flex-wrap items-center gap-3 text-gray-600 ${compact ? "text-xs gap-2" : "text-sm gap-4"}`}>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-lg bg-gray-200 border border-gray-300"></div>
-            <span>Booked</span>
+            <div className="w-4 h-4 rounded-lg bg-gray-200 border border-gray-300 line-through text-[10px] text-gray-400 flex items-center justify-center">
+              ×
+            </div>
+            <span>{t("booked")}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-lg bg-[#00a19c]/10 border-2 border-[#00a19c]"></div>
-            <span>Today</span>
+            <span>{t("today")}</span>
           </div>
           {selectedRange && (
             <>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-lg bg-[#00a19c]/20 border border-[#00a19c]/40"></div>
-                <span>Selected</span>
+                <span>{t("selected")}</span>
               </div>
               {isRangeUnavailable && (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-lg bg-orange-50 border border-orange-200"></div>
-                  <span>Unavailable</span>
+                  <span>{t("datesUnavailable")}</span>
                 </div>
               )}
             </>
           )}
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-lg bg-white border border-gray-200"></div>
-            <span>Available</span>
+            <span>{t("available")}</span>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">{renderCalendar()}</div>
+
+      {showMonthNav && (
+        <div
+          className={`flex items-center justify-between gap-2 ${
+            compact ? "mb-3" : "mb-5"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setMonthOffset((offset) => Math.max(0, offset - 1))}
+            disabled={!canGoPrev}
+            aria-label={t("previousMonths")}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
+              canGoPrev
+                ? "border-gray-200 text-gray-700 hover:border-[#00a19c]/40 hover:bg-[#00a19c]/5 hover:text-[#00a19c]"
+                : "border-transparent text-gray-300 cursor-not-allowed"
+            }`}
+          >
+            <ChevronIcon direction="left" />
+          </button>
+
+          <p
+            className={`min-w-0 flex-1 text-center font-medium text-gray-800 ${
+              compact ? "text-sm" : "text-base"
+            }`}
+          >
+            {formatVisibleMonthRange(monthAnchor, panelsToShow, dateLocale)}
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              setMonthOffset((offset) => Math.min(maxMonthOffset, offset + 1))
+            }
+            disabled={!canGoNext}
+            aria-label={t("nextMonths")}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
+              canGoNext
+                ? "border-gray-200 text-gray-700 hover:border-[#00a19c]/40 hover:bg-[#00a19c]/5 hover:text-[#00a19c]"
+                : "border-transparent text-gray-300 cursor-not-allowed"
+            }`}
+          >
+            <ChevronIcon direction="right" />
+          </button>
+        </div>
+      )}
+
+      <div
+        className={`grid gap-4 ${
+          compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 md:grid-cols-2 gap-8"
+        }`}
+      >
+        {renderCalendar()}
+      </div>
     </div>
   );
 }

@@ -1,46 +1,34 @@
 import { getHotelDetail } from "@/lib/data";
-import Link from "next/link";
-import FilteredListingGrid from "@/components/FilteredListingGrid";
-import SearchForm from "@/components/SearchForm";
+import HotelDetailView from "@/components/HotelDetailView";
 
 export default async function HotelPage({ params }: { params: { id: string } }) {
   const hotel = await getHotelDetail(params.id);
   if (!hotel) {
     return <div>Hotel not found</div>;
   }
-  
-  // Serialize listings for client component
-  const serializedListings = hotel.listings.map(l => ({
-    id: l.id,
-    title: l.title,
-    nightlyBasePrice: l.nightlyBasePrice,
-    baseCurrency: l.baseCurrency,
-    images: l.images,
+
+  const serializedListings = hotel.listings.map((listing) => ({
+    id: listing.id,
+    title: listing.title,
+    nightlyBasePrice: listing.nightlyBasePrice,
+    baseCurrency: listing.baseCurrency,
+    images: listing.images,
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/" className="inline-flex items-center gap-2 rounded bg-[#00a19c] px-3 py-2 text-white hover:bg-[#008a86]">
-          ← Back
-        </Link>
-      </div>
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">{hotel.name}</h1>
-        <p className="text-gray-600">{hotel.location}</p>
-      </div>
-      
-      {/* Search Form - shows selected dates if any */}
-      <div className="w-full">
-        <SearchForm />
-      </div>
-      
-      {/* Filtered Listings Grid */}
-      <FilteredListingGrid listings={serializedListings} hotelName={hotel.name} />
-    </div>
+    <HotelDetailView
+      hotel={{
+        id: hotel.id,
+        name: hotel.name,
+        location: hotel.location,
+        logoImageUrl: hotel.logoImageUrl,
+        description: hotel.description,
+        descriptionEn: hotel.descriptionEn,
+        descriptionEs: hotel.descriptionEs,
+      }}
+      listings={serializedListings}
+    />
   );
 }
 
-export const dynamic = 'force-dynamic';
-
-
+export const dynamic = "force-dynamic";

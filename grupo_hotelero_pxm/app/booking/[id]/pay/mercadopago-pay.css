@@ -1,0 +1,33 @@
+/* Mercado Pago Card Payment Brick — inherit site sans-serif (Poppins) */
+.mp-pay-brick-host {
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.mp-pay-brick-host input,
+.mp-pay-brick-host select,
+.mp-pay-brick-host textarea,
+.mp-pay-brick-host button,
+.mp-pay-brick-host label,
+.mp-pay-brick-host p,
+.mp-pay-brick-host span {
+  font-family: inherit;
+}
+
+.mp-pay-brick-host input::placeholder,
+.mp-pay-brick-host textarea::placeholder {
+  font-family: inherit;
+}
+
+/* Match vertical rhythm between the last field and the submit button */
+#mp-card-payment form > div:last-of-type,
+#mp-card-payment [data-testid="email-container"],
+#mp-card-payment [class*="email"] {
+  margin-bottom: 0;
+}
+
+#mp-card-payment form button[type="submit"],
+#mp-card-payment button[type="submit"] {
+  margin-top: 1rem !important;
+}

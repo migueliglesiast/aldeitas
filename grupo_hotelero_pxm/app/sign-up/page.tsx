@@ -114,7 +114,7 @@ export default function SignUpPage() {
             <input className="rounded border px-3 py-2" placeholder="Guests" type="number" min={1} value={u.num_of_guests} onChange={(e) => updateUnit(i, { num_of_guests: Number(e.target.value) })} />
             <input className="rounded border px-3 py-2" placeholder="Beds" type="number" min={0} value={u.number_of_beds} onChange={(e) => updateUnit(i, { number_of_beds: Number(e.target.value) })} />
             <input className="rounded border px-3 py-2" placeholder="Bathrooms" type="number" min={0} step="0.5" value={u.number_of_bathrooms} onChange={(e) => updateUnit(i, { number_of_bathrooms: Number(e.target.value) })} />
-            <input className="rounded border px-3 py-2" placeholder="Cost per night (USD)" type="number" min={0} step="0.01" value={u.cost_night} onChange={(e) => updateUnit(i, { cost_night: Number(e.target.value) })} />
+            <input className="rounded border px-3 py-2" placeholder="Cost per night (MXN)" type="number" min={0} step="0.01" value={u.cost_night} onChange={(e) => updateUnit(i, { cost_night: Number(e.target.value) })} />
             <input className="rounded border px-3 py-2" placeholder="Calendar iCal URL (optional)" value={u.calendar ?? ""} onChange={(e) => updateUnit(i, { calendar: e.target.value })} />
             <input className="sm:col-span-2 rounded border px-3 py-2" placeholder="Private amenities (comma separated)" value={u.private_ammenities ?? ""} onChange={(e) => updateUnit(i, { private_ammenities: e.target.value })} />
             <textarea className="sm:col-span-2 rounded border px-3 py-2" placeholder="Unit description" value={u.description} onChange={(e) => updateUnit(i, { description: e.target.value })} />

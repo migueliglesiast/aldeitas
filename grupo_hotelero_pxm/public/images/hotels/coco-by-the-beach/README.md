@@ -4,3 +4,4 @@ Optional public/common area images go under:
 - /images/hotels/coco-by-the-beach/public/
 
 
+

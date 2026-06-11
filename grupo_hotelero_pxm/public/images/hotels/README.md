@@ -24,3 +24,4 @@ Notes:
 - After adding files, access them via /images/hotels/<slug>/cover.jpg
 
 
+

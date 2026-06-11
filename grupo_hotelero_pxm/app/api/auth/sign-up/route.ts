@@ -86,7 +86,7 @@ export async function POST(req: Request) {
                 icalUrl: u.calendar ?? null,
                 title: u.name_of_unit,
                 nightlyBasePrice: Math.round((u.cost_night || 0) * 100),
-                baseCurrency: "USD",
+                baseCurrency: "MXN",
               })),
             }
           : undefined,

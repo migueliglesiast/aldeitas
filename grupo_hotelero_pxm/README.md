@@ -16,6 +16,19 @@ open out/index.html
 ```
 
 Limitations on Pages:
-- API routes, server actions, Stripe webhooks, and scraping won’t run on Pages. The static export presents the marketing/catalog UI. Use the app locally or a server for full booking/payment.
+- API routes, server actions, payment webhooks, and scraping won’t run on Pages. The static export presents the marketing/catalog UI. Use the app locally or a server for full booking/payment.
 
+## Booking & payments (local / server)
 
+See [BOOKING_SETUP.md](./BOOKING_SETUP.md) for payments and [DEPLOY_ICLOUDS.md](./DEPLOY_ICLOUDS.md) for production on iClouds.mx.
+
+Quick start (local):
+
+```bash
+cp .env.example .env
+docker compose up -d
+npx prisma db push
+npm run seed
+# Add MERCADOPAGO_ACCESS_TOKEN and NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY (see BOOKING_SETUP.md)
+npm run dev
+```

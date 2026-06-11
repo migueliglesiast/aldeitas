@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchDynamicPricing } from "@/lib/airbnb";
+import { SITE_CURRENCY } from "@/lib/currency";
 
 export async function GET(
   req: NextRequest,
@@ -44,8 +45,11 @@ export async function GET(
       return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
     }
 
-    const nightlyCents = dynamic?.nightlyCents ?? listing.nightlyBasePrice;
-    const currency = dynamic?.currency ?? listing.baseCurrency;
+    const currency = SITE_CURRENCY;
+    const nightlyCents =
+      dynamic?.currency === SITE_CURRENCY
+        ? dynamic.nightlyCents
+        : listing.nightlyBasePrice;
     const totalCents = Math.round(nightlyCents * nights);
 
     return NextResponse.json({

@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
 
 export default function SearchForm() {
   const { searchParams, setSearchParams, setHotelAvailability } = useHotel();
+  const { t, dateLocale } = useLocale();
   const [checkIn, setCheckIn] = useState<string>(() => searchParams?.checkIn || "");
   const [checkOut, setCheckOut] = useState<string>(() => searchParams?.checkOut || "");
   const [guests, setGuests] = useState<number>(() => searchParams?.guests || 1);
@@ -56,9 +58,9 @@ export default function SearchForm() {
   };
 
   const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return "Add date";
-    const date = new Date(dateString + 'T00:00:00'); // Add time to avoid timezone issues
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (!dateString) return t("addDate");
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
   const handleDateChange = (type: 'checkIn' | 'checkOut', value: string) => {
@@ -72,6 +74,19 @@ export default function SearchForm() {
       setCheckOut(value);
     }
   };
+
+  const hasActiveSearch = Boolean(checkIn || checkOut || searchParams);
+
+  function handleClear() {
+    setCheckIn("");
+    setCheckOut("");
+    setGuests(1);
+    setPets(0);
+    setShowGuestPicker(false);
+    setShowPetPicker(false);
+    setSearchParams(null);
+    setHotelAvailability(null);
+  }
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +130,7 @@ export default function SearchForm() {
           }}
         >
           <label className="absolute left-4 top-3 text-xs font-medium text-gray-700 pointer-events-none z-10">
-            Check in
+            {t("checkIn")}
           </label>
           <input
             ref={checkInInputRef}
@@ -146,7 +161,7 @@ export default function SearchForm() {
           }}
         >
           <label className="absolute left-4 top-3 text-xs font-medium text-gray-700 pointer-events-none z-10">
-            Check out
+            {t("checkOut")}
           </label>
           <input
             ref={checkOutInputRef}
@@ -178,9 +193,9 @@ export default function SearchForm() {
             }}
             className="w-full pt-8 pb-3 px-4 text-left text-sm font-medium text-gray-900 hover:bg-gray-50/50 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a19c]/20 border-r border-gray-200/50"
           >
-            <span className="absolute left-4 top-3 text-xs font-medium text-gray-700">Guests</span>
+            <span className="absolute left-4 top-3 text-xs font-medium text-gray-700">{t("guests")}</span>
             <span className="block mt-1">
-              {guests} {guests === 1 ? 'guest' : 'guests'}
+              {guests} {guests === 1 ? t("guest") : t("guestsPlural")}
             </span>
           </button>
           
@@ -188,8 +203,8 @@ export default function SearchForm() {
             <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200/50 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-medium text-gray-900">Adults</div>
-                  <div className="text-xs text-gray-500">Ages 13+</div>
+                  <div className="font-medium text-gray-900">{t("adults")}</div>
+                  <div className="text-xs text-gray-500">{t("ages13Plus")}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -219,7 +234,7 @@ export default function SearchForm() {
                 onClick={() => setShowGuestPicker(false)}
                 className="w-full text-left text-sm font-medium text-[#00a19c] hover:underline"
               >
-                Done
+                {t("done")}
               </button>
             </div>
           )}
@@ -238,9 +253,9 @@ export default function SearchForm() {
             }}
             className="w-full pt-8 pb-3 px-4 text-left text-sm font-medium text-gray-900 hover:bg-gray-50/50 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a19c]/20"
           >
-            <span className="absolute left-4 top-3 text-xs font-medium text-gray-700">Pets</span>
+            <span className="absolute left-4 top-3 text-xs font-medium text-gray-700">{t("pets")}</span>
             <span className="block mt-1">
-              {pets === 0 ? 'No pets' : `${pets} ${pets === 1 ? 'pet' : 'pets'}`}
+              {pets === 0 ? t("noPets") : `${pets} ${pets === 1 ? t("pet") : t("petsPlural")}`}
             </span>
           </button>
           
@@ -248,8 +263,8 @@ export default function SearchForm() {
             <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200/50 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-medium text-gray-900">Pets</div>
-                  <div className="text-xs text-gray-500">Bringing a service animal?</div>
+                  <div className="font-medium text-gray-900">{t("pets")}</div>
+                  <div className="text-xs text-gray-500">{t("serviceAnimal")}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -279,14 +294,29 @@ export default function SearchForm() {
                 onClick={() => setShowPetPicker(false)}
                 className="w-full text-left text-sm font-medium text-[#00a19c] hover:underline"
               >
-                Done
+                {t("done")}
               </button>
             </div>
           )}
         </div>
 
-        {/* Search Button */}
-        <div className="p-2">
+        {/* Clear + Search */}
+        <div className="flex items-center gap-2 p-2">
+          {hasActiveSearch ? (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={isSearching}
+              aria-label={t("clearSearchDates")}
+              title={t("clearSearchDates")}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 disabled:opacity-50"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span className="sr-only">{t("clearSearch")}</span>
+            </button>
+          ) : null}
           <button
             type="submit"
             disabled={isSearching || !checkIn || !checkOut}
@@ -298,14 +328,14 @@ export default function SearchForm() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span className="hidden sm:inline">Searching...</span>
+                <span className="hidden sm:inline">{t("searching")}</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span className="hidden sm:inline">Search</span>
+                <span className="hidden sm:inline">{t("search")}</span>
               </>
             )}
           </button>

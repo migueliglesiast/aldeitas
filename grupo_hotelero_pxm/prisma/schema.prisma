@@ -3,45 +3,122 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id               String         @id @default(cuid())
+  username         String         @unique
+  email            String         @unique
+  passwordHash     String
+  hotelName        String?
+  phoneNumber      String?
+  instagramLink    String?
+  shortDescription String?
+  publicAmenities  String?
+  fullName         String?
+  nickname         String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  sessions         Session[]
+  hotelManagers    HotelManager[]
+  ownedHotels      Hotel[]        @relation("HotelOwner")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  sessionToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
 model Hotel {
-  id                String     @id @default(cuid())
-  name              String
-  description       String
-  location          String
-  googleMapsUrl     String?
-  googleDriveFolderId String? // Google Drive folder ID for hotel images
-  coverImageUrl     String?   // Direct URL to cover image (can be Google Drive)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  listings          Listing[]
+  id                  String         @id @default(cuid())
+  name                String
+  description         String
+  descriptionEn       String?
+  descriptionEs       String?
+  location            String
+  googleMapsUrl       String?
+  latitude            Float?
+  longitude           Float?
+  googleDriveFolderId String?
+  coverImageUrl       String?
+  logoImageUrl        String?
+  mainContactNumber   String?
+  ownerId             String?
+  owner               User?          @relation("HotelOwner", fields: [ownerId], references: [id])
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  listings            Listing[]
+  contacts            HotelContact[]
+  images              HotelImage[]
+  managers            HotelManager[]
+}
+
+model HotelManager {
+  id        String   @id @default(cuid())
+  userId    String
+  hotelId   String
+  user      User     @relation(fields: [userId], references: [id])
+  hotel     Hotel    @relation(fields: [hotelId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, hotelId])
+}
+
+model HotelContact {
+  id        String   @id @default(cuid())
+  hotelId   String
+  hotel     Hotel    @relation(fields: [hotelId], references: [id])
+  type      String
+  name      String
+  phone     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HotelImage {
+  id        String   @id @default(cuid())
+  hotelId   String
+  hotel     Hotel    @relation(fields: [hotelId], references: [id])
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Listing {
-  id               String    @id @default(cuid())
-  hotelId          String
-  hotel            Hotel     @relation(fields: [hotelId], references: [id])
-  airbnbId         String
-  airbnbUrl        String
-  icalUrl          String?   // Legacy Airbnb iCal URL (deprecated, use CalendarSource instead)
-  title            String
-  description      String?   // Room-specific description and characteristics
-  baseCurrency     String    @default("USD")
-  nightlyBasePrice Int       @default(0)
-  images           Image[]
-  calendarSources  CalendarSource[]
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  bookings         Booking[]
+  id                   String           @id @default(cuid())
+  hotelId              String
+  hotel                Hotel            @relation(fields: [hotelId], references: [id])
+  airbnbId             String
+  airbnbUrl            String
+  icalUrl              String?
+  title                String
+  description          String?
+  descriptionEn        String?
+  descriptionEs        String?
+  baseCurrency         String           @default("MXN")
+  nightlyBasePrice     Int              @default(0)
+  guestsInBeds         Int?
+  guestsInBedsAndSofas Int?
+  numberOfBeds         Int?
+  numberOfBathrooms    Float?
+  bedType              String?
+  images               Image[]
+  calendarSources      CalendarSource[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  bookings             Booking[]
 }
 
 model Image {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id])
+  listing   Listing @relation(fields: [listingId], references: [id])
   url       String
   position  Int
 }
@@ -56,18 +133,26 @@ model CalendarSource {
 }
 
 model Booking {
-  id            String   @id @default(cuid())
-  listingId     String
-  listing       Listing  @relation(fields: [listingId], references: [id])
-  guestEmail    String
-  guestPhone    String
-  startDate     DateTime
-  endDate       DateTime
-  totalPriceCents Int
-  currency      String   @default("USD")
-  stripePaymentIntentId String?
-  status        BookingStatus @default(PENDING)
-  createdAt     DateTime @default(now())
+  id                      String        @id @default(cuid())
+  listingId               String
+  listing                 Listing       @relation(fields: [listingId], references: [id])
+  guestEmail              String
+  guestPhone              String
+  startDate               DateTime
+  endDate                 DateTime
+  totalPriceCents         Int
+  currency                String        @default("MXN")
+  paymentProvider         String?
+  paymentOrderId          String?
+  paymentReference        String?
+  authorizedAt            DateTime?
+  confirmedAt             DateTime?
+  pendingExpiresAt        DateTime?
+  cancelReason            String?
+  externalBlocksSnapshot  String?
+  lastReconciledAt        DateTime?
+  status                  BookingStatus @default(PENDING)
+  createdAt               DateTime      @default(now())
 }
 
 enum BookingStatus {
@@ -75,5 +160,3 @@ enum BookingStatus {
   CONFIRMED
   CANCELED
 }
-
-

@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { formatMoneyShort } from "@/lib/currency";
 
 type ImageType = { id: string; url: string; position: number };
 type Listing = { id: string; title: string; nightlyBasePrice: number; baseCurrency: string; images: ImageType[] };
@@ -33,8 +34,8 @@ export default function ListingGrid({ hotels }: { hotels: Hotel[] }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <input placeholder="Search location or title" value={query} onChange={(e) => setQuery(e.target.value)} className="rounded border px-3 py-2 sm:col-span-2" />
-        <input placeholder="Min $/night" value={min} onChange={(e) => setMin(e.target.value)} className="rounded border px-3 py-2" />
-        <input placeholder="Max $/night" value={max} onChange={(e) => setMax(e.target.value)} className="rounded border px-3 py-2" />
+        <input placeholder="Min MXN/night" value={min} onChange={(e) => setMin(e.target.value)} className="rounded border px-3 py-2" />
+        <input placeholder="Max MXN/night" value={max} onChange={(e) => setMax(e.target.value)} className="rounded border px-3 py-2" />
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {listings.map((l) => (
@@ -49,7 +50,7 @@ export default function ListingGrid({ hotels }: { hotels: Hotel[] }) {
             <div className="p-3">
               <div className="flex items-center justify-between">
                 <p className="font-medium">{l.title}</p>
-                <p className="text-sm text-gray-500">from ${(l.nightlyBasePrice / 100).toFixed(0)} {l.baseCurrency}</p>
+                <p className="text-sm text-gray-500">{formatMoneyShort(l.nightlyBasePrice, l.baseCurrency)}</p>
               </div>
               <p className="text-sm text-gray-600">{l.hotel.location}</p>
             </div>

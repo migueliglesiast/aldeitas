@@ -112,3 +112,4 @@ Direct URLs would be:
 - **Permissions**: Make sure folders/files are set to "Anyone with the link can view"
 - **Rate limits**: Google Drive has rate limits, consider caching image URLs
 
+

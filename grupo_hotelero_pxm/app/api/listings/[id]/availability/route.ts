@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
+import { blockingBookingStatusWhere, expireStaleUnpaidBookings } from "@/lib/booking-blocks";
 
 export async function GET(
   req: NextRequest,
@@ -8,14 +9,14 @@ export async function GET(
 ) {
   try {
     const debug = req.nextUrl.searchParams.get('debug') === 'true';
+    await expireStaleUnpaidBookings(params.id);
+
     const listing = await prisma.listing.findUnique({
       where: { id: params.id },
       include: {
         calendarSources: true,
         bookings: {
-          where: {
-            status: { in: ["PENDING", "CONFIRMED"] },
-          },
+          where: blockingBookingStatusWhere,
         },
       },
     });

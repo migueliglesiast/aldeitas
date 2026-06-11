@@ -1,6 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+import {
+  rangeOverlapsBookedDates,
+  useListingBookedDates,
+} from "@/hooks/useListingBookedDates";
+import { formatMoney } from "@/lib/currency";
 
 type Props = {
   listingId: string;
@@ -18,8 +25,11 @@ type PricingData = {
   isDynamic: boolean;
 };
 
+type PaymentProviderId = "conekta" | "mercadopago";
+
 export default function BookingForm({ listingId, basePriceCents, currency }: Props) {
   const { searchParams, setSearchParams } = useHotel();
+  const { t } = useLocale();
   const [start, setStart] = useState<string>(searchParams?.checkIn || "");
   const [end, setEnd] = useState<string>(searchParams?.checkOut || "");
   const [email, setEmail] = useState("");
@@ -28,8 +38,23 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   const [message, setMessage] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
+  const [providers, setProviders] = useState<PaymentProviderId[]>([]);
+  const [paymentProvider, setPaymentProvider] = useState<PaymentProviderId>("mercadopago");
+  const { bookedDates } = useListingBookedDates(listingId);
 
-  // Update dates when search params change (from calendar or external source)
+  useEffect(() => {
+    fetch("/api/payment-providers")
+      .then((res) => res.json())
+      .then((data) => {
+        const available = (data.providers || []) as PaymentProviderId[];
+        setProviders(available);
+        if (available.length > 0) {
+          setPaymentProvider(available[0]);
+        }
+      })
+      .catch(() => setProviders([]));
+  }, []);
+
   useEffect(() => {
     if (searchParams?.checkIn) {
       setStart(searchParams.checkIn);
@@ -43,7 +68,6 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     }
   }, [searchParams]);
 
-  // Fetch pricing when dates change
   useEffect(() => {
     if (start && end) {
       setLoadingPricing(true);
@@ -69,87 +93,63 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     }
   }, [start, end, listingId]);
 
-  const minDate = new Date().toISOString().split('T')[0];
-  
-  const getMinCheckoutDate = () => {
-    if (!start) return minDate;
-    const checkInDate = new Date(start);
-    checkInDate.setDate(checkInDate.getDate() + 1);
-    return checkInDate.toISOString().split('T')[0];
-  };
+  function formatDisplayDate(value: string) {
+    return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }
 
-  const handleStartChange = (value: string) => {
-    setStart(value);
-    // Clear check-out if it's before the new check-in
-    if (end && value && new Date(end) <= new Date(value)) {
-      setEnd("");
-    }
-    // Update context when form dates change
-    if (value) {
-      setSearchParams({
-        checkIn: value,
-        checkOut: (end && value && new Date(end) > new Date(value)) ? end : "",
-        guests: searchParams?.guests || 1,
-        pets: searchParams?.pets || 0,
-      });
-    } else {
-      // If check-in is cleared, clear the context
-      setSearchParams(null);
-    }
-  };
-
-  const handleEndChange = (value: string) => {
-    setEnd(value);
-    // Update context when form dates change
-    if (value && start) {
-      setSearchParams({
-        checkIn: start,
-        checkOut: value,
-        guests: searchParams?.guests || 1,
-        pets: searchParams?.pets || 0,
-      });
-    } else if (start) {
-      // If check-out is cleared but check-in exists, update context with just check-in
-      setSearchParams({
-        checkIn: start,
-        checkOut: "",
-        guests: searchParams?.guests || 1,
-        pets: searchParams?.pets || 0,
-      });
-    }
-  };
-
-  const nights = start && end 
-    ? Math.max(0, Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)))
-    : 0;
-  
-  // Use pricing from API if available, otherwise calculate from base price
-  const totalCents = pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
-  const displayCurrency = pricing?.currency ?? currency;
-  const nightlyCents = pricing?.nightlyCents ?? basePriceCents;
+  const rangeUnavailable =
+    start && end ? rangeOverlapsBookedDates(start, end, bookedDates) : false;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+
+    if (!start || !end) {
+      setMessage(t("selectDatesOnCalendar"));
+      setLoading(false);
+      return;
+    }
+
+    if (rangeOverlapsBookedDates(start, end, bookedDates)) {
+      setMessage(t("datesUnavailable"));
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listingId, start, end, email, phone }),
+        body: JSON.stringify({
+          listingId,
+          start,
+          end,
+          email,
+          phone,
+          paymentProvider: providers.length > 0 ? paymentProvider : undefined,
+        }),
       });
       let data: any = {};
       try {
         data = await response.json();
       } catch {
         const txt = await response.text();
-        data = { error: txt || "Booking failed" };
+        data = { error: txt || t("bookingFailed") };
       }
-      if (!response.ok) throw new Error(data.error || "Booking failed");
+      if (!response.ok) throw new Error(data.error || t("bookingFailed"));
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
+      } else if (data.paymentPageUrl) {
+        window.location.href = data.paymentPageUrl;
+      } else if (data.statusUrl) {
+        window.location.href = data.statusUrl;
       } else {
-        setMessage("Booking created.");
+        setMessage(data.message || t("bookingCreated"));
       }
     } catch (err: any) {
       setMessage(err.message);
@@ -158,73 +158,126 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     }
   }
 
+  const nights =
+    start && end
+      ? Math.max(
+          0,
+          Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
+        )
+      : 0;
+
+  const totalCents = pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
+  const displayCurrency = pricing?.currency ?? currency;
+  const nightlyCents = pricing?.nightlyCents ?? basePriceCents;
+
   return (
-    <form onSubmit={submit} className="space-y-3 rounded border p-4">
+    <form onSubmit={submit} className="space-y-4 rounded border p-4">
+      <AvailabilityCalendar listingId={listingId} compact monthsToShow={14} />
+
+      <div className="rounded bg-gray-50 px-3 py-2 text-sm">
+        {start && end ? (
+          <div className="space-y-1">
+            <div>
+              <span className="font-medium">{t("checkInLabel")}:</span> {formatDisplayDate(start)}
+            </div>
+            <div>
+              <span className="font-medium">{t("checkOutLabel")}:</span> {formatDisplayDate(end)}
+            </div>
+            {rangeUnavailable && (
+              <p className="text-red-600">{t("datesUnavailable")}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-gray-600">{t("selectDatesOnCalendar")}</p>
+        )}
+      </div>
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">Check-in</label>
-        <input 
-          type="date" 
-          value={start} 
-          onChange={(e) => handleStartChange(e.target.value)} 
-          min={minDate}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c]" 
-          required 
+        <label className="block text-sm">{t("email")}</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded border px-3 py-2"
+          required
         />
       </div>
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">Check-out</label>
-        <input 
-          type="date" 
-          value={end} 
-          onChange={(e) => handleEndChange(e.target.value)} 
-          min={getMinCheckoutDate()}
-          disabled={!start}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c] disabled:bg-gray-100 disabled:cursor-not-allowed" 
-          required 
+        <label className="block text-sm">{t("phone")}</label>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          className="w-full rounded border px-3 py-2"
+          required
         />
       </div>
-      <div className="space-y-1">
-        <label className="block text-sm">Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded border px-3 py-2" required />
-      </div>
-      <div className="space-y-1">
-        <label className="block text-sm">Phone</label>
-        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded border px-3 py-2" required />
-      </div>
+      {providers.length > 1 && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">{t("paymentMethod")}</label>
+          {providers.includes("conekta") && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="paymentProvider"
+                value="conekta"
+                checked={paymentProvider === "conekta"}
+                onChange={() => setPaymentProvider("conekta")}
+              />
+              {t("payWithConekta")}
+            </label>
+          )}
+          {providers.includes("mercadopago") && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="paymentProvider"
+                value="mercadopago"
+                checked={paymentProvider === "mercadopago"}
+                onChange={() => setPaymentProvider("mercadopago")}
+              />
+              {t("payWithMercadoPago")}
+            </label>
+          )}
+        </div>
+      )}
       <div className="space-y-2 text-sm">
         <div className="flex items-center justify-between text-gray-600">
-          <span>{nights} {nights === 1 ? 'night' : 'nights'}</span>
+          <span>
+            {nights} {nights === 1 ? t("night") : t("nights")}
+          </span>
           {loadingPricing ? (
-            <span className="text-gray-400">Calculating...</span>
+            <span className="text-gray-400">{t("calculating")}</span>
           ) : pricing ? (
             <div className="text-right">
               <div className="font-semibold text-gray-900">
-                ${(totalCents / 100).toFixed(2)} {displayCurrency}
+                {formatMoney(totalCents, displayCurrency)}
               </div>
               {pricing.isDynamic && (
                 <div className="text-xs text-gray-500">
-                  ${(nightlyCents / 100).toFixed(2)}/{nights === 1 ? 'night' : 'night'}
+                  {formatMoney(nightlyCents, displayCurrency)}/{t("night")}
                 </div>
               )}
             </div>
           ) : (
             <span className="text-gray-600">
-              ${(totalCents / 100).toFixed(2)} {displayCurrency}
+              {formatMoney(totalCents, displayCurrency)}
             </span>
           )}
         </div>
         {pricing && pricing.isDynamic && pricing.nightlyCents !== pricing.basePriceCents && (
-          <div className="text-xs text-gray-500 pt-1 border-t">
-            Base rate: ${(pricing.basePriceCents / 100).toFixed(2)}/{nights === 1 ? 'night' : 'night'}
+          <div className="border-t pt-1 text-xs text-gray-500">
+            {t("baseRate")}: {formatMoney(pricing.basePriceCents, pricing.baseCurrency)}/{t("night")}
           </div>
         )}
       </div>
-      <button disabled={loading} className="w-full rounded bg-[#00a19c] py-2 text-white hover:bg-[#008a86] disabled:opacity-50">
-        {loading ? "Processing..." : "Reserve"}
+      <button
+        disabled={loading || !start || !end || rangeUnavailable}
+        className="w-full rounded bg-[#00a19c] py-2 text-white hover:bg-[#008a86] disabled:opacity-50"
+      >
+        {loading ? t("processing") : t("reserve")}
       </button>
+      <p className="text-xs text-gray-500">{t("cardNotice")}</p>
       {message && <p className="text-sm text-red-600">{message}</p>}
     </form>
   );
 }
-
-

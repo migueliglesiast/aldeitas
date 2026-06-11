@@ -111,3 +111,4 @@ All will be checked when determining availability.
 - The system checks all calendar sources linked to a listing when checking availability
 - Room images are stored in the `Image` model with a `position` field for ordering
 
+

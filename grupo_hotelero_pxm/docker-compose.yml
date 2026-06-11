@@ -1,0 +1,16 @@
+# Local PostgreSQL for development (production uses iClouds or Neon).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: casayahua
+      POSTGRES_PASSWORD: casayahua
+      POSTGRES_DB: casayahua
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

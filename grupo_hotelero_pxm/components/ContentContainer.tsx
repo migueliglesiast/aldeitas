@@ -1,58 +1,32 @@
 "use client";
 import { useHotel } from "@/lib/hotel-context";
-import { useState, useEffect, ReactNode } from "react";
+import { ReactNode } from "react";
 
 export default function ContentContainer({ children }: { children: ReactNode }) {
   const { selectedHotelImage } = useHotel();
-  const [imageLoaded, setImageLoaded] = useState(false);
-
-  useEffect(() => {
-    if (selectedHotelImage) {
-      setImageLoaded(false);
-      const img = new Image();
-      img.onload = () => setImageLoaded(true);
-      img.onerror = () => setImageLoaded(false);
-      img.src = selectedHotelImage;
-    } else {
-      setImageLoaded(false);
-    }
-  }, [selectedHotelImage]);
+  const hasHotelFocus = Boolean(selectedHotelImage);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-4 md:py-6 rounded-lg mt-[1vh] md:mt-[2vh] relative overflow-hidden">
-      {/* Blurred background layer */}
-      {selectedHotelImage && imageLoaded && (
-        <div
-          className="absolute inset-0 rounded-lg transition-opacity duration-1000 ease-in-out"
-          style={{
-            backgroundImage: `url(${selectedHotelImage})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            filter: "blur(30px) brightness(0.95) saturate(1.0)",
-            transform: "scale(1.05)",
-            zIndex: 0,
-            opacity: 0.4,
-          }}
-        />
-      )}
-      
-      {/* Overlay that blends with original background color */}
+    <div className="relative mx-auto mt-[1vh] max-w-7xl px-4 py-4 md:mt-[2vh] md:py-6">
       <div
-        className="absolute inset-0 rounded-lg backdrop-blur-sm transition-all duration-1000 ease-in-out"
-        style={{
-          backgroundColor: selectedHotelImage && imageLoaded 
-            ? "rgba(195, 208, 205, 0.0125)" 
-            : "rgba(195, 208, 205, 0.02)",
-          zIndex: 1,
-        }}
+        aria-hidden
+        className={[
+          "pointer-events-none absolute inset-0 rounded-xl border",
+          "bg-[#fcfcfb]/90 backdrop-blur-md",
+          "shadow-[0_8px_32px_rgba(15,23,42,0.07)]",
+          hasHotelFocus
+            ? "border-[#00a19c]/15 ring-1 ring-[#00a19c]/10"
+            : "border-slate-200/70 ring-1 ring-black/[0.03]",
+          "transition-[border-color,box-shadow] duration-300 ease-out",
+        ].join(" ")}
       />
-      
-      {/* Content */}
-      <div className="relative z-10">
-        {children}
-      </div>
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-xl bg-gradient-to-b from-white/60 to-transparent"
+      />
+
+      <div className="relative z-10">{children}</div>
     </div>
   );
 }
-

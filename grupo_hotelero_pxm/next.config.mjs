@@ -1,8 +1,19 @@
 /** @type {import('next').NextConfig} */
+const siteHost = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SITE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SITE_URL).host
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 const nextConfig = {
+  output: "standalone",
   experimental: {
     serverActions: {
-      allowedOrigins: ["localhost:3000"],
+      allowedOrigins: siteHost ? [siteHost, "localhost:3000"] : ["localhost:3000"],
     },
   },
   // Only set basePath and assetPrefix if explicitly provided (for production deployments)

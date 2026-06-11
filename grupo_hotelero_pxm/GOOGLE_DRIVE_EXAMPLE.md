@@ -132,3 +132,4 @@ Repeat the same process for each hotel:
 
 Each hotel gets its own folder with the same structure.
 
+
