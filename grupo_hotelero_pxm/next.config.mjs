@@ -9,11 +9,16 @@ const siteHost = (() => {
   }
 })();
 
+const allowedOrigins = ["localhost:3000"];
+if (siteHost) allowedOrigins.push(siteHost);
+if (process.env.VERCEL_URL) allowedOrigins.push(process.env.VERCEL_URL);
+
 const nextConfig = {
-  output: "standalone",
+  // Standalone is for Docker/self-hosted; Vercel uses its own runtime.
+  ...(!process.env.VERCEL ? { output: "standalone" } : {}),
   experimental: {
     serverActions: {
-      allowedOrigins: siteHost ? [siteHost, "localhost:3000"] : ["localhost:3000"],
+      allowedOrigins,
     },
   },
   // Only set basePath and assetPrefix if explicitly provided (for production deployments)

@@ -20,7 +20,7 @@ Limitations on Pages:
 
 ## Booking & payments (local / server)
 
-See [BOOKING_SETUP.md](./BOOKING_SETUP.md) for payments and [DEPLOY_ICLOUDS.md](./DEPLOY_ICLOUDS.md) for production on iClouds.mx.
+See [BOOKING_SETUP.md](./BOOKING_SETUP.md) for payments and [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) for production on **Vercel + Neon**.
 
 Quick start (local):
 
@@ -32,3 +32,5 @@ npm run seed
 # Add MERCADOPAGO_ACCESS_TOKEN and NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY (see BOOKING_SETUP.md)
 npm run dev
 ```
+
+Production deploy: import repo `migueliglesiast/aldeitas` on [Vercel](https://vercel.com/new), set root directory to `grupo_hotelero_pxm`, connect Neon URLs — full steps in [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md).
