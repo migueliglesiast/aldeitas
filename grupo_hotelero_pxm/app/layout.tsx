@@ -7,6 +7,8 @@ import { HotelProvider } from "../lib/hotel-context";
 import { LocaleProvider } from "../lib/i18n/locale-context";
 import { Poppins } from "next/font/google";
 
+export const dynamic = "force-dynamic";
+
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
 export const metadata = {

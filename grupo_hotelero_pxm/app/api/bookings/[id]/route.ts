@@ -11,6 +11,8 @@ import {
   resolveMercadoPagoPayerEmail,
 } from "@/lib/payment-providers/mercadopago";
 
+export const dynamic = "force-dynamic";
+
 function publicBookingStatus(booking: {
   id: string;
   status: string;

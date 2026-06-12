@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { scrapeListingImages } from "@/lib/airbnb";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   if (process.env.NEXT_RUNTIME === 'edge' || process.env.NEXT_PHASE === 'phase-export') {
     return NextResponse.json({ error: 'Not available in static export' }, { status: 405 });

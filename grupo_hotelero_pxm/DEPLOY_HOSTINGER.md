@@ -67,7 +67,9 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 
 ### Environment variables
 
-Add in hPanel **before** the first deploy (or import from a local copy of `.env` **without secrets in git**):
+Add env vars in hPanel **before** the first deploy (or import from a local copy of `.env` **without secrets in git**).
+
+**Important:** set both `DATABASE_URL` and `DIRECT_URL` even though the build no longer hits the database — Prisma validates them when the app starts.
 
 | Variable | Production value |
 |----------|------------------|

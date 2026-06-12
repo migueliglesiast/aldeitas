@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { fetchDynamicPricing } from "@/lib/airbnb";
 import { SITE_CURRENCY } from "@/lib/currency";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

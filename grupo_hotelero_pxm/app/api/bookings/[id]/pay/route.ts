@@ -5,6 +5,8 @@ import { markBookingAuthorizedForBooking } from "@/lib/booking-payment";
 import { isMercadoPagoConfigured } from "@/lib/payment-providers/config";
 import { createMercadoPagoCardAuthorization } from "@/lib/payment-providers";
 
+export const dynamic = "force-dynamic";
+
 const bodySchema = z
   .object({
     token: z.string().min(1),

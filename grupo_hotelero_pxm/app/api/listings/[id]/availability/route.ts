@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import { blockingBookingStatusWhere, expireStaleUnpaidBookings } from "@/lib/booking-blocks";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

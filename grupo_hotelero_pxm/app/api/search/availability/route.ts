@@ -4,6 +4,8 @@ import { fetchIcalBlocks } from "@/lib/airbnb";
 import { isBefore } from "date-fns";
 import { blockingBookingWhere, expireStaleUnpaidBookings } from "@/lib/booking-blocks";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const { checkIn, checkOut } = await req.json();

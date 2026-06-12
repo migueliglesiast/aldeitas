@@ -18,6 +18,8 @@ import {
 } from "@/lib/booking-blocks";
 import { SITE_CURRENCY } from "@/lib/currency";
 
+export const dynamic = "force-dynamic";
+
 const bodySchema = z.object({
   listingId: z.string(),
   start: z.string(),

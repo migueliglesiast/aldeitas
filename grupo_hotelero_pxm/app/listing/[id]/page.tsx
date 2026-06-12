@@ -1,6 +1,5 @@
 import { getListingDetail } from "@/lib/data";
 import ListingDetailBody from "@/components/ListingDetailBody";
-import { prisma } from "@/lib/prisma";
 
 export default async function ListingPage({ params }: { params: { id: string } }) {
   const listing = await getListingDetail(params.id);
@@ -30,12 +29,3 @@ export default async function ListingPage({ params }: { params: { id: string } }
 }
 
 export const dynamic = "force-dynamic";
-
-export async function generateStaticParams() {
-  try {
-    const rows = await prisma.listing.findMany({ select: { id: true } });
-    return rows.map((r) => ({ id: r.id }));
-  } catch {
-    return [];
-  }
-}

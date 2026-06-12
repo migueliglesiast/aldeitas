@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { reconcileBooking, reconcilePendingBookings } from "@/lib/booking-reconcile";
 import { expireStaleUnpaidBookings } from "@/lib/booking-blocks";
 
+export const dynamic = "force-dynamic";
+
 function isAuthorized(req: NextRequest) {
   if (process.env.NODE_ENV === "development" && !process.env.BOOKING_RECONCILE_SECRET) {
     return true;

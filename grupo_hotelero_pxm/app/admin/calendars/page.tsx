@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import CalendarForm from "@/components/CalendarForm";
 import CalendarSourceItem from "@/components/CalendarSourceItem";
 
+export const dynamic = "force-dynamic";
+
 export default async function CalendarsAdminPage() {
   const sources = await prisma.calendarSource.findMany({ 
     include: { 

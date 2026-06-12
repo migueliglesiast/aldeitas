@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { markBookingAuthorizedFromPaymentOrder } from "@/lib/booking-payment";
 import { isMercadoPagoOrderAuthorized } from "@/lib/payment-providers/mercadopago";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
     return NextResponse.json({ error: "Mercado Pago webhook is not configured" }, { status: 400 });

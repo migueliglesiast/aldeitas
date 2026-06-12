@@ -5,6 +5,8 @@ import {
 } from "@/lib/booking-payment";
 import { getConektaBookingIdFromOrder, getConektaOrder } from "@/lib/payment-providers/conekta";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   if (!process.env.CONEKTA_PRIVATE_KEY) {
     return NextResponse.json({ error: "Conekta webhook is not configured" }, { status: 400 });
