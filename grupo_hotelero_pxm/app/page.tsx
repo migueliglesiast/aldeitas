@@ -36,10 +36,22 @@ export default async function HomePage() {
     longitude: h.longitude ?? null,
     coverImageUrl: h.coverImageUrl || null,
     logoImageUrl: h.logoImageUrl || null,
-    createdAt: h.createdAt,
-    updatedAt: h.updatedAt,
-    images: h.images,
-    listings: h.listings,
+    images: h.images.map((img) => ({
+      id: img.id,
+      url: img.url,
+      position: img.position,
+    })),
+    listings: h.listings.map((listing) => ({
+      id: listing.id,
+      title: listing.title,
+      nightlyBasePrice: listing.nightlyBasePrice,
+      baseCurrency: listing.baseCurrency,
+      images: listing.images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        position: img.position,
+      })),
+    })),
   }));
 
   return <HomePageContent hotels={serializedHotels} />;
