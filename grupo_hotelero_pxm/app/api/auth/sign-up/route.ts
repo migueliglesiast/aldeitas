@@ -53,20 +53,6 @@ export async function POST(req: Request) {
         shortDescription: body.short_description ?? null,
         publicAmenities: body.public_ammenities ?? null,
         passwordHash,
-        units: body.units?.length
-          ? {
-              create: body.units.map((u) => ({
-                nameOfUnit: u.name_of_unit,
-                numOfGuests: u.num_of_guests,
-                description: u.description,
-                privateAmenities: u.private_ammenities ?? null,
-                numberOfBeds: u.number_of_beds,
-                numberOfBathrooms: u.number_of_bathrooms,
-                costNight: u.cost_night,
-                icalUrl: u.calendar ?? null,
-              })),
-            }
-          : undefined,
       },
       select: { id: true, username: true, email: true, hotelName: true },
     });
