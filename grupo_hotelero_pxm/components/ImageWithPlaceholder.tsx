@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image, { type ImageProps } from "next/image";
+import Image, { type ImageProps, type StaticImageData } from "next/image";
+
+function srcToKey(src: ImageProps["src"]): string {
+  if (typeof src === "string") return src;
+  if (typeof src === "object" && src !== null && "src" in src) {
+    return (src as StaticImageData).src;
+  }
+  return "";
+}
 
 function PhotoPlaceholderIcon({ className = "" }: { className?: string }) {
   return (
@@ -35,7 +43,7 @@ export default function ImageWithPlaceholder({
 }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const srcKey = typeof src === "string" ? src : src.src;
+  const srcKey = srcToKey(src);
 
   useEffect(() => {
     setLoaded(false);

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 type Contact = {
   id: string;
-  type: "CLEANER" | "PLUMBER_ELECTRICIAN" | "INTERNET_TECH" | "AC_TECH" | "MAIN_MAINTENANCE";
+  type: string;
   name: string;
   phone: string;
 };

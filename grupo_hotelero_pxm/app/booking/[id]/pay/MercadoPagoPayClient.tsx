@@ -159,6 +159,11 @@ export default function MercadoPagoPayClient({
       return;
     }
 
+    const chargeAmountCents =
+      currentBooking.mercadoPagoChargeAmountCents ?? currentBooking.totalPriceCents;
+    const payerEmail =
+      currentBooking.mercadoPagoPayerEmail ?? currentBooking.guestEmail;
+
     let mounted = true;
     let brickController: { unmount: () => void } | null = null;
     setBrickReady(false);
@@ -177,15 +182,12 @@ export default function MercadoPagoPayClient({
       if (!mounted || !window.MercadoPago) return;
 
       const mp = new window.MercadoPago(publicKey, { locale: "es-MX" });
-      const chargeAmountCents =
-        currentBooking.mercadoPagoChargeAmountCents ?? currentBooking.totalPriceCents;
 
       brickController = await mp.bricks().create("cardPayment", "mp-card-payment", {
         initialization: {
           amount: chargeAmountCents / 100,
           payer: {
-            email:
-              currentBooking.mercadoPagoPayerEmail ?? currentBooking.guestEmail,
+            email: payerEmail,
           },
         },
         customization: {
