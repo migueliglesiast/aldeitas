@@ -61,7 +61,7 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
-| **Start command** | `npm run start -- -p $PORT` |
+| **Start command** | `npm run start` (runs `server.js`, uses Hostinger's `PORT` automatically) |
 
 `npm run build` runs `prisma generate && next build` (no DB needed at build time). Sync schema once locally with `npx prisma db push` before first deploy.
 
@@ -163,6 +163,7 @@ If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
 | Problem | Fix |
 |---------|-----|
 | `package.json not found` | Set root directory to `grupo_hotelero_pxm` |
+| **503 Service Unavailable** | App crashed or wrong port — check deployment logs, click **Restart**, fix `DATABASE_URL` (`postgresql://` not `resql://`) |
 | Build fails on Prisma | Set `DATABASE_URL` + `DIRECT_URL` at runtime; run `npx prisma db push` locally once |
 | Build fails: TypeScript / tailwind | Ensure install includes devDependencies (`.npmrc` sets `production=false`) |
 | App runs but DB empty | Run `npm run seed` locally against Neon `DIRECT_URL` once |

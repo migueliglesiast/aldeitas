@@ -13,7 +13,6 @@ const allowedOrigins = ["localhost:3000"];
 if (siteHost) allowedOrigins.push(siteHost);
 
 const nextConfig = {
-  output: "standalone",
   experimental: {
     serverActions: {
       allowedOrigins,
