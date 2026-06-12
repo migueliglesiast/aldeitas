@@ -11,11 +11,9 @@ const siteHost = (() => {
 
 const allowedOrigins = ["localhost:3000"];
 if (siteHost) allowedOrigins.push(siteHost);
-if (process.env.VERCEL_URL) allowedOrigins.push(process.env.VERCEL_URL);
 
 const nextConfig = {
-  // Standalone is for Docker/self-hosted; Vercel uses its own runtime.
-  ...(!process.env.VERCEL ? { output: "standalone" } : {}),
+  output: "standalone",
   experimental: {
     serverActions: {
       allowedOrigins,

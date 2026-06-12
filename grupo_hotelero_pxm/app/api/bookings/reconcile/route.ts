@@ -38,7 +38,7 @@ async function runReconcile(req: NextRequest) {
   return NextResponse.json({ expiredUnpaid: expired, results });
 }
 
-/** Vercel Cron sends GET requests to this path. */
+/** External cron services may use GET on this path. */
 export async function GET(req: NextRequest) {
   return runReconcile(req);
 }

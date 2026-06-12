@@ -20,7 +20,7 @@ Limitations on Pages:
 
 ## Booking & payments (local / server)
 
-See [BOOKING_SETUP.md](./BOOKING_SETUP.md) for payments and [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) for production on **Vercel + Neon**.
+See [BOOKING_SETUP.md](./BOOKING_SETUP.md) for payments and [DEPLOY_HOSTINGER.md](./DEPLOY_HOSTINGER.md) for production (**Hostinger** + **Neon**).
 
 Quick start (local):
 
@@ -33,4 +33,4 @@ npm run seed
 npm run dev
 ```
 
-Production deploy: import repo `migueliglesiast/aldeitas` on [Vercel](https://vercel.com/new), set root directory to `grupo_hotelero_pxm`, connect Neon URLs — full steps in [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md).
+Production deploy: [DEPLOY_HOSTINGER.md](./DEPLOY_HOSTINGER.md) — Hostinger Node.js + Neon PostgreSQL.

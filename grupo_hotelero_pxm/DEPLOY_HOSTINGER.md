@@ -1,0 +1,170 @@
+# Deploy on Hostinger + Neon
+
+**App:** Hostinger Node.js Web Apps (Business or Cloud plan)  
+**Database:** [Neon](https://neon.tech) PostgreSQL (external — Hostinger does not host Postgres for this app)
+
+**Repo:** `migueliglesiast/aldeitas`  
+**Root directory:** `grupo_hotelero_pxm`
+
+---
+
+## Does Hostinger make sense for this app?
+
+**Yes, with caveats** — it is a reasonable Vercel replacement for your case:
+
+| Requirement | Hostinger |
+|-------------|-----------|
+| Next.js 14 + API routes | Supported on Node.js Web Apps |
+| Node 20 | Supported |
+| GitHub auto-deploy | Supported |
+| Custom domain + SSL | Included |
+| MXN / Spanish support | Yes |
+| PostgreSQL | Use **Neon** (already set up) |
+| Mercado Pago webhooks | Works on your domain |
+| Booking reconcile cron | **No built-in cron** → use [cron-job.org](https://cron-job.org) |
+| Admin image uploads | Disk may be limited/ephemeral — prefer Airbnb import or cloud storage later |
+
+**You need:** Hostinger **Business Web Hosting** or any **Cloud** plan (Node.js apps are not on basic shared hosting).
+
+**Confirm before buying:** In hPanel, check that you can set **Root directory** to `grupo_hotelero_pxm` (monorepo). If not, see [Monorepo workaround](#monorepo-workaround) below.
+
+---
+
+## 1. Neon (database) — keep as-is
+
+1. [console.neon.tech](https://console.neon.tech) → **Connect**
+2. Copy both URLs:
+
+| Variable | Neon option |
+|----------|-------------|
+| `DATABASE_URL` | **Pooled** (`-pooler` in hostname) |
+| `DIRECT_URL` | **Direct** (no `-pooler`) |
+
+Ensure `?sslmode=require` is present.
+
+Schema is already seeded if you ran `npm run seed` locally against this Neon project.
+
+---
+
+## 2. Hostinger — create Node.js app
+
+1. Log in to [hPanel](https://hpanel.hostinger.com)
+2. **Websites** → **Add Website** → **Node.js Apps**
+3. **Import Git Repository** → authorize GitHub → select `migueliglesiast/aldeitas`
+4. Branch: `feature/improving_admin_ux` (or `main` after merge)
+
+### Build settings
+
+| Setting | Value |
+|---------|--------|
+| **Root directory** | `grupo_hotelero_pxm` |
+| **Node.js version** | `20` |
+| **Install command** | `npm ci` (or `npm install`) |
+| **Build command** | `npm run build` |
+| **Start command** | `npm run start -- -p $PORT` |
+
+`npm run build` runs `prisma db push && prisma generate && next build`.
+
+### Environment variables
+
+Add in hPanel **before** the first deploy (or import from a local copy of `.env` **without secrets in git**):
+
+| Variable | Production value |
+|----------|------------------|
+| `DATABASE_URL` | Neon pooled URL |
+| `DIRECT_URL` | Neon direct URL |
+| `NEXT_PUBLIC_SITE_URL` | `https://yourdomain.com` (no trailing `/`) |
+| `MERCADOPAGO_ACCESS_TOKEN` | Production `APP_USR-...` when live |
+| `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY` | Production public key |
+| `PAYMENT_PROVIDER` | `mercadopago` |
+| `BOOKING_RECONCILE_SECRET` | Long random string |
+| `BOOKING_MIN_CONFIRM_MINUTES` | `15` |
+| `BOOKING_MAX_PENDING_MINUTES` | `120` |
+| `NODE_ENV` | `production` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | When ready for email |
+
+Do **not** set `MERCADOPAGO_TEST_PAYER_EMAIL` in production.
+
+5. Click **Deploy** and watch build logs.
+
+---
+
+## 3. Custom domain
+
+1. hPanel → your Node.js site → **Domains**
+2. Point DNS to Hostinger (nameservers or A/CNAME they provide)
+3. Enable SSL (usually automatic)
+4. Update `NEXT_PUBLIC_SITE_URL` to `https://yourdomain.com`
+5. **Redeploy** (required — public URL is baked into the client bundle)
+
+---
+
+## 4. Booking reconcile cron (required)
+
+Hostinger managed Node.js does not run cron for you. Use [cron-job.org](https://cron-job.org) (free):
+
+```http
+POST https://yourdomain.com/api/bookings/reconcile?secret=YOUR_BOOKING_RECONCILE_SECRET
+```
+
+Schedule: every **5–10 minutes**.
+
+---
+
+## 5. Mercado Pago webhook
+
+Mercado Pago → your app → **Webhooks**:
+
+- URL: `https://yourdomain.com/api/mercadopago/webhook`
+- Topic: **Orders**
+
+---
+
+## 6. Airbnb calendars
+
+Per room in **Admin → Room edit**:
+
+1. Copy **`.ics` export URL** → Airbnb → Import calendar
+2. Add import calendar URLs on the room for conflict detection
+
+Must use your **production HTTPS domain**.
+
+---
+
+## Monorepo workaround
+
+If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
+
+**Option A — Deploy branch:** GitHub Action builds `grupo_hotelero_pxm` and pushes to a `hostinger-deploy` branch with app at repo root (ask to add workflow).
+
+**Option B — Hostinger VPS:** SSH deploy with full control (`cd grupo_hotelero_pxm && npm run build:deploy && npm run start`).
+
+**Option C — Move app** to repo root (larger refactor).
+
+---
+
+## Go-live checklist
+
+- [ ] Business or Cloud plan with Node.js apps
+- [ ] Neon `DATABASE_URL` + `DIRECT_URL` in hPanel
+- [ ] `NEXT_PUBLIC_SITE_URL` = production HTTPS → redeploy
+- [ ] Mercado Pago production keys
+- [ ] `BOOKING_RECONCILE_SECRET` + cron-job.org every 5–10 min
+- [ ] MP webhook configured
+- [ ] Test booking end-to-end
+- [ ] Airbnb `.ics` per room
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `package.json not found` | Set root directory to `grupo_hotelero_pxm` |
+| Build fails on Prisma | `DATABASE_URL` and `DIRECT_URL` must be set before build |
+| App runs but DB empty | Run `npm run seed` locally against Neon `DIRECT_URL` once |
+| MP payments fail | Production keys; `NEXT_PUBLIC_SITE_URL` matches live domain |
+| Bookings stuck Processing | Cron not hitting reconcile URL |
+| `E57P01` locally | Neon idle disconnect — use Docker Postgres for local dev |
+
+See also [BOOKING_SETUP.md](./BOOKING_SETUP.md).

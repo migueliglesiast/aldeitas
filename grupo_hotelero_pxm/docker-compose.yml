@@ -1,4 +1,4 @@
-# Local PostgreSQL for development (production uses Neon on Vercel).
+# Local PostgreSQL for development (production uses Neon).
 services:
   db:
     image: postgres:16-alpine
