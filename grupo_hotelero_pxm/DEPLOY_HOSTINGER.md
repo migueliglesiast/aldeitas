@@ -61,18 +61,31 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
-| **Start command** | `npm run start` (runs `app.js`) |
-| **Entry file** (Archivo de entrada) | `app.js` — set in **Ajustes y reimplementación** if the field exists |
+| **Start** (automático con Next.js) | Hostinger ejecuta `npm run start -- -p $PORT` → `next start -H 0.0.0.0 -p PORT` |
+
+**Nota:** **Archivo de entrada** solo aparece si el framework es **Otro (Other)**. Con **Next.js** no verás ese campo — no hace falta.
 
 `npm run build` runs `prisma generate && next build` (no DB needed at build time). Sync schema once locally with `npx prisma db push` before first deploy.
 
-### If runtime logs are empty (503)
+### Panel en español — qué sí debes ver en Ajustes y reimplementación
+
+| Campo (puede variar) | Valor correcto |
+|----------------------|----------------|
+| Framework | **Next.js** (no "Otro") |
+| Versión de Node.js | **20.x** |
+| Directorio raíz / Root | `grupo_hotelero_pxm` |
+| Rama | `feature/improving_admin_ux` |
+| Comando de compilación | `npm run build` |
+
+Después de cambiar variables de entorno: **Reimplementar** (no basta con guardar).
+
+### Si runtime logs están vacíos (503)
 
 The Node process is **not starting**. Check in this order:
 
-1. **Ajustes y reimplementación** → set **Archivo de entrada** = `app.js` (if shown)
-2. **Variables de entorno** → `DATABASE_URL` must start with `postgresql://` (not `resql://`)
-3. **Despliegues** → latest deploy → scroll **past** the route table for `[aldeitas] app.js starting` or errors
+1. **Variables de entorno** → `DATABASE_URL` must start with `postgresql://` (not `resql://`)
+2. **Despliegues** → latest deploy → scroll **past** the route table for `Ready` / `next start` errors
+3. **En ejecución** → **Reiniciar** (si aparece al hacer clic en el estado)
 4. **Administrador de archivos** → `domains/aldeitas.io/nodejs/` → look for `stderr.log`
 5. **Ajustes y reimplementación** → **Reimplementar** after env var fixes
 
