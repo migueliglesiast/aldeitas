@@ -60,18 +60,28 @@ export default function ImageWithPlaceholder({
           <PhotoPlaceholderIcon className="h-10 w-10 text-gray-400/90 animate-pulse md:h-12 md:w-12" />
         </div>
       ) : null}
-      <Image
-        {...props}
-        src={src}
-        alt={alt}
-        className={`${className} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
-        onLoad={() => setLoaded(true)}
-        onLoadingComplete={() => setLoaded(true)}
-        onError={() => {
-          setFailed(true);
-          onError?.();
-        }}
-      />
+      {failed ? (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400"
+          aria-hidden
+        >
+          <PhotoPlaceholderIcon className="h-10 w-10 md:h-12 md:w-12" />
+        </div>
+      ) : null}
+      {!failed ? (
+        <Image
+          {...props}
+          src={src}
+          alt={alt}
+          className={`${className} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+          onLoad={() => setLoaded(true)}
+          onLoadingComplete={() => setLoaded(true)}
+          onError={() => {
+            setFailed(true);
+            onError?.();
+          }}
+        />
+      ) : null}
     </>
   );
 }

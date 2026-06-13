@@ -24,8 +24,9 @@ const nextConfig = {
     assetPrefix: process.env.NEXT_ASSET_PREFIX || process.env.NEXT_BASE_PATH,
   } : {}),
   images: {
-    // keep remote images working in dev and prod
-    unoptimized: false,
+    // Hostinger/LiteSpeed returns 400 for /_next/image on local /public paths.
+    // Direct URLs (/images/..., /uploads/..., remote) are served correctly.
+    unoptimized: true,
     remotePatterns: [
       { protocol: 'https', hostname: 'a0.muscache.com' },
       { protocol: 'https', hostname: 'a1.muscache.com' },

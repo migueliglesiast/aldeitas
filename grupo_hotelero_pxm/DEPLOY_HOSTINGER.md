@@ -188,6 +188,7 @@ If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
 |---------|-----|
 | `package.json not found` | Set root directory to `grupo_hotelero_pxm` |
 | **503 Service Unavailable** | App crashed or wrong port — check deployment logs, click **Restart**, fix `DATABASE_URL` (`postgresql://` not `resql://`) |
+| **Images not loading (rooms/hotels)** | Room photos in `/uploads/` are not in git — re-import via Admin → Airbnb on production, or run `npx tsx scripts/populate-arbolita-images.ts` against Neon. `next.config.mjs` uses `images.unoptimized: true` for Hostinger. |
 | Build fails on Prisma | Set `DATABASE_URL` + `DIRECT_URL` at runtime; run `npx prisma db push` locally once |
 | Build fails: TypeScript / tailwind | Ensure install includes devDependencies (`.npmrc` sets `production=false`) |
 | App runs but DB empty | Run `npm run seed` locally against Neon `DIRECT_URL` once |
