@@ -2,7 +2,7 @@
   "name": "casa_yahua",
   "version": "0.1.0",
   "private": true,
-  "main": "server.js",
+  "main": "app.js",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -10,7 +10,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "build:deploy": "npm run build",
-    "start": "node server.js",
+    "start": "node app.js",
     "start:next": "next start -H 0.0.0.0",
     "start:prod": "prisma db push && next start -H 0.0.0.0",
     "export": "next build",

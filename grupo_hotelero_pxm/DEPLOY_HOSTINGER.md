@@ -61,9 +61,20 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
-| **Start command** | `npm run start` (runs `server.js`, uses Hostinger's `PORT` automatically) |
+| **Start command** | `npm run start` (runs `app.js`) |
+| **Entry file** (Archivo de entrada) | `app.js` — set in **Ajustes y reimplementación** if the field exists |
 
 `npm run build` runs `prisma generate && next build` (no DB needed at build time). Sync schema once locally with `npx prisma db push` before first deploy.
+
+### If runtime logs are empty (503)
+
+The Node process is **not starting**. Check in this order:
+
+1. **Ajustes y reimplementación** → set **Archivo de entrada** = `app.js` (if shown)
+2. **Variables de entorno** → `DATABASE_URL` must start with `postgresql://` (not `resql://`)
+3. **Despliegues** → latest deploy → scroll **past** the route table for `[aldeitas] app.js starting` or errors
+4. **Administrador de archivos** → `domains/aldeitas.io/nodejs/` → look for `stderr.log`
+5. **Ajustes y reimplementación** → **Reimplementar** after env var fixes
 
 ### Environment variables
 
