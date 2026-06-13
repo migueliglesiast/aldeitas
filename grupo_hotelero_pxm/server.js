@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 /**
- * Hostinger / shared-hosting entry point.
- * Binds Next.js to Hostinger's PORT and logs startup env for deploy debugging.
+ * Hostinger entry point — reads PORT from env or `-p` CLI (npm run start -- -p $PORT).
  */
 const { spawn } = require("node:child_process");
-const path = require("node:path");
 
-const port = String(process.env.PORT || "3000");
+function resolvePort() {
+  if (process.env.PORT) return String(process.env.PORT);
+  const args = process.argv.slice(2);
+  const shortFlag = args.indexOf("-p");
+  if (shortFlag !== -1 && args[shortFlag + 1]) return args[shortFlag + 1];
+  const longFlag = args.indexOf("--port");
+  if (longFlag !== -1 && args[longFlag + 1]) return args[longFlag + 1];
+  return "3000";
+}
+
+const port = resolvePort();
 const hostname = "0.0.0.0";
 
 console.log("[aldeitas] starting Next.js on %s:%s", hostname, port);
