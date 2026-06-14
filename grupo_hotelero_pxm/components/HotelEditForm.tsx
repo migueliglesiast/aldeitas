@@ -79,15 +79,22 @@ export default function HotelEditForm({ hotel }: Props) {
     }
   };
 
+  const coverSrc = getHotelCoverImageUrl(hotel);
+
   return (
     <div className="space-y-8">
-      <CoverImageWithFallback
-        candidates={getHotelCoverCandidates(hotel)}
-        alt={hotel.name}
-        heightClassName="h-56 md:h-72"
-        imageClassName="object-cover"
-        className="rounded-lg border border-gray-200"
-      />
+      {coverSrc ? (
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={coverSrc}
+            alt={hotel.name}
+            className="h-56 w-full object-cover md:h-72"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+      ) : null}
 
       {/* Hotel Basic Info */}
       <div className="bg-white rounded-lg border p-6 space-y-4">
