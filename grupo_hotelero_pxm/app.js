@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 /**
- * Hostinger entry file. Works with:
- * - Framework "Other" + entry file `app.js`
- * - Framework "Next.js" via `npm run start` (package.json points here)
+ * Hostinger entry file (Framework "Other" → set entry file to app.js).
+ * Starts Next.js in-process — no child spawn (shared hosting process limits).
  *
- * Resolves PORT from env or `npm run start -- -p $PORT`.
+ * With Framework "Next.js", Hostinger uses `npm run start -- -p $PORT` instead.
  */
-const { spawn } = require("node:child_process");
-const { join } = require("node:path");
-
 function resolvePort() {
   if (process.env.PORT) return String(process.env.PORT);
   const args = process.argv.slice(2);
@@ -18,9 +14,9 @@ function resolvePort() {
 }
 
 const port = resolvePort();
-const nextBin = join(__dirname, "node_modules", ".bin", "next");
+const hostname = "0.0.0.0";
 
-console.log("[aldeitas] starting Next.js on 0.0.0.0:%s", port);
+console.log("[aldeitas] starting Next.js on %s:%s", hostname, port);
 console.log(
   "[aldeitas] env: DATABASE_URL=%s DIRECT_URL=%s NODE_ENV=%s",
   Boolean(process.env.DATABASE_URL),
@@ -28,18 +24,17 @@ console.log(
   process.env.NODE_ENV || "undefined"
 );
 
-const child = spawn(nextBin, ["start", "-H", "0.0.0.0", "-p", port], {
-  cwd: __dirname,
-  env: { ...process.env, PORT: port, HOSTNAME: "0.0.0.0" },
-  stdio: "inherit",
-});
+process.env.PORT = port;
+process.env.HOSTNAME = hostname;
 
-child.on("exit", (code, signal) => {
-  console.error("[aldeitas] Next.js exited code=%s signal=%s", code, signal);
-  process.exit(code ?? 1);
-});
+process.argv = [
+  process.argv[0],
+  require.resolve("next/dist/bin/next"),
+  "start",
+  "-H",
+  hostname,
+  "-p",
+  port,
+];
 
-child.on("error", (error) => {
-  console.error("[aldeitas] failed to start Next.js:", error);
-  process.exit(1);
-});
+require("next/dist/bin/next");

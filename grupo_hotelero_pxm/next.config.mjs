@@ -14,6 +14,9 @@ if (siteHost) allowedOrigins.push(siteHost);
 
 const nextConfig = {
   experimental: {
+    // Shared hosting (Hostinger/CloudLinux) limits process/thread count.
+    workerThreads: false,
+    cpus: 1,
     serverActions: {
       allowedOrigins,
     },
