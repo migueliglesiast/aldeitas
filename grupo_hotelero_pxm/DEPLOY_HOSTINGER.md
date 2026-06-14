@@ -61,9 +61,9 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
-| **Start** (automático con Next.js) | Hostinger ejecuta `npm run start -- -p $PORT` → `next start -H 0.0.0.0 -p PORT` |
+| **Start** | `npm run start` → `node app.js` → `next start -H 0.0.0.0 -p $PORT` |
 
-**Nota:** **Archivo de entrada** solo aparece si el framework es **Otro (Other)**. Con **Next.js** no verás ese campo — no hace falta.
+**Nota:** Si el framework es **Otro (Other)**, pon **Archivo de entrada** = `app.js`. Con **Next.js**, Hostinger usa `npm run start` (también pasa por `app.js`).
 
 `npm run build` runs `prisma generate && next build` (no DB needed at build time). Sync schema once locally with `npx prisma db push` before first deploy.
 

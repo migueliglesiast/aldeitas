@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "build:deploy": "npm run build",
-    "start": "next start -H 0.0.0.0",
+    "start": "node app.js",
     "start:next": "next start -H 0.0.0.0",
     "start:prod": "prisma db push && next start -H 0.0.0.0",
     "export": "next build",
