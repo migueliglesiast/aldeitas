@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { join } from "path";
-import { unlink } from "fs/promises";
+import { deleteImageFile } from "@/lib/image-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,6 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get the image and verify it belongs to a hotel the user manages
     const image = await prisma.hotelImage.findUnique({
       where: { id: params.imageId },
       include: {
@@ -38,16 +36,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Delete file from filesystem
-    try {
-      const filepath = join(process.cwd(), "public", image.url);
-      await unlink(filepath);
-    } catch (fsError) {
-      // File might not exist, continue with database deletion
-      console.warn("Could not delete file:", fsError);
-    }
+    await deleteImageFile(image.url);
 
-    // Delete from database
     await prisma.hotelImage.delete({
       where: { id: params.imageId },
     });
@@ -58,5 +48,3 @@ export async function DELETE(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-
-

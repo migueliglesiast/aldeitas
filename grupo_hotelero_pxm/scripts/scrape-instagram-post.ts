@@ -1,9 +1,7 @@
 import axios from "axios";
-import { writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import { join } from "path";
 import { randomBytes } from "crypto";
 import { PrismaClient } from "@prisma/client";
+import { saveUploadedImage } from "../lib/image-storage";
 
 const POST_URL = process.argv[2] || "https://www.instagram.com/p/DZB2HT4DhBK/";
 const HOTEL_NAME = process.argv[3] || "La Arbolita";
@@ -72,16 +70,12 @@ async function downloadImage(url: string, hotelId: string, index: number) {
     : contentType.includes("webp")
       ? "webp"
       : "jpg";
-  const uploadsDir = join(process.cwd(), "public", "uploads", "hotels");
-  if (!existsSync(uploadsDir)) {
-    await mkdir(uploadsDir, { recursive: true });
-  }
 
-  const filename = `hotel-${hotelId}-ig-${Date.now()}-${index}-${randomBytes(3).toString("hex")}.${extension}`;
-  const filepath = join(uploadsDir, filename);
-  await writeFile(filepath, Buffer.from(response.data));
-
-  return `/uploads/hotels/${filename}`;
+  return saveUploadedImage(Buffer.from(response.data), {
+    folder: "hotels",
+    filenameBase: `hotel-${hotelId}-ig-${Date.now()}-${index}-${randomBytes(3).toString("hex")}`,
+    extension,
+  });
 }
 
 async function main() {

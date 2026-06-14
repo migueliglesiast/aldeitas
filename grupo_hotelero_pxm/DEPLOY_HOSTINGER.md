@@ -107,6 +107,9 @@ Add env vars in hPanel **before** the first deploy (or import from a local copy 
 | `BOOKING_MIN_CONFIRM_MINUTES` | `15` |
 | `BOOKING_MAX_PENDING_MINUTES` | `120` |
 | `NODE_ENV` | `production` |
+| `CLOUDINARY_CLOUD_NAME` | From [cloudinary.com](https://cloudinary.com) dashboard |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret — required for admin uploads in production |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | When ready for email |
 
 Do **not** set `MERCADOPAGO_TEST_PAYER_EMAIL` in production.

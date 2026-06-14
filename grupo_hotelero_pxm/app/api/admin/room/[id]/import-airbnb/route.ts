@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { normalizeAirbnbListingUrl, scrapeListingContent } from "@/lib/airbnb";
+import { isCloudStorageEnabled, mirrorRemoteImageUrls } from "@/lib/image-storage";
 import { prisma } from "@/lib/prisma";
 import { syncBilingualDescription } from "@/lib/sync-bilingual-description";
 import { z } from "zod";
@@ -59,7 +60,12 @@ export async function POST(
     const normalizedUrl = normalizeAirbnbListingUrl(airbnbUrl);
     const scraped = await scrapeListingContent(normalizedUrl);
 
-    if (importPhotos && scraped.images.length === 0) {
+    let imageUrls = scraped.images;
+    if (importPhotos && imageUrls.length > 0 && isCloudStorageEnabled()) {
+      imageUrls = await mirrorRemoteImageUrls(imageUrls, "rooms", `room-${params.id}`);
+    }
+
+    if (importPhotos && imageUrls.length === 0) {
       return NextResponse.json(
         { error: "No listing photos found on that Airbnb page." },
         { status: 422 }
@@ -111,7 +117,7 @@ export async function POST(
             }))._max.position ?? -1) + 1;
 
         await tx.image.createMany({
-          data: scraped.images.map((url, index) => ({
+          data: imageUrls.map((url, index) => ({
             listingId: params.id,
             url,
             position: startPosition + index,
@@ -129,7 +135,7 @@ export async function POST(
 
     return NextResponse.json({
       airbnbUrl: scraped.airbnbUrl,
-      photoCount: importPhotos ? scraped.images.length : 0,
+      photoCount: importPhotos ? imageUrls.length : 0,
       description: importDescription ? scraped.description ?? undefined : undefined,
       images: importPhotos ? result.images : undefined,
     });

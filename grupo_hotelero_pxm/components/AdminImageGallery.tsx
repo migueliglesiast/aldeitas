@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
+import ImageWithPlaceholder from "@/components/ImageWithPlaceholder";
 import {
   buildCopyDestinations,
   destinationKey,
@@ -467,12 +467,11 @@ export default function AdminImageGallery({
                   }`}
                 >
                   <div className="relative h-32 w-full overflow-hidden rounded-t-lg">
-                    <Image
+                    <ImageWithPlaceholder
                       src={image.url}
                       alt={`${altPrefix} ${index + 1}`}
                       fill
                       className="pointer-events-none object-cover"
-                      draggable={false}
                     />
                   </div>
 

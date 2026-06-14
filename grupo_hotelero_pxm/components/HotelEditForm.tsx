@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import ImageWithPlaceholder from "@/components/ImageWithPlaceholder";
+import { getHotelCoverImageUrl } from "@/lib/hotel-cover";
 import HotelContactsSection from "./HotelContactsSection";
 import HotelImageUpload from "./HotelImageUpload";
 import RoomList from "./RoomList";
@@ -80,6 +81,14 @@ export default function HotelEditForm({ hotel }: Props) {
 
   return (
     <div className="space-y-8">
+      <CoverImageWithFallback
+        candidates={getHotelCoverCandidates(hotel)}
+        alt={hotel.name}
+        heightClassName="h-56 md:h-72"
+        imageClassName="object-cover"
+        className="rounded-lg border border-gray-200"
+      />
+
       {/* Hotel Basic Info */}
       <div className="bg-white rounded-lg border p-6 space-y-4">
         <h2 className="text-xl font-semibold">Hotel Information</h2>
@@ -161,7 +170,7 @@ export default function HotelEditForm({ hotel }: Props) {
           {logoImageUrl ? (
             <div className="mb-4 flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-white p-2 shadow-sm">
-                <Image
+                <ImageWithPlaceholder
                   src={logoImageUrl}
                   alt={`${hotel.name} logo preview`}
                   fill
@@ -201,7 +210,7 @@ export default function HotelEditForm({ hotel }: Props) {
                         : "border-gray-200 hover:border-[#00a19c]/40",
                     ].join(" ")}
                   >
-                    <Image
+                    <ImageWithPlaceholder
                       src={image.url}
                       alt={`Hotel image ${image.position + 1}`}
                       fill

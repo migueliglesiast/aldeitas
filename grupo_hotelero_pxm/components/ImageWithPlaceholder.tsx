@@ -38,7 +38,10 @@ export default function ImageWithPlaceholder({
   src,
   alt,
   className = "",
+  fill,
+  sizes,
   onError,
+  priority,
   ...props
 }: Props) {
   const [loaded, setLoaded] = useState(false);
@@ -50,30 +53,69 @@ export default function ImageWithPlaceholder({
     setFailed(false);
   }, [srcKey]);
 
+  const loadingPlaceholder =
+    !loaded && !failed ? (
+      <div
+        className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200/80"
+        aria-hidden
+      >
+        <PhotoPlaceholderIcon className="h-10 w-10 text-gray-400/90 animate-pulse md:h-12 md:w-12" />
+      </div>
+    ) : null;
+
+  const failedPlaceholder = failed ? (
+    <div
+      className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400"
+      aria-hidden
+    >
+      <PhotoPlaceholderIcon className="h-10 w-10 md:h-12 md:w-12" />
+    </div>
+  ) : null;
+
+  const visibilityClass = loaded ? "opacity-100" : "opacity-0";
+
+  if (typeof src === "string") {
+    return (
+      <>
+        {loadingPlaceholder}
+        {failedPlaceholder}
+        {!failed ? (
+          // Native img is more reliable on Hostinger with unoptimized assets.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={alt}
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            onLoad={() => setLoaded(true)}
+            onError={() => {
+              setFailed(true);
+              onError?.();
+            }}
+            className={
+              fill
+                ? `absolute inset-0 h-full w-full ${className} ${visibilityClass} transition-opacity duration-300`
+                : `${className} ${visibilityClass} transition-opacity duration-300`
+            }
+          />
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <>
-      {!loaded && !failed ? (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200/80"
-          aria-hidden
-        >
-          <PhotoPlaceholderIcon className="h-10 w-10 text-gray-400/90 animate-pulse md:h-12 md:w-12" />
-        </div>
-      ) : null}
-      {failed ? (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400"
-          aria-hidden
-        >
-          <PhotoPlaceholderIcon className="h-10 w-10 md:h-12 md:w-12" />
-        </div>
-      ) : null}
+      {loadingPlaceholder}
+      {failedPlaceholder}
       {!failed ? (
         <Image
           {...props}
           src={src}
           alt={alt}
-          className={`${className} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+          fill={fill}
+          sizes={sizes}
+          priority={priority}
+          className={`${className} transition-opacity duration-300 ${visibilityClass}`}
           onLoad={() => setLoaded(true)}
           onLoadingComplete={() => setLoaded(true)}
           onError={() => {

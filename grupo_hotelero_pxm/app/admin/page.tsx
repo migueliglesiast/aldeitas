@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { getHotelCoverImageUrl } from "@/lib/hotel-cover";
 import NicknameEditor from "@/components/NicknameEditor";
 
 export const dynamic = "force-dynamic";
@@ -97,29 +97,27 @@ export default async function AdminPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {hotels.map((hotel) => (
+            {hotels.map((hotel) => {
+              const coverSrc = getHotelCoverImageUrl(hotel);
+
+              return (
               <Link
                 key={hotel.id}
                 href={`/admin/hotel/${hotel.id}`}
                 className="group rounded-lg border border-gray-200 hover:border-[#00a19c]/30 hover:shadow-lg transition-all duration-300 bg-white overflow-hidden"
               >
-                <div className="relative h-48 w-full overflow-hidden">
-                  {hotel.coverImageUrl ? (
-                    <Image
-                      src={hotel.coverImageUrl}
+                <div className="relative h-48 w-full overflow-hidden bg-gray-100">
+                  {coverSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={coverSrc}
                       alt={hotel.name}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : hotel.images?.[0] ? (
-                    <Image
-                      src={hotel.images[0].url}
-                      alt={hotel.name}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-400">
+                    <div className="flex h-full w-full items-center justify-center text-gray-400">
                       No image
                     </div>
                   )}
@@ -132,7 +130,8 @@ export default async function AdminPage() {
                   </p>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

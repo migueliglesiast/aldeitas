@@ -18,13 +18,18 @@
     "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "fix-rooms": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/fix-room-names.ts",
     "reconcile-bookings": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/reconcile-pending-bookings.ts",
-    "migrate-currency-to-mxn": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/migrate-currency-to-mxn.ts"
+    "migrate-currency-to-mxn": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/migrate-currency-to-mxn.ts",
+    "images:import": "tsx scripts/import-room-images.ts",
+    "images:mirror-cloud": "tsx scripts/mirror-images-to-cloud.ts",
+    "admin:setup": "npx tsx scripts/setup-admin.ts",
+    "admin:link": "npx tsx scripts/link-admin-to-hotel.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "axios": "^1.7.4",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",
+    "cloudinary": "^2.10.0",
     "date-fns": "^3.6.0",
     "ical-generator": "^3.6.1",
     "leaflet": "^1.9.4",

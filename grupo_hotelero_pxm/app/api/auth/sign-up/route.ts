@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
+import { linkUserToHotel } from "@/lib/hotel-manager-access";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,20 @@ export async function POST(req: Request) {
 
     const passwordHash = await hashPassword(body.password);
 
+    const existingHotel = await prisma.hotel.findFirst({
+      where: { name: body.hotel_name },
+      select: { id: true },
+    });
+    if (existingHotel) {
+      return NextResponse.json(
+        {
+          error:
+            "This hotel is already registered. Ask an administrator to grant you access instead of signing up again.",
+        },
+        { status: 409 }
+      );
+    }
+
     const user = await prisma.user.create({
       data: {
         username: body.username,
@@ -79,6 +94,8 @@ export async function POST(req: Request) {
       },
       select: { id: true },
     });
+
+    await linkUserToHotel(prisma, user.id, hotel.id);
 
     await createSession(user.id);
     return NextResponse.json({ user, hotelId: hotel.id }, { status: 201 });
