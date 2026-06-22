@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "build:deploy": "npm run build",
-    "start": "next start -H 0.0.0.0",
+    "start": "node app.js",
     "start:hostinger": "node app.js",
     "start:next": "next start -H 0.0.0.0",
     "start:prod": "prisma db push && next start -H 0.0.0.0",
@@ -23,7 +23,8 @@
     "images:import": "tsx scripts/import-room-images.ts",
     "images:mirror-cloud": "tsx scripts/mirror-images-to-cloud.ts",
     "admin:setup": "npx tsx scripts/setup-admin.ts",
-    "admin:link": "npx tsx scripts/link-admin-to-hotel.ts"
+    "admin:link": "npx tsx scripts/link-admin-to-hotel.ts",
+    "sync:arbolita": "npx tsx scripts/sync-arbolita-to-production.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
