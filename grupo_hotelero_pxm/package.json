@@ -24,7 +24,8 @@
     "images:mirror-cloud": "tsx scripts/mirror-images-to-cloud.ts",
     "admin:setup": "npx tsx scripts/setup-admin.ts",
     "admin:link": "npx tsx scripts/link-admin-to-hotel.ts",
-    "sync:arbolita": "npx tsx scripts/sync-arbolita-to-production.ts"
+    "sync:arbolita": "npx tsx scripts/sync-arbolita-to-production.ts",
+    "migrate:hotel-images": "npx tsx scripts/migrate-hotel-uploads-to-static.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
