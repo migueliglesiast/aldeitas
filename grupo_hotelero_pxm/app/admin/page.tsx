@@ -2,7 +2,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getHotelCoverImageUrl } from "@/lib/hotel-cover";
+import { getHotelCoverCandidates } from "@/lib/hotel-cover";
+import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import NicknameEditor from "@/components/NicknameEditor";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +99,7 @@ export default async function AdminPage() {
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {hotels.map((hotel) => {
-              const coverSrc = getHotelCoverImageUrl(hotel);
+              const coverCandidates = getHotelCoverCandidates(hotel);
 
               return (
               <Link
@@ -106,22 +107,12 @@ export default async function AdminPage() {
                 href={`/admin/hotel/${hotel.id}`}
                 className="group rounded-lg border border-gray-200 hover:border-[#00a19c]/30 hover:shadow-lg transition-all duration-300 bg-white overflow-hidden"
               >
-                <div className="relative h-48 w-full overflow-hidden bg-gray-100">
-                  {coverSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={coverSrc}
-                      alt={hotel.name}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-gray-400">
-                      No image
-                    </div>
-                  )}
-                </div>
+                <CoverImageWithFallback
+                  candidates={coverCandidates}
+                  alt={hotel.name}
+                  heightClassName="h-48"
+                  imageClassName="object-cover transition-transform group-hover:scale-105"
+                />
                 <div className="p-4">
                   <h3 className="font-semibold text-lg mb-1">{hotel.name}</h3>
                   <p className="text-sm text-gray-600 mb-2">{hotel.location}</p>

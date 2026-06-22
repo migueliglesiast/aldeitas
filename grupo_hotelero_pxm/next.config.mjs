@@ -13,6 +13,7 @@ const allowedOrigins = ["localhost:3000"];
 if (siteHost) allowedOrigins.push(siteHost);
 
 const nextConfig = {
+  output: "standalone",
   experimental: {
     // Shared hosting (Hostinger/CloudLinux) limits process/thread count.
     workerThreads: false,

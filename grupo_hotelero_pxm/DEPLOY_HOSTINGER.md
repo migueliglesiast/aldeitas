@@ -61,12 +61,13 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
-| **Start command** | `npm run start -- -p $PORT` (Hostinger default for Next.js) |
-| **Start** (package.json) | `next start -H 0.0.0.0` — Hostinger appends `-p $PORT` |
+| **Output directory** | `.next` (if Framework is **Other**) |
+| **Start command** | `npm run start -- -p $PORT` |
+| **Start** (package.json) | `node scripts/start-hostinger.js` → standalone `server.js` |
 
 **Nota:** Si el framework es **Otro (Other)**, pon **Archivo de entrada** = `app.js` (arranque en un solo proceso). Con **Next.js**, usa el start command de arriba.
 
-`npm run build` runs `prisma generate && next build` (no DB needed at build time). Sync schema once locally with `npx prisma db push` before first deploy.
+`npm run build` runs `prisma generate && next build && node scripts/copy-standalone-assets.js` (standalone output for Hostinger). Sync schema once locally with `npx prisma db push` before first deploy.
 
 ### Panel en español — qué sí debes ver en Ajustes y reimplementación
 
@@ -89,7 +90,7 @@ The Node process is **not starting** or **crashes immediately**. Check in this o
 1. **Start command** in hPanel must be `npm run start -- -p $PORT` (or leave blank for Next.js auto-detect). Do **not** use `npm run start:prod` (runs `prisma db push` before start).
 2. **Framework** = **Next.js** (recommended). If **Other**, set entry file to `app.js`.
 3. **Variables de entorno** → `DATABASE_URL` must start with `postgresql://` (not `resql://`). Set both `DATABASE_URL` and `DIRECT_URL`.
-4. **Runtime logs** → look for `[aldeitas] starting` or `Ready`. If you see `EAGAIN` or `spawn`, redeploy after pulling latest (next.config sets `workerThreads: false`).
+4. **Runtime logs** → look for `[aldeitas] starting standalone server` or `Ready`. Build log ending at the route table is normal — check runtime logs separately.
 5. **Test liveness** after deploy: `https://yourdomain.com/api/live` should return JSON `{ "ok": true }` — no database needed.
 6. **En ejecución** → **Reiniciar** (si aparece al hacer clic en el estado)
 7. **Administrador de archivos** → `domains/aldeitas.io/nodejs/` → look for `stderr.log`

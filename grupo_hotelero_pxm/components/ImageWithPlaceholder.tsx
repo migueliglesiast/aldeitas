@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image, { type ImageProps, type StaticImageData } from "next/image";
 
 function srcToKey(src: ImageProps["src"]): string {
@@ -9,6 +9,15 @@ function srcToKey(src: ImageProps["src"]): string {
     return (src as StaticImageData).src;
   }
   return "";
+}
+
+function markLoadedIfComplete(
+  img: HTMLImageElement | null,
+  setLoaded: (value: boolean) => void
+) {
+  if (img?.complete && img.naturalWidth > 0) {
+    setLoaded(true);
+  }
 }
 
 function PhotoPlaceholderIcon({ className = "" }: { className?: string }) {
@@ -46,11 +55,13 @@ export default function ImageWithPlaceholder({
 }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const srcKey = srcToKey(src);
 
   useEffect(() => {
     setLoaded(false);
     setFailed(false);
+    markLoadedIfComplete(imgRef.current, setLoaded);
   }, [srcKey]);
 
   const loadingPlaceholder =
@@ -83,6 +94,7 @@ export default function ImageWithPlaceholder({
           // Native img is more reliable on Hostinger with unoptimized assets.
           // eslint-disable-next-line @next/next/no-img-element
           <img
+            ref={imgRef}
             src={src}
             alt={alt}
             loading={priority ? "eager" : "lazy"}

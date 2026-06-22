@@ -7,9 +7,9 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && node scripts/copy-standalone-assets.js",
     "build:deploy": "npm run build",
-    "start": "node app.js",
+    "start": "node scripts/start-hostinger.js",
     "start:hostinger": "node app.js",
     "start:next": "next start -H 0.0.0.0",
     "start:prod": "prisma db push && next start -H 0.0.0.0",

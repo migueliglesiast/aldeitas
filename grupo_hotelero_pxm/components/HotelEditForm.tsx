@@ -2,7 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import ImageWithPlaceholder from "@/components/ImageWithPlaceholder";
-import { getHotelCoverImageUrl } from "@/lib/hotel-cover";
+import CoverImageWithFallback from "@/components/CoverImageWithFallback";
+import { getHotelCoverCandidates } from "@/lib/hotel-cover";
 import HotelContactsSection from "./HotelContactsSection";
 import HotelImageUpload from "./HotelImageUpload";
 import RoomList from "./RoomList";
@@ -79,22 +80,17 @@ export default function HotelEditForm({ hotel }: Props) {
     }
   };
 
-  const coverSrc = getHotelCoverImageUrl(hotel);
+  const coverCandidates = getHotelCoverCandidates(hotel);
 
   return (
     <div className="space-y-8">
-      {coverSrc ? (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={coverSrc}
-            alt={hotel.name}
-            className="h-56 w-full object-cover md:h-72"
-            loading="lazy"
-            decoding="async"
-          />
-        </div>
-      ) : null}
+      <CoverImageWithFallback
+        candidates={coverCandidates}
+        alt={hotel.name}
+        heightClassName="h-56 md:h-72"
+        imageClassName="object-cover"
+        className="rounded-lg border border-gray-200"
+      />
 
       {/* Hotel Basic Info */}
       <div className="bg-white rounded-lg border p-6 space-y-4">

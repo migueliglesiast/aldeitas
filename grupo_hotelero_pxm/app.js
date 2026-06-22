@@ -1,24 +1,36 @@
 #!/usr/bin/env node
 /**
- * Hostinger entry file.
- * Set Framework to "Other" + entry file `app.js`, OR use `npm run start` (Next.js framework).
+ * Hostinger entry — explicit dir, BUILD_ID check, and clear fatal logs.
  */
+const fs = require("node:fs");
 const http = require("node:http");
+const path = require("node:path");
 const { parse } = require("node:url");
-const next = require("next");
+
+const appDir = __dirname;
+const buildIdPath = path.join(appDir, ".next", "BUILD_ID");
 
 function resolvePort() {
   if (process.env.PORT) return Number(process.env.PORT);
   const args = process.argv.slice(2);
-  const shortFlag = args.indexOf("-p");
-  if (shortFlag !== -1 && args[shortFlag + 1]) return Number(args[shortFlag + 1]);
+  const flag = args.indexOf("-p");
+  if (flag !== -1 && args[flag + 1]) return Number(args[flag + 1]);
   return 3000;
 }
+
+function fatal(message, error) {
+  console.error("[aldeitas] FATAL:", message);
+  if (error) console.error(error);
+  process.exit(1);
+}
+
+process.on("uncaughtException", (error) => fatal("uncaughtException", error));
+process.on("unhandledRejection", (error) => fatal("unhandledRejection", error));
 
 const port = resolvePort();
 const hostname = "0.0.0.0";
 
-console.log("[aldeitas] boot node=%s port=%s", process.version, port);
+console.log("[aldeitas] boot cwd=%s node=%s port=%s", appDir, process.version, port);
 console.log(
   "[aldeitas] env DATABASE_URL=%s DIRECT_URL=%s NODE_ENV=%s",
   Boolean(process.env.DATABASE_URL),
@@ -26,10 +38,23 @@ console.log(
   process.env.NODE_ENV || "undefined"
 );
 
+if (!fs.existsSync(buildIdPath)) {
+  fatal(
+    `missing .next build at ${buildIdPath} — confirm root directory is grupo_hotelero_pxm and build succeeded`
+  );
+}
+
 process.env.PORT = String(port);
 process.env.HOSTNAME = hostname;
 
-const app = next({ dev: false, hostname, port });
+let next;
+try {
+  next = require("next");
+} catch (error) {
+  fatal("cannot require('next') — run npm install in app root", error);
+}
+
+const app = next({ dev: false, dir: appDir, hostname, port });
 const handle = app.getRequestHandler();
 
 app
@@ -37,18 +62,11 @@ app
   .then(() => {
     http
       .createServer((req, res) => {
-        const parsedUrl = parse(req.url, true);
-        handle(req, res, parsedUrl);
+        handle(req, res, parse(req.url, true));
       })
       .listen(port, hostname, () => {
         console.log("[aldeitas] Ready on http://%s:%s", hostname, port);
       })
-      .on("error", (error) => {
-        console.error("[aldeitas] listen error:", error);
-        process.exit(1);
-      });
+      .on("error", (error) => fatal("listen error", error));
   })
-  .catch((error) => {
-    console.error("[aldeitas] prepare failed:", error);
-    process.exit(1);
-  });
+  .catch((error) => fatal("prepare failed", error));

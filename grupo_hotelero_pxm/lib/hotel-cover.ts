@@ -1,3 +1,8 @@
+import {
+  sortImageUrlsByReliability,
+  staticHotelCoverPaths,
+} from "@/lib/image-url";
+
 type HotelCoverSource = {
   name: string;
   coverImageUrl?: string | null;
@@ -22,21 +27,26 @@ export function getHotelCoverCandidates(hotel: HotelCoverSource): string[] {
     urls.push(hotel.coverImageUrl);
   }
 
+  const galleryUrls: string[] = [];
   for (const image of hotel.images ?? []) {
-    if (image.url && image.url !== hotel.logoImageUrl && !urls.includes(image.url)) {
-      urls.push(image.url);
+    if (image.url && image.url !== hotel.logoImageUrl && !galleryUrls.includes(image.url)) {
+      galleryUrls.push(image.url);
     }
   }
 
+  const remoteGallery = sortImageUrlsByReliability(galleryUrls).filter((url) =>
+    /^https?:\/\//i.test(url)
+  );
+  const localGallery = sortImageUrlsByReliability(galleryUrls).filter(
+    (url) => !/^https?:\/\//i.test(url)
+  );
+
   const slug = slugifyHotelName(hotel.name);
-  for (const path of [
-    `/images/hotels/${slug}/cover.jpg`,
-    `/images/hotels/${slug}/cover.jpeg`,
-    `/images/hotels/${slug}/cover.png`,
-    `/images/hotels/${slug}/cover.webp`,
-  ]) {
-    if (!urls.includes(path)) {
-      urls.push(path);
+  const staticCovers = staticHotelCoverPaths(slug);
+
+  for (const url of [...remoteGallery, ...staticCovers, ...localGallery]) {
+    if (!urls.includes(url)) {
+      urls.push(url);
     }
   }
 
