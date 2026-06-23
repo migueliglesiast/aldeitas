@@ -5,6 +5,7 @@ import {
   getHotelCalendarShareUrl,
   getOrCreateHotelCalendarShareToken,
 } from "@/lib/hotel-calendar-data";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,15 @@ export async function GET(
     return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  const share = await prisma.hotelCalendarShare.findUnique({
+    where: { hotelId: params.id },
+    select: { token: true },
+  });
+
+  return NextResponse.json({
+    ...data,
+    shareUrl: share ? getHotelCalendarShareUrl(share.token) : null,
+  });
 }
 
 export async function POST(

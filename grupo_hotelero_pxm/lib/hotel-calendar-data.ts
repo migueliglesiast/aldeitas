@@ -44,6 +44,7 @@ export type HotelCalendarPayload = {
   days: string[];
   rooms: HotelCalendarRoom[];
   readOnly: boolean;
+  shareUrl?: string | null;
 };
 
 type BuildOptions = {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { copyTextToClipboard } from "@/lib/copy-to-clipboard";
 import { formatMoneyShort } from "@/lib/currency";
 import type { CalendarCell, HotelCalendarPayload } from "@/lib/hotel-calendar-data";
 
@@ -46,6 +47,7 @@ export default function HotelMultiCalendar({
   const [basePriceDrafts, setBasePriceDrafts] = useState<Record<string, string>>({});
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const loadCalendar = useCallback(async () => {
@@ -59,6 +61,7 @@ export default function HotelMultiCalendar({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load calendar");
       setData(json);
+      if (json.shareUrl) setShareUrl(json.shareUrl);
       setBasePriceDrafts(
         Object.fromEntries(
           json.rooms.map((room: HotelCalendarPayload["rooms"][number]) => [
@@ -97,20 +100,40 @@ export default function HotelMultiCalendar({
   }, [data]);
 
   async function handleShareLink() {
-    const res = await fetch(`/api/admin/hotel/${hotelId}/calendar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "share" }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setMessage(json.error || "Failed to create share link");
-      return;
+    setSharing(true);
+    setMessage(null);
+    try {
+      let url = shareUrl;
+      if (!url) {
+        const res = await fetch(`/api/admin/hotel/${hotelId}/calendar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "share" }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || "Failed to create share link");
+        }
+        url = json.url;
+        if (!url) {
+          throw new Error("Share link was not returned by the server");
+        }
+        setShareUrl(url);
+      }
+
+      const copied = await copyTextToClipboard(url);
+      setCopiedShare(copied);
+      setMessage(
+        copied
+          ? "Share link copied to clipboard."
+          : "Share link ready — copy it from the box below."
+      );
+      setTimeout(() => setCopiedShare(false), 2500);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to create share link");
+    } finally {
+      setSharing(false);
     }
-    setShareUrl(json.url);
-    await navigator.clipboard.writeText(json.url);
-    setCopiedShare(true);
-    setTimeout(() => setCopiedShare(false), 2500);
   }
 
   async function toggleBlock(roomId: string, day: string, cell: CalendarCell) {
@@ -247,12 +270,61 @@ export default function HotelMultiCalendar({
           <button
             type="button"
             onClick={handleShareLink}
-            className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+            disabled={sharing}
+            className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
           >
-            {copiedShare ? "Share link copied!" : "Share calendar link"}
+            {sharing
+              ? "Creating link…"
+              : copiedShare
+                ? "Copied!"
+                : shareUrl
+                  ? "Copy share link"
+                  : "Share calendar link"}
           </button>
         ) : null}
       </div>
+
+      {!readOnly && (shareUrl || message) ? (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
+          {shareUrl ? (
+            <>
+              <p className="text-sm font-medium text-gray-800">Shared calendar link</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800"
+                  onFocus={(event) => event.target.select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleShareLink()}
+                  disabled={sharing}
+                  className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-white disabled:opacity-50"
+                >
+                  Copy link
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Anyone with this link can view the next 3 months read-only. Refresh the page to
+                see new bookings or blocks.
+              </p>
+            </>
+          ) : null}
+          {message ? (
+            <div
+              className={`rounded px-3 py-2 text-sm ${
+                message.includes("Failed") || message.includes("Invalid")
+                  ? "bg-red-50 text-red-700"
+                  : "bg-green-50 text-green-700"
+              }`}
+            >
+              {message}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {!readOnly ? (
         <p className="text-sm text-gray-600">
@@ -436,14 +508,6 @@ export default function HotelMultiCalendar({
             </div>
           ) : null}
         </div>
-      ) : null}
-
-      {shareUrl ? (
-        <p className="text-sm text-gray-600 break-all">Share link: {shareUrl}</p>
-      ) : null}
-
-      {message ? (
-        <div className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>
       ) : null}
     </div>
   );
