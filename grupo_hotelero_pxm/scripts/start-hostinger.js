@@ -5,6 +5,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const appRoot = path.join(__dirname, "..");
+const standaloneServer = path.join(appRoot, ".next", "standalone", "server.js");
+const buildIdPath = path.join(appRoot, ".next", "BUILD_ID");
+
 function resolvePort() {
   const args = process.argv.slice(2);
   const flag = args.indexOf("-p");
@@ -14,18 +18,53 @@ function resolvePort() {
   process.env.HOSTNAME = process.env.HOSTNAME || "0.0.0.0";
 }
 
+function fatal(message, error) {
+  console.error("[aldeitas] FATAL:", message);
+  if (error) console.error(error);
+  process.exit(1);
+}
+
+process.on("uncaughtException", (error) => fatal("uncaughtException", error));
+process.on("unhandledRejection", (error) => fatal("unhandledRejection", error));
+
 resolvePort();
 
-const standaloneServer = path.join(__dirname, "..", ".next", "standalone", "server.js");
+console.log(
+  "[aldeitas] boot cwd=%s node=%s port=%s standalone=%s",
+  appRoot,
+  process.version,
+  process.env.PORT || "3000",
+  fs.existsSync(standaloneServer)
+);
+console.log(
+  "[aldeitas] env DATABASE_URL=%s DIRECT_URL=%s NODE_ENV=%s",
+  Boolean(process.env.DATABASE_URL),
+  Boolean(process.env.DIRECT_URL),
+  process.env.NODE_ENV || "undefined"
+);
+
+if (!fs.existsSync(buildIdPath)) {
+  fatal(
+    `missing .next build at ${buildIdPath} — confirm root directory is grupo_hotelero_pxm and build succeeded`
+  );
+}
 
 if (fs.existsSync(standaloneServer)) {
   console.log(
     "[aldeitas] starting standalone server on port %s",
     process.env.PORT || "3000"
   );
-  process.chdir(path.dirname(standaloneServer));
-  require(standaloneServer);
+  try {
+    process.chdir(path.dirname(standaloneServer));
+    require(standaloneServer);
+  } catch (error) {
+    fatal("standalone server failed to start", error);
+  }
 } else {
   console.log("[aldeitas] standalone missing — falling back to app.js");
-  require("../app.js");
+  try {
+    require(path.join(appRoot, "app.js"));
+  } catch (error) {
+    fatal("app.js fallback failed to start", error);
+  }
 }
