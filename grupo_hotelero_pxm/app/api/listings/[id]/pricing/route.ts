@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchDynamicPricing } from "@/lib/airbnb";
 import { SITE_CURRENCY } from "@/lib/currency";
+import { calculateStayTotalCents } from "@/lib/listing-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -48,16 +49,21 @@ export async function GET(
     }
 
     const currency = SITE_CURRENCY;
-    const nightlyCents =
+    const baseNightlyCents =
       dynamic?.currency === SITE_CURRENCY
         ? dynamic.nightlyCents
         : listing.nightlyBasePrice;
-    const totalCents = Math.round(nightlyCents * nights);
+    const stayPricing = await calculateStayTotalCents({
+      listingId: listing.id,
+      basePriceCents: baseNightlyCents,
+      startDate: checkInDate,
+      endDate: checkOutDate,
+    });
 
     return NextResponse.json({
-      nights,
-      nightlyCents,
-      totalCents,
+      nights: stayPricing.nights,
+      nightlyCents: Math.round(stayPricing.totalCents / Math.max(stayPricing.nights, 1)),
+      totalCents: stayPricing.totalCents,
       currency,
       basePriceCents: listing.nightlyBasePrice,
       baseCurrency: listing.baseCurrency,

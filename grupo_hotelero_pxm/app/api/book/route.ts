@@ -16,6 +16,8 @@ import {
   expireStaleUnpaidBookings,
   hasBlockingLocalConflict,
 } from "@/lib/booking-blocks";
+import { hasManualBlockConflict } from "@/lib/manual-blocks";
+import { calculateStayTotalCents } from "@/lib/listing-pricing";
 import { SITE_CURRENCY } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
@@ -86,21 +88,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
   }
 
+  if (await hasManualBlockConflict(listingId, startDate, endDate)) {
+    return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+  }
+
   const dynamic = await fetchDynamicPricing(listing.airbnbId, start, end);
-  const nights = Math.max(
-    0,
-    (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  if (nights <= 0) {
+  const stayPricing = await calculateStayTotalCents({
+    listingId,
+    basePriceCents:
+      dynamic?.currency === SITE_CURRENCY
+        ? dynamic.nightlyCents
+        : listing.nightlyBasePrice,
+    startDate,
+    endDate,
+  });
+  if (stayPricing.nights <= 0) {
     return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
   }
 
   const currency = SITE_CURRENCY;
-  const nightlyCents =
-    dynamic?.currency === SITE_CURRENCY
-      ? dynamic.nightlyCents
-      : listing.nightlyBasePrice;
-  const totalCents = Math.round(nightlyCents * nights);
+  const totalCents = stayPricing.totalCents;
 
   const booking = await prisma.booking.create({
     data: {

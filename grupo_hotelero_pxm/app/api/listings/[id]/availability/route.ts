@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import { blockingBookingStatusWhere, expireStaleUnpaidBookings } from "@/lib/booking-blocks";
+import { getManualBlocksForListing } from "@/lib/manual-blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,19 @@ export async function GET(
       }
     }
     debugInfo.fetchedDates.fromLocalBookings = bookedDates.size;
+
+    const manualBlocks = await getManualBlocksForListing(
+      listing.id,
+      new Date(0),
+      new Date("2099-12-31")
+    );
+    for (const block of manualBlocks) {
+      const current = new Date(block.startDate);
+      while (current < block.endDate) {
+        bookedDates.add(current.toISOString().split("T")[0]);
+        current.setDate(current.getDate() + 1);
+      }
+    }
 
     // Add dates from legacy icalUrl if it exists
     if (listing.icalUrl) {

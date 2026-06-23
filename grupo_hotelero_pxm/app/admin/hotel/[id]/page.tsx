@@ -2,8 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import HotelEditForm from "@/components/HotelEditForm";
+import HotelAdminPanel from "@/components/HotelAdminPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +52,7 @@ export default async function HotelEditPage({ params }: { params: { id: string }
         <p className="text-gray-600">{hotel.location}</p>
       </div>
 
-      <HotelEditForm hotel={hotel} />
+      <HotelAdminPanel hotel={hotel} />
     </div>
   );
 }

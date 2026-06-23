@@ -1,0 +1,450 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatMoneyShort } from "@/lib/currency";
+import type { CalendarCell, HotelCalendarPayload } from "@/lib/hotel-calendar-data";
+
+type Props = {
+  hotelId: string;
+  readOnly?: boolean;
+  shareToken?: string;
+};
+
+type SelectedCell = {
+  roomId: string;
+  roomTitle: string;
+  day: string;
+  cell: CalendarCell;
+};
+
+function cellClass(cell: CalendarCell) {
+  switch (cell.status) {
+    case "manual_block":
+      return "bg-slate-300 text-slate-900";
+    case "booking":
+      return cell.bookingStatus === "CONFIRMED"
+        ? "bg-rose-200 text-rose-950"
+        : "bg-amber-200 text-amber-950";
+    case "external":
+      return "bg-violet-200 text-violet-950";
+    default:
+      return "bg-white text-slate-700 hover:bg-emerald-50";
+  }
+}
+
+export default function HotelMultiCalendar({
+  hotelId,
+  readOnly = false,
+  shareToken,
+}: Props) {
+  const [data, setData] = useState<HotelCalendarPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SelectedCell | null>(null);
+  const [priceInput, setPriceInput] = useState("");
+  const [basePriceDrafts, setBasePriceDrafts] = useState<Record<string, string>>({});
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const loadCalendar = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const endpoint = shareToken
+        ? `/api/calendar/share/${shareToken}`
+        : `/api/admin/hotel/${hotelId}/calendar`;
+      const res = await fetch(endpoint);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load calendar");
+      setData(json);
+      setBasePriceDrafts(
+        Object.fromEntries(
+          json.rooms.map((room: HotelCalendarPayload["rooms"][number]) => [
+            room.id,
+            String(Math.round(room.nightlyBasePrice / 100)),
+          ])
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load calendar");
+    } finally {
+      setLoading(false);
+    }
+  }, [hotelId, shareToken]);
+
+  useEffect(() => {
+    loadCalendar();
+  }, [loadCalendar]);
+
+  const monthGroups = useMemo(() => {
+    if (!data) return [];
+    const groups: Array<{ label: string; days: string[] }> = [];
+    for (const day of data.days) {
+      const label = new Date(`${day}T00:00:00`).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      });
+      const last = groups[groups.length - 1];
+      if (last?.label === label) {
+        last.days.push(day);
+      } else {
+        groups.push({ label, days: [day] });
+      }
+    }
+    return groups;
+  }, [data]);
+
+  async function handleShareLink() {
+    const res = await fetch(`/api/admin/hotel/${hotelId}/calendar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "share" }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setMessage(json.error || "Failed to create share link");
+      return;
+    }
+    setShareUrl(json.url);
+    await navigator.clipboard.writeText(json.url);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2500);
+  }
+
+  async function toggleBlock(roomId: string, day: string, cell: CalendarCell) {
+    if (readOnly || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      if (cell.status === "manual_block" && cell.blockId) {
+        const res = await fetch(
+          `/api/admin/hotel/${hotelId}/calendar/blocks?blockId=${cell.blockId}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) {
+          const json = await res.json();
+          throw new Error(json.error || "Failed to unblock");
+        }
+        setMessage("Dates unblocked.");
+      } else if (cell.status === "available") {
+        const res = await fetch(`/api/admin/hotel/${hotelId}/calendar/blocks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listingId: roomId, startDate: day }),
+        });
+        if (!res.ok) {
+          const json = await res.json();
+          throw new Error(json.error || "Failed to block");
+        }
+        setMessage("Date blocked.");
+      } else {
+        return;
+      }
+      setSelected(null);
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDailyPrice(roomId: string, day: string) {
+    if (readOnly || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const pesos = priceInput.trim();
+      const res = await fetch(`/api/admin/hotel/${hotelId}/calendar/prices`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId: roomId,
+          date: day,
+          priceCents: pesos === "" ? null : Math.round(Number(pesos) * 100),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update price");
+      setMessage("Price updated.");
+      setSelected(null);
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to update price");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveBasePrice(roomId: string) {
+    if (readOnly || busy) return;
+    const pesos = basePriceDrafts[roomId];
+    if (!pesos) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/hotel/${hotelId}/calendar/prices`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId: roomId,
+          nightlyBasePrice: Math.round(Number(pesos) * 100),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update base price");
+      setMessage("Base price updated.");
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to update base price");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelBooking(bookingId: string) {
+    if (readOnly || busy) return;
+    if (!confirm("Cancel this reservation?")) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/hotel/${hotelId}/calendar/bookings/${bookingId}/cancel`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to cancel booking");
+      setMessage("Booking canceled.");
+      setSelected(null);
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to cancel booking");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="rounded border bg-white p-6 text-gray-600">Loading calendar…</div>;
+  }
+
+  if (error || !data) {
+    return <div className="rounded border bg-red-50 p-6 text-red-700">{error || "No data"}</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Multi Calendar</h2>
+          <p className="text-sm text-gray-600">
+            {data.startDate} → {data.endDate} ({data.days.length} nights shown)
+          </p>
+        </div>
+        {!readOnly ? (
+          <button
+            type="button"
+            onClick={handleShareLink}
+            className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            {copiedShare ? "Share link copied!" : "Share calendar link"}
+          </button>
+        ) : null}
+      </div>
+
+      {!readOnly ? (
+        <p className="text-sm text-gray-600">
+          Click an available day to block it, a blocked day to unblock it, or a booking to cancel
+          it. Select a day below to set a custom nightly price.
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-white border" /> Available</span>
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-slate-300" /> Blocked</span>
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-rose-200" /> Booked</span>
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-amber-200" /> Processing</span>
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-violet-200" /> External</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border bg-white">
+        <table className="min-w-max border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 min-w-[180px] border-b border-r bg-gray-50 px-3 py-2 text-left">
+                Room
+              </th>
+              {monthGroups.map((group) => (
+                <th
+                  key={group.label}
+                  colSpan={group.days.length}
+                  className="border-b bg-gray-50 px-2 py-2 text-center font-medium text-gray-700"
+                >
+                  {group.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              <th className="sticky left-0 z-20 border-b border-r bg-gray-50 px-3 py-2 text-left">
+                Base price
+              </th>
+              {data.days.map((day) => (
+                <th
+                  key={day}
+                  className="border-b px-1 py-2 text-center font-normal text-gray-500"
+                >
+                  {new Date(`${day}T00:00:00`).getDate()}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rooms.map((room) => (
+              <tr key={room.id}>
+                <td className="sticky left-0 z-10 border-r bg-gray-50 px-3 py-3 align-top">
+                  <div className="font-medium text-gray-900">{room.title}</div>
+                  {!readOnly ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={basePriceDrafts[room.id] ?? ""}
+                        onChange={(event) =>
+                          setBasePriceDrafts((current) => ({
+                            ...current,
+                            [room.id]: event.target.value,
+                          }))
+                        }
+                        className="w-20 rounded border px-2 py-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveBasePrice(room.id)}
+                        className="rounded border px-2 py-1 hover:bg-white"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-gray-600">
+                      {formatMoneyShort(room.nightlyBasePrice, room.baseCurrency)}
+                    </div>
+                  )}
+                </td>
+                {data.days.map((day) => {
+                  const cell = room.cells[day];
+                  const isSelected =
+                    selected?.roomId === room.id && selected?.day === day;
+                  return (
+                    <td key={`${room.id}-${day}`} className="border-b border-r p-0">
+                      <button
+                        type="button"
+                        disabled={readOnly && cell.status === "available"}
+                        onClick={() => {
+                          if (readOnly) {
+                            setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
+                            return;
+                          }
+                          if (cell.status === "booking") {
+                            setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
+                            setPriceInput(String(Math.round(cell.priceCents / 100)));
+                            return;
+                          }
+                          if (cell.status === "available" || cell.status === "manual_block") {
+                            toggleBlock(room.id, day, cell);
+                            return;
+                          }
+                          setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
+                          setPriceInput(String(Math.round(cell.priceCents / 100)));
+                        }}
+                        className={[
+                          "flex h-14 w-14 flex-col items-center justify-center border transition",
+                          cellClass(cell),
+                          isSelected ? "ring-2 ring-[#00a19c]" : "",
+                          readOnly ? "cursor-default" : "cursor-pointer",
+                        ].join(" ")}
+                        title={cell.label}
+                      >
+                        <span className="text-[10px] font-medium">{cell.label?.split(" ")[0]}</span>
+                        <span className="text-[10px]">
+                          {formatMoneyShort(cell.priceCents, room.baseCurrency)}
+                        </span>
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selected ? (
+        <div className="rounded-lg border bg-gray-50 p-4 space-y-3">
+          <div className="text-sm">
+            <span className="font-medium">{selected.roomTitle}</span> · {selected.day} ·{" "}
+            {selected.cell.label}
+          </div>
+          {selected.cell.guestEmail ? (
+            <div className="text-sm text-gray-700">
+              Guest: {selected.cell.guestEmail}
+              {selected.cell.guestPhone ? ` · ${selected.cell.guestPhone}` : ""}
+            </div>
+          ) : null}
+          {!readOnly && selected.cell.status === "booking" && selected.cell.bookingId ? (
+            <button
+              type="button"
+              onClick={() => cancelBooking(selected.cell.bookingId!)}
+              className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+            >
+              Cancel reservation
+            </button>
+          ) : null}
+          {!readOnly && selected.cell.status !== "external" ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Nightly price (MXN)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={priceInput}
+                  onChange={(event) => setPriceInput(event.target.value)}
+                  className="rounded border px-3 py-2 text-sm"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => saveDailyPrice(selected.roomId, selected.day)}
+                className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white"
+              >
+                Save day price
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPriceInput("");
+                  saveDailyPrice(selected.roomId, selected.day);
+                }}
+                className="rounded border px-4 py-2 text-sm"
+              >
+                Reset to base
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {shareUrl ? (
+        <p className="text-sm text-gray-600 break-all">Share link: {shareUrl}</p>
+      ) : null}
+
+      {message ? (
+        <div className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>
+      ) : null}
+    </div>
+  );
+}

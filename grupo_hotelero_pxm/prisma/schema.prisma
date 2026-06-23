@@ -58,6 +58,47 @@ model Hotel {
   contacts            HotelContact[]
   images              HotelImage[]
   managers            HotelManager[]
+  calendarShare       HotelCalendarShare?
+  manualBlocks        ManualBlock[]
+}
+
+model HotelCalendarShare {
+  id        String   @id @default(cuid())
+  hotelId   String   @unique
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ManualBlock {
+  id        String   @id @default(cuid())
+  hotelId   String
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([listingId, startDate, endDate])
+  @@index([hotelId])
+}
+
+model ListingDailyPrice {
+  id         String   @id @default(cuid())
+  listingId  String
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  date       DateTime
+  priceCents Int
+  currency   String   @default("MXN")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([listingId, date])
+  @@index([listingId, date])
 }
 
 model HotelManager {
@@ -114,6 +155,8 @@ model Listing {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   bookings             Booking[]
+  manualBlocks         ManualBlock[]
+  dailyPrices          ListingDailyPrice[]
 }
 
 model Image {
