@@ -18,14 +18,19 @@ function resolvePort() {
   return 3000;
 }
 
+function logError(label, error) {
+  console.error("[aldeitas] %s:", label);
+  if (error) console.error(error);
+}
+
 function fatal(message, error) {
   console.error("[aldeitas] FATAL:", message);
   if (error) console.error(error);
   process.exit(1);
 }
 
-process.on("uncaughtException", (error) => fatal("uncaughtException", error));
-process.on("unhandledRejection", (error) => fatal("unhandledRejection", error));
+process.on("uncaughtException", (error) => logError("uncaughtException", error));
+process.on("unhandledRejection", (error) => logError("unhandledRejection", error));
 
 const port = resolvePort();
 const hostname = "0.0.0.0";

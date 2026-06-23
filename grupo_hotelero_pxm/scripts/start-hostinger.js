@@ -18,14 +18,14 @@ function resolvePort() {
   process.env.HOSTNAME = process.env.HOSTNAME || "0.0.0.0";
 }
 
-function fatal(message, error) {
-  console.error("[aldeitas] FATAL:", message);
+function logError(label, error) {
+  console.error("[aldeitas] %s:", label);
   if (error) console.error(error);
-  process.exit(1);
 }
 
-process.on("uncaughtException", (error) => fatal("uncaughtException", error));
-process.on("unhandledRejection", (error) => fatal("unhandledRejection", error));
+// Log only — do not process.exit on rejections (Next/React can emit benign ones).
+process.on("uncaughtException", (error) => logError("uncaughtException", error));
+process.on("unhandledRejection", (error) => logError("unhandledRejection", error));
 
 resolvePort();
 
@@ -44,9 +44,11 @@ console.log(
 );
 
 if (!fs.existsSync(buildIdPath)) {
-  fatal(
-    `missing .next build at ${buildIdPath} — confirm root directory is grupo_hotelero_pxm and build succeeded`
+  console.error(
+    "[aldeitas] FATAL: missing .next build at %s — confirm root directory is grupo_hotelero_pxm and build succeeded",
+    buildIdPath
   );
+  process.exit(1);
 }
 
 if (fs.existsSync(standaloneServer)) {
@@ -58,13 +60,17 @@ if (fs.existsSync(standaloneServer)) {
     process.chdir(path.dirname(standaloneServer));
     require(standaloneServer);
   } catch (error) {
-    fatal("standalone server failed to start", error);
+    console.error("[aldeitas] FATAL: standalone server failed to start");
+    console.error(error);
+    process.exit(1);
   }
 } else {
   console.log("[aldeitas] standalone missing — falling back to app.js");
   try {
     require(path.join(appRoot, "app.js"));
   } catch (error) {
-    fatal("app.js fallback failed to start", error);
+    console.error("[aldeitas] FATAL: app.js fallback failed to start");
+    console.error(error);
+    process.exit(1);
   }
 }
