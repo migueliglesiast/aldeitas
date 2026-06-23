@@ -117,7 +117,7 @@ Add env vars in hPanel **before** the first deploy (or import from a local copy 
 | `CLOUDINARY_CLOUD_NAME` | From [cloudinary.com](https://cloudinary.com) dashboard |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret — required for admin uploads in production |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | When ready for email |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | See [EMAIL_SETUP.md](./EMAIL_SETUP.md) |
 
 Do **not** set `MERCADOPAGO_TEST_PAYER_EMAIL` in production.
 
@@ -158,10 +158,10 @@ Mercado Pago → your app → **Webhooks**:
 
 ## 6. Airbnb calendars
 
-Per room in **Admin → Room edit**:
+Per room in **Admin → Hotel → Room → Airbnb sync**:
 
-1. Copy **`.ics` export URL** → Airbnb → Import calendar
-2. Add import calendar URLs on the room for conflict detection
+1. **Export to Airbnb** — copy your `.ics` URL into Airbnb → Import calendar
+2. **Import from Airbnb** — paste Airbnb's export `.ics` URL in **Import Airbnb bookings**
 
 Must use your **production HTTPS domain**.
 

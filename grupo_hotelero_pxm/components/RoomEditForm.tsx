@@ -3,7 +3,15 @@ import { useState } from "react";
 import RoomImageUpload from "./RoomImageUpload";
 import RoomAirbnbImport from "./RoomAirbnbImport";
 import RoomIcalExport from "./RoomIcalExport";
+import RoomIcalImport from "./RoomIcalImport";
 import { type AdminImage } from "@/lib/admin-image-upload";
+
+type CalendarSource = {
+  id: string;
+  name: string;
+  icalUrl: string;
+  createdAt: string;
+};
 
 type Room = {
   id: string;
@@ -26,9 +34,10 @@ type Room = {
 type Props = {
   room: Room;
   icalExportUrl: string;
+  calendarSources: CalendarSource[];
 };
 
-export default function RoomEditForm({ room, icalExportUrl }: Props) {
+export default function RoomEditForm({ room, icalExportUrl, calendarSources }: Props) {
   const [images, setImages] = useState<AdminImage[]>(room.images);
   const [formData, setFormData] = useState({
     description: room.description || "",
@@ -83,6 +92,11 @@ export default function RoomEditForm({ room, icalExportUrl }: Props) {
       <div className="bg-white rounded-lg border p-6 space-y-4">
         <h2 className="text-xl font-semibold">Airbnb sync</h2>
         <RoomIcalExport exportUrl={icalExportUrl} />
+        <RoomIcalImport
+          roomId={room.id}
+          roomTitle={room.title}
+          initialSources={calendarSources}
+        />
         <RoomAirbnbImport
           roomId={room.id}
           defaultAirbnbUrl={room.airbnbUrl}

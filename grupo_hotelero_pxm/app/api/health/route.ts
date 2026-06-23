@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isEmailConfigured } from "@/lib/email/config";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,7 @@ export async function GET() {
   const envStatus = {
     hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
     hasDirectUrl: Boolean(process.env.DIRECT_URL),
+    hasEmail: isEmailConfigured(),
   };
 
   try {

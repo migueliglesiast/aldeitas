@@ -30,6 +30,7 @@ export default async function RoomEditPage({ params }: { params: { id: string } 
         },
       },
       images: { orderBy: { position: "asc" } },
+      calendarSources: { orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -55,7 +56,16 @@ export default async function RoomEditPage({ params }: { params: { id: string } 
         <p className="text-gray-600">{room.hotel.name} - {room.hotel.location}</p>
       </div>
 
-      <RoomEditForm room={room} icalExportUrl={getListingIcalExportUrl(room.id)} />
+      <RoomEditForm
+        room={room}
+        icalExportUrl={getListingIcalExportUrl(room.id)}
+        calendarSources={room.calendarSources.map((source) => ({
+          id: source.id,
+          name: source.name,
+          icalUrl: source.icalUrl,
+          createdAt: source.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }

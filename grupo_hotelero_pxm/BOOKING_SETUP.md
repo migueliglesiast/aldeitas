@@ -109,6 +109,7 @@ BOOKING_MAX_PENDING_MINUTES=120
 - [ ] Webhook URL configured
 - [ ] iCal export URL added in Airbnb for each room
 - [ ] Cron: `POST /api/bookings/reconcile` every 5–10 min with `x-booking-reconcile-secret`
+- [ ] SMTP configured — see [EMAIL_SETUP.md](./EMAIL_SETUP.md)
 
 Mercado Pago authorizations must be **captured within 5 days** or they expire.
 
