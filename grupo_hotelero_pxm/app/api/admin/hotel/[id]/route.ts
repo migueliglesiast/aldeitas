@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncBilingualDescription } from "@/lib/sync-bilingual-description";
+import { normalizeCustomDomain } from "@/lib/storefront-host";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const updateHotelSchema = z.object({
   logoImageUrl: z.string().optional().nullable(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
+  customDomain: z.string().optional().nullable(),
 });
 
 export async function PUT(
@@ -39,6 +41,9 @@ export async function PUT(
     const body = await req.json();
     const data = updateHotelSchema.parse(body);
     const bilingual = await syncBilingualDescription(data.description);
+    const customDomain = data.customDomain
+      ? normalizeCustomDomain(data.customDomain)
+      : null;
 
     const updated = await prisma.hotel.update({
       where: { id: params.id },
@@ -50,6 +55,7 @@ export async function PUT(
         logoImageUrl: data.logoImageUrl,
         latitude: data.latitude,
         longitude: data.longitude,
+        customDomain: customDomain || null,
       },
     });
 
@@ -57,6 +63,12 @@ export async function PUT(
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    }
+    if (error?.code === "P2002") {
+      return NextResponse.json(
+        { error: "That storefront domain is already assigned to another hotel." },
+        { status: 409 }
+      );
     }
     console.error("[admin/hotel] Error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

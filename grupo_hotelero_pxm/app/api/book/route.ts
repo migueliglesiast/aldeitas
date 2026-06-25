@@ -18,6 +18,7 @@ import {
 } from "@/lib/booking-blocks";
 import { hasManualBlockConflict } from "@/lib/manual-blocks";
 import { calculateStayTotalCents } from "@/lib/listing-pricing";
+import { getRequestSiteUrl } from "@/lib/site-url";
 import { SITE_CURRENCY } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = await getRequestSiteUrl();
   const statusUrl = `${siteUrl}/booking/${booking.id}`;
 
   if (!paymentProvider) {

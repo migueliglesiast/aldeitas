@@ -11,6 +11,10 @@ const siteHost = (() => {
 
 const allowedOrigins = ["localhost:3000"];
 if (siteHost) allowedOrigins.push(siteHost);
+for (const host of process.env.STOREFRONT_ALLOWED_ORIGINS?.split(",") ?? []) {
+  const trimmed = host.trim();
+  if (trimmed) allowedOrigins.push(trimmed);
+}
 
 const nextConfig = {
   output: "standalone",

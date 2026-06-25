@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
 import { linkUserToHotel } from "@/lib/hotel-manager-access";
+import { slugifyHotelName } from "@/lib/hotel-cover";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -73,9 +74,18 @@ export async function POST(req: Request) {
     });
 
     // Create a Hotel for the user and corresponding Listings for units
+    const hotelName = user.hotelName || `${user.username}'s Hotel`;
+    const baseSlug = slugifyHotelName(hotelName);
+    let slug = baseSlug;
+    let suffix = 1;
+    while (await prisma.hotel.findUnique({ where: { slug }, select: { id: true } })) {
+      slug = `${baseSlug}-${suffix++}`;
+    }
+
     const hotel = await prisma.hotel.create({
       data: {
-        name: user.hotelName || `${user.username}'s Hotel`,
+        name: hotelName,
+        slug,
         description: "",
         location: "",
         ownerId: user.id,

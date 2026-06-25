@@ -1,15 +1,12 @@
 import { getHotelDetail } from "@/lib/data";
 import HotelDetailView from "@/components/HotelDetailView";
 import { getStorefrontFromHeaders } from "@/lib/storefront";
-import { redirect } from "next/navigation";
 
-export default async function HotelPage({ params }: { params: { id: string } }) {
+export default async function StorefrontHomePage() {
   const storefront = await getStorefrontFromHeaders();
-  if (storefront?.id === params.id) {
-    redirect("/");
-  }
+  if (!storefront) return null;
 
-  const hotel = await getHotelDetail(params.id);
+  const hotel = await getHotelDetail(storefront.id);
   if (!hotel) {
     return <div>Hotel not found</div>;
   }
@@ -24,6 +21,7 @@ export default async function HotelPage({ params }: { params: { id: string } }) 
 
   return (
     <HotelDetailView
+      storefront
       hotel={{
         id: hotel.id,
         name: hotel.name,
@@ -37,5 +35,3 @@ export default async function HotelPage({ params }: { params: { id: string } }) 
     />
   );
 }
-
-export const dynamic = "force-dynamic";

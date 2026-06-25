@@ -27,46 +27,53 @@ type Props = {
     descriptionEs?: string | null;
   };
   listings: Listing[];
+  storefront?: boolean;
 };
 
-export default function HotelDetailView({ hotel, listings }: Props) {
+export default function HotelDetailView({ hotel, listings, storefront = false }: Props) {
   const { t } = useLocale();
   const palette = useHotelBrandPalette(hotel.logoImageUrl);
   const brandStyle = paletteToCssVars(palette);
 
   return (
     <div className="space-y-6" style={brandStyle}>
-      <div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded px-3 py-2 text-white transition-colors duration-200"
-          style={{ backgroundColor: "var(--hotel-brand-primary)" }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.backgroundColor = "var(--hotel-brand-accent)";
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.backgroundColor = "var(--hotel-brand-primary)";
+      {!storefront ? (
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded px-3 py-2 text-white transition-colors duration-200"
+            style={{ backgroundColor: "var(--hotel-brand-primary)" }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.backgroundColor = "var(--hotel-brand-accent)";
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.backgroundColor = "var(--hotel-brand-primary)";
+            }}
+          >
+            {t("back")}
+          </Link>
+        </div>
+      ) : null}
+
+      {!storefront ? (
+        <div
+          className="rounded-2xl border p-5 md:p-6"
+          style={{
+            borderColor: "var(--hotel-brand-ring)",
+            backgroundColor: "color-mix(in srgb, white 92%, var(--hotel-brand-muted))",
           }}
         >
-          {t("back")}
-        </Link>
-      </div>
-
-      <div
-        className="rounded-2xl border p-5 md:p-6"
-        style={{
-          borderColor: "var(--hotel-brand-ring)",
-          backgroundColor: "color-mix(in srgb, white 92%, var(--hotel-brand-muted))",
-        }}
-      >
-        <HotelBrandHeader
-          name={hotel.name}
-          location={hotel.location}
-          logoImageUrl={hotel.logoImageUrl}
-          size="lg"
-        />
-        <LocalizedDescription item={hotel} className="mt-4 text-sm leading-relaxed md:text-base" />
-      </div>
+          <HotelBrandHeader
+            name={hotel.name}
+            location={hotel.location}
+            logoImageUrl={hotel.logoImageUrl}
+            size="lg"
+          />
+          <LocalizedDescription item={hotel} className="mt-4 text-sm leading-relaxed md:text-base" />
+        </div>
+      ) : (
+        <LocalizedDescription item={hotel} className="text-sm leading-relaxed md:text-base" />
+      )}
 
       <div className="w-full">
         <SearchForm />

@@ -12,6 +12,8 @@ import RoomList from "./RoomList";
 type Hotel = {
   id: string;
   name: string;
+  slug: string;
+  customDomain: string | null;
   description: string;
   location: string;
   mainContactNumber: string | null;
@@ -52,6 +54,7 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
   const [longitude, setLongitude] = useState(
     hotel.longitude != null ? String(hotel.longitude) : ""
   );
+  const [customDomain, setCustomDomain] = useState(hotel.customDomain || "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -71,6 +74,7 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
           logoImageUrl: logoImageUrl || null,
           latitude: latitude.trim() ? Number(latitude) : null,
           longitude: longitude.trim() ? Number(longitude) : null,
+          customDomain: customDomain.trim() || null,
         }),
       });
 
@@ -160,6 +164,27 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
                 className="w-full rounded border border-gray-300 px-3 py-2 focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c]"
                 placeholder="Enter main contact number"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Storefront domain
+              </label>
+              <p className="text-sm text-gray-500 mb-2">
+                Custom domain for this hotel&apos;s branded site (without https://). Example:{" "}
+                <code className="text-xs">aldeitamixteca.com</code>. Point DNS to Hostinger, then
+                add the domain in hPanel.
+              </p>
+              <input
+                type="text"
+                value={customDomain}
+                onChange={(e) => setCustomDomain(e.target.value)}
+                className="w-full rounded border border-gray-300 px-3 py-2 focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c]"
+                placeholder="aldeitamixteca.com"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                Internal slug: <code>{hotel.slug}</code>
+              </p>
             </div>
 
             <div>

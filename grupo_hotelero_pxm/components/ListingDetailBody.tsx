@@ -5,6 +5,7 @@ import ListingImageGallery from "@/components/ListingImageGallery";
 import BookingForm from "@/components/BookingForm";
 import LocalizedDescription from "@/components/LocalizedDescription";
 import { useLocale } from "@/lib/i18n/locale-context";
+import { useIsStorefront } from "@/lib/storefront-context";
 
 type Props = {
   listing: {
@@ -25,12 +26,14 @@ type Props = {
 
 export default function ListingDetailBody({ listing }: Props) {
   const { t } = useLocale();
+  const isStorefront = useIsStorefront();
+  const backHref = isStorefront ? "/" : `/hotel/${listing.hotel.id}`;
 
   return (
     <div className="space-y-8">
       <div>
         <Link
-          href={`/hotel/${listing.hotel.id}`}
+          href={backHref}
           className="inline-flex items-center gap-2 rounded px-3 py-2 text-white bg-[#00a19c] transition-colors duration-200 hover:bg-[#008a86]"
         >
           {t("back")}

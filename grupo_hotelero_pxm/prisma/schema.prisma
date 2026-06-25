@@ -39,6 +39,8 @@ model Session {
 model Hotel {
   id                  String         @id @default(cuid())
   name                String
+  slug                String         @unique
+  customDomain        String?        @unique
   description         String
   descriptionEn       String?
   descriptionEs       String?

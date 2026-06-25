@@ -1,5 +1,6 @@
 // @ts-nocheck - Prisma client types are generated correctly, this is an IDE cache issue
 import { PrismaClient } from "@prisma/client";
+import { slugifyHotelName } from "../lib/hotel-cover";
 
 const prisma = new PrismaClient();
 
@@ -45,12 +46,18 @@ async function main() {
   for (let hIndex = 0; hIndex < initialHotels.length; hIndex++) {
     const spec = initialHotels[hIndex];
 
+    const slug = slugifyHotelName(spec.name);
+    const customDomain =
+      spec.name === "Aldeita Mixteca" ? "aldeitamixteca.com" : null;
+
     // Find or create hotel by name (idempotent without unique constraint)
     let hotel = await prisma.hotel.findFirst({ where: { name: spec.name } });
     if (!hotel) {
       hotel = await prisma.hotel.create({
         data: {
           name: spec.name,
+          slug,
+          customDomain,
           description: `${spec.name} in ${spec.location}`,
           location: spec.location,
           latitude: spec.latitude,
@@ -62,6 +69,8 @@ async function main() {
       await prisma.hotel.update({
         where: { id: hotel.id },
         data: { 
+          slug: hotel.slug || slug,
+          customDomain: customDomain ?? hotel.customDomain,
           location: spec.location,
           latitude: spec.latitude,
           longitude: spec.longitude,

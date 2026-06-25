@@ -1,9 +1,16 @@
 import { getHotelsWithListings } from "@/lib/data";
 import HomePageContent from "@/components/HomePageContent";
+import StorefrontHomePage from "@/components/StorefrontHomePage";
+import { getStorefrontFromHeaders } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  const storefront = await getStorefrontFromHeaders();
+  if (storefront) {
+    return <StorefrontHomePage />;
+  }
+
   const hotels = await getHotelsWithListings();
   const desiredOrder = [
     "Aldeita Mixteca",
