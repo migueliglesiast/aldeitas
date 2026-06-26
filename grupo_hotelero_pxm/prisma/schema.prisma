@@ -45,6 +45,7 @@ model Hotel {
   descriptionEn       String?
   descriptionEs       String?
   location            String
+  storefrontTagline   String?
   googleMapsUrl       String?
   latitude            Float?
   longitude           Float?

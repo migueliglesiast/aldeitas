@@ -9,6 +9,7 @@ export type StorefrontHotel = {
   slug: string;
   customDomain: string | null;
   location: string;
+  storefrontTagline: string | null;
   logoImageUrl: string | null;
   coverImageUrl: string | null;
   description: string;
@@ -31,6 +32,7 @@ export async function getStorefrontHotel(
       slug: true,
       customDomain: true,
       location: true,
+      storefrontTagline: true,
       logoImageUrl: true,
       coverImageUrl: true,
       description: true,
@@ -50,6 +52,7 @@ export async function getStorefrontHotel(
     slug: hotel.slug,
     customDomain: hotel.customDomain,
     location: hotel.location,
+    storefrontTagline: hotel.storefrontTagline,
     logoImageUrl: hotel.logoImageUrl,
     coverImageUrl: hotel.coverImageUrl,
     description: hotel.description,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useStorefront } from "@/lib/storefront-context";
 
 /** Desired parallax speed on short pages (background moves 30% as fast as scroll). */
 const MAX_PARALLAX_FACTOR = 0.3;
@@ -34,11 +33,7 @@ function measureParallax(): ParallaxState {
 }
 
 export default function ParallaxBackground() {
-  const storefront = useStorefront();
   const [offset, setOffset] = useState(0);
-  const backgroundImage = storefront?.parallaxImageUrl
-    ? `url('${storefront.parallaxImageUrl}')`
-    : "url('/images/background_image.png')";
 
   useEffect(() => {
     const update = () => setOffset(measureParallax().offset);
@@ -69,7 +64,7 @@ export default function ParallaxBackground() {
         zIndex: -1,
         pointerEvents: "none",
         transform: `translateY(${-offset}px)`,
-        backgroundImage,
+        backgroundImage: "url('/images/background_image.png')",
         backgroundSize: "cover",
         backgroundPosition: "center top",
         backgroundRepeat: "no-repeat",
