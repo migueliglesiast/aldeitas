@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { signInUrl } from "@/lib/auth-redirect";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +11,7 @@ export default async function HotelEditPage({ params }: { params: { id: string }
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/sign-in");
+    redirect(signInUrl(`/admin/hotel/${params.id}`));
   }
 
   // Verify user is a manager of this hotel

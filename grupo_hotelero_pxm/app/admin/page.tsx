@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { signInUrl } from "@/lib/auth-redirect";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -12,7 +13,7 @@ export default async function AdminPage() {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/sign-in");
+    redirect(signInUrl("/admin"));
   }
 
   // Get hotels managed by this user

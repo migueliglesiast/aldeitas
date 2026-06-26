@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { signInUrl } from "@/lib/auth-redirect";
 
 type User = {
   id: string;
@@ -36,10 +37,10 @@ export default function ProfilePage() {
             phoneNumber: data.user.phoneNumber || "",
           });
         } else {
-          router.push("/sign-in");
+          router.push(signInUrl("/admin/profile"));
         }
       })
-      .catch(() => router.push("/sign-in"))
+      .catch(() => router.push(signInUrl("/admin/profile")))
       .finally(() => setLoading(false));
   }, [router]);
 

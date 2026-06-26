@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { safeNextPath } from "@/lib/auth-redirect";
 
 export default function SignInPage() {
   const [emailOrUsername, setEmailOrUsername] = useState("");
@@ -18,7 +19,11 @@ export default function SignInPage() {
       body: JSON.stringify({ email_or_username: emailOrUsername, password }),
     });
     if (res.ok) {
-      window.location.href = "/";
+      const next = safeNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+        "/"
+      );
+      window.location.href = next;
     } else {
       let data: any = {};
       try {

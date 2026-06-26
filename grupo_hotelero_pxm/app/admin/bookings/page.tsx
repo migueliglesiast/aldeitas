@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { signInUrl } from "@/lib/auth-redirect";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AdminBookingsPanel from "@/components/AdminBookingsPanel";
@@ -9,7 +10,7 @@ export default async function AdminBookingsPage() {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/sign-in");
+    redirect(signInUrl("/admin/bookings"));
   }
 
   return (
