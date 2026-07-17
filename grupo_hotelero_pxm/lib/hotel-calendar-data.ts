@@ -38,6 +38,10 @@ export type CalendarSpan = {
   startDay: string;
   /** Inclusive last night key covered by this reservation/block. */
   endDay: string;
+  /** Exclusive checkout date key (for saving guest meta against iCal ranges). */
+  checkoutDay: string;
+  /** True reservation start (may be before the visible window). */
+  rangeStartDay: string;
   dayCount: number;
   label: string;
   guestName?: string;
@@ -45,6 +49,7 @@ export type CalendarSpan = {
   bookingId?: string;
   bookingStatus?: string;
   blockId?: string;
+  sourceUid?: string;
 };
 
 export type HotelCalendarRoom = {
@@ -112,19 +117,54 @@ function guestNameFromEmail(email: string) {
     .join(" ");
 }
 
-function externalGuestLabel(summary?: string, sourceName?: string) {
-  const raw = (summary || "").trim();
-  if (!raw) return sourceName || "External";
-  const lowered = raw.toLowerCase();
-  if (
-    lowered === "reserved" ||
-    lowered === "blocked" ||
-    lowered === "unavailable" ||
-    lowered.startsWith("reserved")
-  ) {
-    return sourceName || "External";
+function addDaysKey(dateKey: string, daysToAdd: number) {
+  const date = parseDateKey(dateKey);
+  date.setDate(date.getDate() + daysToAdd);
+  return toDateKey(date);
+}
+
+/** Parse guest name + count from iCal SUMMARY/DESCRIPTION when a PMS provides them. */
+export function parseIcalGuestDetails(summary?: string, description?: string) {
+  const text = [summary, description].filter(Boolean).join("\n").trim();
+  if (!text) {
+    return { guestName: null as string | null, guestCount: null as number | null };
   }
-  return raw;
+
+  const lowered = text.toLowerCase();
+  const isGenericReserved =
+    /^(reserved|blocked|unavailable|not available|closed)\b/i.test(text.trim()) ||
+    lowered === "reserved" ||
+    lowered.startsWith("reserved\n");
+
+  const countMatch =
+    text.match(
+      /(\d+)\s*(?:guests?|huéspedes?|huespedes?|adults?|personas?)\b/i
+    ) || text.match(/\((\d+)\s*(?:guests?|huéspedes?|huespedes?)\)/i);
+  const guestCount = countMatch ? Number(countMatch[1]) : null;
+
+  let guestName: string | null = null;
+  if (!isGenericReserved) {
+    const summaryLine = (summary || "").trim();
+    const withoutCount = summaryLine
+      .replace(/\s*[\-(]?\s*\d+\s*(?:guests?|huéspedes?|huespedes?|adults?|personas?)\s*[\)]?\s*$/i, "")
+      .replace(/^reserved\s*[-:–]\s*/i, "")
+      .trim();
+    if (
+      withoutCount &&
+      !/^(reserved|blocked|unavailable|airbnb|external)/i.test(withoutCount) &&
+      !/^room\s*\d+/i.test(withoutCount)
+    ) {
+      guestName = withoutCount;
+    }
+  }
+
+  return {
+    guestName,
+    guestCount:
+      guestCount != null && Number.isFinite(guestCount) && guestCount > 0
+        ? guestCount
+        : null,
+  };
 }
 
 function nightsForRange(
@@ -136,13 +176,22 @@ function nightsForRange(
 
 function buildSpanFromNights(
   nights: string[],
-  partial: Omit<CalendarSpan, "startDay" | "endDay" | "dayCount">
+  partial: Omit<
+    CalendarSpan,
+    "startDay" | "endDay" | "dayCount" | "checkoutDay" | "rangeStartDay"
+  > & {
+    checkoutDay?: string;
+    rangeStartDay?: string;
+  }
 ): CalendarSpan | null {
   if (nights.length === 0) return null;
+  const endDay = nights[nights.length - 1];
   return {
     ...partial,
     startDay: nights[0],
-    endDay: nights[nights.length - 1],
+    endDay,
+    rangeStartDay: partial.rangeStartDay || nights[0],
+    checkoutDay: partial.checkoutDay || addDaysKey(endDay, 1),
     dayCount: nights.length,
   };
 }
@@ -156,6 +205,8 @@ async function fetchExternalBlocks(listing: {
     end: Date;
     name: string;
     summary?: string;
+    description?: string;
+    uid?: string;
   }> = [];
   const sources = [
     ...(listing.icalUrl ? [{ name: "Airbnb", icalUrl: listing.icalUrl }] : []),
@@ -174,6 +225,8 @@ async function fetchExternalBlocks(listing: {
           end: block.end,
           name: source.name,
           summary: block.summary,
+          description: block.description,
+          uid: block.uid,
         }))
       );
     } catch (error) {
@@ -200,6 +253,7 @@ export async function buildHotelCalendarData(
         orderBy: { createdAt: "asc" },
         include: {
           calendarSources: true,
+          guestMetas: true,
           bookings: {
             where: {
               NOT: [
@@ -237,6 +291,17 @@ export async function buildHotelCalendarData(
     const externalBlocks = await fetchExternalBlocks(listing);
     const cells: Record<string, CalendarCell> = {};
     const spans: CalendarSpan[] = [];
+    const guestMetaByRange = new Map(
+      listing.guestMetas.map((meta) => [
+        `${toDateKey(meta.startDate)}|${toDateKey(meta.endDate)}`,
+        meta,
+      ])
+    );
+    const guestMetaByUid = new Map(
+      listing.guestMetas
+        .filter((meta) => meta.sourceUid)
+        .map((meta) => [meta.sourceUid as string, meta])
+    );
 
     for (const booking of listing.bookings) {
       const nights = nightsForRange(days, (nightKey) =>
@@ -258,6 +323,8 @@ export async function buildHotelCalendarData(
         guestCount,
         bookingId: booking.id,
         bookingStatus: booking.status,
+        checkoutDay: toDateKey(booking.endDate),
+        rangeStartDay: toDateKey(booking.startDate),
       });
       if (span) spans.push(span);
     }
@@ -271,6 +338,8 @@ export async function buildHotelCalendarData(
         kind: "manual_block",
         label: "Blocked",
         blockId: block.id,
+        checkoutDay: toDateKey(block.endDate),
+        rangeStartDay: toDateKey(block.startDate),
       });
       if (span) spans.push(span);
     }
@@ -279,12 +348,31 @@ export async function buildHotelCalendarData(
       const nights = nightsForRange(days, (nightKey) =>
         externalCoversNight(block, nightKey)
       );
-      const guestName = externalGuestLabel(block.summary, block.name);
+      if (nights.length === 0) return;
+
+      const rangeStartDay = toDateKey(block.start);
+      const checkoutDay = toDateKey(block.end);
+      const rangeKey = `${rangeStartDay}|${checkoutDay}`;
+      const saved =
+        (block.uid ? guestMetaByUid.get(block.uid) : undefined) ||
+        guestMetaByRange.get(rangeKey);
+      const parsed = parseIcalGuestDetails(block.summary, block.description);
+
+      const guestName =
+        saved?.guestName?.trim() ||
+        parsed.guestName ||
+        "Airbnb guest";
+      const guestCount = saved?.guestCount ?? parsed.guestCount ?? null;
+
       const span = buildSpanFromNights(nights, {
-        id: `external-${listing.id}-${index}-${nights[0] || index}`,
+        id: `external-${listing.id}-${index}-${nights[0]}`,
         kind: "external",
         label: "External",
-        guestName: options.includeGuestDetails ? guestName : guestName,
+        guestName,
+        guestCount,
+        checkoutDay,
+        rangeStartDay,
+        sourceUid: block.uid,
       });
       if (span) spans.push(span);
     });
@@ -346,11 +434,24 @@ export async function buildHotelCalendarData(
         const nights = nightsForRange(days, (nightKey) =>
           externalCoversNight(external, nightKey)
         );
+        const checkoutDay = toDateKey(external.end);
+        const rangeKey = `${toDateKey(external.start)}|${checkoutDay}`;
+        const saved =
+          (external.uid ? guestMetaByUid.get(external.uid) : undefined) ||
+          guestMetaByRange.get(rangeKey);
+        const parsed = parseIcalGuestDetails(
+          external.summary,
+          external.description
+        );
+        const guestName =
+          saved?.guestName?.trim() || parsed.guestName || "Airbnb guest";
+        const guestCount = saved?.guestCount ?? parsed.guestCount ?? null;
         cells[day] = {
           status: "external",
           priceCents,
           priceOverride,
-          guestName: externalGuestLabel(external.summary, external.name),
+          guestName,
+          guestCount,
           spanId: `external-${listing.id}-${externalIndex}-${nights[0] || externalIndex}`,
           label: "External",
         };

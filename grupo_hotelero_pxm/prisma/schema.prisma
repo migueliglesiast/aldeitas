@@ -160,6 +160,25 @@ model Listing {
   bookings             Booking[]
   manualBlocks         ManualBlock[]
   dailyPrices          ListingDailyPrice[]
+  guestMetas           CalendarGuestMeta[]
+}
+
+model CalendarGuestMeta {
+  id         String   @id @default(cuid())
+  listingId  String
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  /** Inclusive first night (yyyy-MM-dd via Date at local midnight). */
+  startDate  DateTime
+  /** Exclusive checkout date (same convention as bookings / iCal DTEND). */
+  endDate    DateTime
+  guestName  String?
+  guestCount Int?
+  sourceUid  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([listingId, startDate, endDate])
+  @@index([listingId, startDate, endDate])
 }
 
 model Image {

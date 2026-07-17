@@ -6,6 +6,8 @@ export type AvailabilityBlock = {
   start: Date;
   end: Date;
   summary?: string;
+  description?: string;
+  uid?: string;
 };
 
 export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBlock[]> {
@@ -19,6 +21,9 @@ export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBloc
         start: ev.start as Date,
         end: ev.end as Date,
         summary: typeof ev.summary === "string" ? ev.summary : undefined,
+        description:
+          typeof ev.description === "string" ? ev.description : undefined,
+        uid: typeof ev.uid === "string" ? ev.uid : undefined,
       });
     }
   }

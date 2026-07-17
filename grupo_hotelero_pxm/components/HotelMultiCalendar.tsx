@@ -20,6 +20,7 @@ type SelectedCell = {
   roomTitle: string;
   day: string;
   cell: CalendarCell;
+  span?: CalendarSpan;
 };
 
 type RowSegment =
@@ -57,7 +58,12 @@ function spanBarClass(span: CalendarSpan) {
 }
 
 function spanTitle(span: CalendarSpan) {
-  const name = span.guestName || span.label;
+  const name =
+    span.guestName && !/^airbnb guest$/i.test(span.guestName)
+      ? span.guestName
+      : span.kind === "external"
+        ? "Airbnb guest"
+        : span.guestName || span.label;
   if (span.guestCount != null && span.guestCount > 0) {
     return `${name} · ${span.guestCount} guest${span.guestCount === 1 ? "" : "s"}`;
   }
@@ -109,6 +115,8 @@ export default function HotelMultiCalendar({
   const [message, setMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedCell | null>(null);
   const [priceInput, setPriceInput] = useState("");
+  const [guestNameInput, setGuestNameInput] = useState("");
+  const [guestCountInput, setGuestCountInput] = useState("");
   const [basePriceDrafts, setBasePriceDrafts] = useState<Record<string, string>>({});
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
@@ -264,6 +272,70 @@ export default function HotelMultiCalendar({
       setMessage(err instanceof Error ? err.message : "Action failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveGuestDetails() {
+    if (readOnly || busy || !selected) return;
+    if (selected.cell.status !== "booking" && selected.cell.status !== "external") {
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const span = selected.span;
+      const checkoutDay =
+        span?.checkoutDay ||
+        (() => {
+          const d = new Date(`${selected.day}T00:00:00`);
+          d.setDate(d.getDate() + 1);
+          return d.toISOString().slice(0, 10);
+        })();
+      const startDay = span?.rangeStartDay || span?.startDay || selected.day;
+      const res = await fetch(`/api/admin/hotel/${hotelId}/calendar/guest-meta`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId: selected.roomId,
+          startDate: startDay,
+          endDate: checkoutDay,
+          guestName: guestNameInput.trim() || null,
+          guestCount: guestCountInput.trim()
+            ? Number(guestCountInput)
+            : null,
+          bookingId: selected.cell.bookingId,
+          sourceUid: span?.sourceUid,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save guest details");
+      setMessage("Guest details saved.");
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to save guest details");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function selectCell(args: {
+    roomId: string;
+    roomTitle: string;
+    day: string;
+    cell: CalendarCell;
+    span?: CalendarSpan;
+  }) {
+    setSelected(args);
+    setGuestNameInput(args.span?.guestName || args.cell.guestName || "");
+    setGuestCountInput(
+      args.span?.guestCount != null
+        ? String(args.span.guestCount)
+        : args.cell.guestCount != null
+          ? String(args.cell.guestCount)
+          : ""
+    );
+    if (args.cell.status === "booking" || args.cell.status === "available") {
+      setPriceInput(String(Math.round(args.cell.priceCents / 100)));
     }
   }
 
@@ -534,17 +606,13 @@ export default function HotelMultiCalendar({
                         <button
                           type="button"
                           onClick={() => {
-                            setSelected({
+                            selectCell({
                               roomId: room.id,
                               roomTitle: room.title,
                               day: firstDay,
                               cell: firstCell,
+                              span,
                             });
-                            if (!readOnly && span.kind === "booking") {
-                              setPriceInput(
-                                String(Math.round(firstCell.priceCents / 100))
-                              );
-                            }
                           }}
                           className={[
                             "flex h-12 w-full items-center gap-2 overflow-hidden rounded-full px-3 text-left text-[11px] font-medium shadow-sm transition",
@@ -554,7 +622,13 @@ export default function HotelMultiCalendar({
                           ].join(" ")}
                           title={title}
                         >
-                          <span className="truncate">{span.guestName || span.label}</span>
+                          <span className="truncate">
+                            {span.guestName && !/^airbnb guest$/i.test(span.guestName)
+                              ? span.guestName
+                              : span.kind === "external"
+                                ? "Airbnb guest"
+                                : span.guestName || span.label}
+                          </span>
                           {span.guestCount != null && span.guestCount > 0 ? (
                             <span className="shrink-0 opacity-90">
                               · {span.guestCount}{" "}
@@ -575,16 +649,19 @@ export default function HotelMultiCalendar({
                         type="button"
                         disabled={readOnly && cell.status === "available"}
                         onClick={() => {
-                          if (readOnly) {
-                            setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
-                            return;
-                          }
-                          if (cell.status === "available" || cell.status === "manual_block") {
+                          if (
+                            !readOnly &&
+                            (cell.status === "available" || cell.status === "manual_block")
+                          ) {
                             toggleBlock(room.id, day, cell);
                             return;
                           }
-                          setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
-                          setPriceInput(String(Math.round(cell.priceCents / 100)));
+                          selectCell({
+                            roomId: room.id,
+                            roomTitle: room.title,
+                            day,
+                            cell,
+                          });
                         }}
                         className={[
                           "flex h-14 w-14 flex-col items-center justify-center border transition",
@@ -614,15 +691,61 @@ export default function HotelMultiCalendar({
             <span className="font-medium">{selected.roomTitle}</span> · {selected.day} ·{" "}
             {selected.cell.label}
           </div>
-          {selected.cell.guestName || selected.cell.guestEmail ? (
-            <div className="text-sm text-gray-700">
-              Guest: {selected.cell.guestName || selected.cell.guestEmail}
-              {selected.cell.guestCount != null
-                ? ` · ${selected.cell.guestCount} guest${selected.cell.guestCount === 1 ? "" : "s"}`
-                : ""}
-              {selected.cell.guestPhone ? ` · ${selected.cell.guestPhone}` : ""}
+          {(selected.cell.status === "booking" ||
+            selected.cell.status === "external") && (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                {selected.span
+                  ? spanTitle(selected.span)
+                  : selected.cell.guestName || "Guest"}
+                {selected.cell.guestPhone ? ` · ${selected.cell.guestPhone}` : ""}
+                {selected.cell.guestEmail ? ` · ${selected.cell.guestEmail}` : ""}
+              </div>
+              {!readOnly ? (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Guest name
+                    </label>
+                    <input
+                      type="text"
+                      value={guestNameInput}
+                      onChange={(event) => setGuestNameInput(event.target.value)}
+                      className="rounded border px-3 py-2 text-sm"
+                      placeholder="e.g. Juan Pablo"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Number of guests
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={guestCountInput}
+                      onChange={(event) => setGuestCountInput(event.target.value)}
+                      className="w-28 rounded border px-3 py-2 text-sm"
+                      placeholder="e.g. 2"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void saveGuestDetails()}
+                    className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white"
+                  >
+                    Save guest details
+                  </button>
+                </div>
+              ) : null}
+              {selected.cell.status === "external" && !readOnly ? (
+                <p className="text-xs text-gray-500">
+                  Airbnb calendar export does not include guest name or guest count. Enter them
+                  here once and they will show on the bar.
+                </p>
+              ) : null}
             </div>
-          ) : null}
+          )}
           {!readOnly && selected.cell.status === "booking" && selected.cell.bookingId ? (
             <button
               type="button"
