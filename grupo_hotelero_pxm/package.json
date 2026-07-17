@@ -38,7 +38,9 @@
     "cloudinary": "^2.10.0",
     "date-fns": "^3.6.0",
     "ical-generator": "^3.6.1",
+    "imapflow": "^1.4.7",
     "leaflet": "^1.9.4",
+    "mailparser": "^3.9.14",
     "next": "^14.2.5",
     "node-ical": "^0.18.0",
     "nodemailer": "^6.9.14",
@@ -49,6 +51,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/leaflet": "^1.9.21",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^20.14.12",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^18.3.3",

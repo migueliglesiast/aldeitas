@@ -63,6 +63,13 @@ model Hotel {
   managers            HotelManager[]
   calendarShare       HotelCalendarShare?
   manualBlocks        ManualBlock[]
+  /** Gmail address used to import Airbnb booking emails (IMAP). */
+  gmailSyncEmail      String?
+  /** Encrypted Gmail App Password for IMAP. */
+  gmailSyncPasswordEnc String?
+  gmailSyncEnabled    Boolean  @default(false)
+  gmailSyncLastAt     DateTime?
+  gmailSyncLastError  String?
 }
 
 model HotelCalendarShare {

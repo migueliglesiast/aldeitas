@@ -4,6 +4,7 @@ import { useState } from "react";
 import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import { getHotelCoverCandidates } from "@/lib/hotel-cover";
 import HotelContactsSection from "./HotelContactsSection";
+import HotelGmailSync from "./HotelGmailSync";
 import HotelImageUpload from "./HotelImageUpload";
 import HotelMultiCalendar from "./HotelMultiCalendar";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
@@ -335,7 +336,10 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
       {tab === "calendar" ? <HotelMultiCalendar hotelId={hotel.id} /> : null}
 
       {tab === "maintenance" ? (
-        <HotelContactsSection hotelId={hotel.id} initialContacts={hotel.contacts} />
+        <div className="space-y-6">
+          <HotelGmailSync hotelId={hotel.id} />
+          <HotelContactsSection hotelId={hotel.id} initialContacts={hotel.contacts} />
+        </div>
       ) : null}
     </div>
   );

@@ -164,6 +164,16 @@ Optional query params:
 
 Uses `AIRBNB_PRICE_SYNC_SECRET` if set, otherwise `BOOKING_RECONCILE_SECRET`.
 
+### Gmail Airbnb guest sync cron (optional)
+
+If hotels connect Gmail under **Admin → Hotel → Maintenance**, pull guest name/count from Airbnb booking emails:
+
+```http
+GET https://yourdomain.com/api/cron/sync-gmail-bookings?secret=YOUR_BOOKING_RECONCILE_SECRET
+```
+
+Schedule: every **1–2 hours** (same secret as above).
+
 ---
 
 ## 5. Mercado Pago webhook
