@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { copyTextToClipboard } from "@/lib/copy-to-clipboard";
 import { formatMoneyShort } from "@/lib/currency";
-import type { CalendarCell, HotelCalendarPayload } from "@/lib/hotel-calendar-data";
+import type {
+  CalendarCell,
+  CalendarSpan,
+  HotelCalendarPayload,
+} from "@/lib/hotel-calendar-data";
 
 type Props = {
   hotelId: string;
@@ -18,6 +22,10 @@ type SelectedCell = {
   cell: CalendarCell;
 };
 
+type RowSegment =
+  | { type: "day"; day: string; cell: CalendarCell }
+  | { type: "span"; span: CalendarSpan; days: string[] };
+
 function cellClass(cell: CalendarCell) {
   switch (cell.status) {
     case "manual_block":
@@ -31,6 +39,63 @@ function cellClass(cell: CalendarCell) {
     default:
       return "bg-white text-slate-700 hover:bg-emerald-50";
   }
+}
+
+function spanBarClass(span: CalendarSpan) {
+  switch (span.kind) {
+    case "manual_block":
+      return "bg-slate-500 text-white";
+    case "external":
+      return "bg-[#0f766e] text-white";
+    case "booking":
+      return span.bookingStatus === "CONFIRMED"
+        ? "bg-[#0f766e] text-white"
+        : "bg-amber-500 text-white";
+    default:
+      return "bg-slate-500 text-white";
+  }
+}
+
+function spanTitle(span: CalendarSpan) {
+  const name = span.guestName || span.label;
+  if (span.guestCount != null && span.guestCount > 0) {
+    return `${name} · ${span.guestCount} guest${span.guestCount === 1 ? "" : "s"}`;
+  }
+  return name;
+}
+
+function buildRowSegments(
+  days: string[],
+  cells: Record<string, CalendarCell>,
+  spans: CalendarSpan[]
+): RowSegment[] {
+  const spanById = new Map(spans.map((span) => [span.id, span] as const));
+  const segments: RowSegment[] = [];
+  let index = 0;
+
+  while (index < days.length) {
+    const day = days[index];
+    const cell = cells[day];
+    const span = cell?.spanId ? spanById.get(cell.spanId) : undefined;
+
+    if (span && span.startDay === day) {
+      const spanDays = days.slice(index, index + span.dayCount);
+      segments.push({ type: "span", span, days: spanDays });
+      index += spanDays.length;
+      continue;
+    }
+
+    // Middle/end nights of a multi-day span are covered by the colspan above.
+    if (span && span.startDay !== day) {
+      index += 1;
+      continue;
+    }
+
+    segments.push({ type: "day", day, cell });
+    index += 1;
+  }
+
+  return segments;
 }
 
 export default function HotelMultiCalendar({
@@ -48,6 +113,7 @@ export default function HotelMultiCalendar({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [syncingPrices, setSyncingPrices] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const loadCalendar = useCallback(async () => {
@@ -133,6 +199,33 @@ export default function HotelMultiCalendar({
       setMessage(err instanceof Error ? err.message : "Failed to create share link");
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function handleSyncAirbnbPrices() {
+    if (readOnly || syncingPrices || busy) return;
+    setSyncingPrices(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/hotel/${hotelId}/calendar/sync-prices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ months: 3, sampleEvery: 2 }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to sync Airbnb prices");
+      const updated = (json.rooms || []).filter(
+        (room: { updatedDays: number }) => room.updatedDays > 0
+      ).length;
+      setMessage(
+        json.summary ||
+          `Synced Airbnb prices for ${updated} room${updated === 1 ? "" : "s"}.`
+      );
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to sync Airbnb prices");
+    } finally {
+      setSyncingPrices(false);
     }
   }
 
@@ -267,20 +360,30 @@ export default function HotelMultiCalendar({
           </p>
         </div>
         {!readOnly ? (
-          <button
-            type="button"
-            onClick={handleShareLink}
-            disabled={sharing}
-            className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
-          >
-            {sharing
-              ? "Creating link…"
-              : copiedShare
-                ? "Copied!"
-                : shareUrl
-                  ? "Copy share link"
-                  : "Share calendar link"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleSyncAirbnbPrices}
+              disabled={syncingPrices || busy}
+              className="rounded border border-[#00a19c] bg-white px-4 py-2 text-sm text-[#008a86] hover:bg-[#e8f6f5] disabled:opacity-50"
+            >
+              {syncingPrices ? "Syncing Airbnb prices…" : "Sync prices from Airbnb"}
+            </button>
+            <button
+              type="button"
+              onClick={handleShareLink}
+              disabled={sharing}
+              className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              {sharing
+                ? "Creating link…"
+                : copiedShare
+                  ? "Copied!"
+                  : shareUrl
+                    ? "Copy share link"
+                    : "Share calendar link"}
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -329,7 +432,9 @@ export default function HotelMultiCalendar({
       {!readOnly ? (
         <p className="text-sm text-gray-600">
           Click an available day to block it, a blocked day to unblock it, or a booking to cancel
-          it. Select a day below to set a custom nightly price.
+          it. Select a day below to set a custom nightly price. Use{" "}
+          <span className="font-medium">Sync prices from Airbnb</span> to pull live nightly rates
+          into this calendar (rooms need an Airbnb URL or iCal link).
         </p>
       ) : null}
 
@@ -373,7 +478,13 @@ export default function HotelMultiCalendar({
             </tr>
           </thead>
           <tbody>
-            {data.rooms.map((room) => (
+            {data.rooms.map((room) => {
+              const segments = buildRowSegments(
+                data.days,
+                room.cells,
+                room.spans || []
+              );
+              return (
               <tr key={room.id}>
                 <td className="sticky left-0 z-10 border-r bg-gray-50 px-3 py-3 align-top">
                   <div className="font-medium text-gray-900">{room.title}</div>
@@ -405,8 +516,57 @@ export default function HotelMultiCalendar({
                     </div>
                   )}
                 </td>
-                {data.days.map((day) => {
-                  const cell = room.cells[day];
+                {segments.map((segment) => {
+                  if (segment.type === "span") {
+                    const { span } = segment;
+                    const firstDay = segment.days[0];
+                    const firstCell = room.cells[firstDay];
+                    const isSelected =
+                      selected?.roomId === room.id &&
+                      segment.days.includes(selected.day);
+                    const title = spanTitle(span);
+                    return (
+                      <td
+                        key={`${room.id}-${span.id}`}
+                        colSpan={segment.days.length}
+                        className="border-b border-r p-0.5 align-middle"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelected({
+                              roomId: room.id,
+                              roomTitle: room.title,
+                              day: firstDay,
+                              cell: firstCell,
+                            });
+                            if (!readOnly && span.kind === "booking") {
+                              setPriceInput(
+                                String(Math.round(firstCell.priceCents / 100))
+                              );
+                            }
+                          }}
+                          className={[
+                            "flex h-12 w-full items-center gap-2 overflow-hidden rounded-full px-3 text-left text-[11px] font-medium shadow-sm transition",
+                            spanBarClass(span),
+                            isSelected ? "ring-2 ring-[#00a19c] ring-offset-1" : "",
+                            "cursor-pointer hover:brightness-95",
+                          ].join(" ")}
+                          title={title}
+                        >
+                          <span className="truncate">{span.guestName || span.label}</span>
+                          {span.guestCount != null && span.guestCount > 0 ? (
+                            <span className="shrink-0 opacity-90">
+                              · {span.guestCount}{" "}
+                              {span.guestCount === 1 ? "guest" : "guests"}
+                            </span>
+                          ) : null}
+                        </button>
+                      </td>
+                    );
+                  }
+
+                  const { day, cell } = segment;
                   const isSelected =
                     selected?.roomId === room.id && selected?.day === day;
                   return (
@@ -417,11 +577,6 @@ export default function HotelMultiCalendar({
                         onClick={() => {
                           if (readOnly) {
                             setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
-                            return;
-                          }
-                          if (cell.status === "booking") {
-                            setSelected({ roomId: room.id, roomTitle: room.title, day, cell });
-                            setPriceInput(String(Math.round(cell.priceCents / 100)));
                             return;
                           }
                           if (cell.status === "available" || cell.status === "manual_block") {
@@ -439,7 +594,6 @@ export default function HotelMultiCalendar({
                         ].join(" ")}
                         title={cell.label}
                       >
-                        <span className="text-[10px] font-medium">{cell.label?.split(" ")[0]}</span>
                         <span className="text-[10px]">
                           {formatMoneyShort(cell.priceCents, room.baseCurrency)}
                         </span>
@@ -448,7 +602,8 @@ export default function HotelMultiCalendar({
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -459,9 +614,12 @@ export default function HotelMultiCalendar({
             <span className="font-medium">{selected.roomTitle}</span> · {selected.day} ·{" "}
             {selected.cell.label}
           </div>
-          {selected.cell.guestEmail ? (
+          {selected.cell.guestName || selected.cell.guestEmail ? (
             <div className="text-sm text-gray-700">
-              Guest: {selected.cell.guestEmail}
+              Guest: {selected.cell.guestName || selected.cell.guestEmail}
+              {selected.cell.guestCount != null
+                ? ` · ${selected.cell.guestCount} guest${selected.cell.guestCount === 1 ? "" : "s"}`
+                : ""}
               {selected.cell.guestPhone ? ` · ${selected.cell.guestPhone}` : ""}
             </div>
           ) : null}

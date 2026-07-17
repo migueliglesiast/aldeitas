@@ -26,7 +26,25 @@ export type CalendarCell = {
   bookingStatus?: string;
   guestEmail?: string;
   guestPhone?: string;
+  guestName?: string;
+  guestCount?: number | null;
+  spanId?: string;
   label?: string;
+};
+
+export type CalendarSpan = {
+  id: string;
+  kind: "booking" | "external" | "manual_block";
+  startDay: string;
+  /** Inclusive last night key covered by this reservation/block. */
+  endDay: string;
+  dayCount: number;
+  label: string;
+  guestName?: string;
+  guestCount?: number | null;
+  bookingId?: string;
+  bookingStatus?: string;
+  blockId?: string;
 };
 
 export type HotelCalendarRoom = {
@@ -35,6 +53,7 @@ export type HotelCalendarRoom = {
   nightlyBasePrice: number;
   baseCurrency: string;
   cells: Record<string, CalendarCell>;
+  spans: CalendarSpan[];
 };
 
 export type HotelCalendarPayload = {
@@ -83,11 +102,61 @@ function externalCoversNight(
   );
 }
 
+function guestNameFromEmail(email: string) {
+  const local = email.split("@")[0] || email;
+  const cleaned = local.replace(/[._+\-]+/g, " ").trim();
+  if (!cleaned) return "Guest";
+  return cleaned
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function externalGuestLabel(summary?: string, sourceName?: string) {
+  const raw = (summary || "").trim();
+  if (!raw) return sourceName || "External";
+  const lowered = raw.toLowerCase();
+  if (
+    lowered === "reserved" ||
+    lowered === "blocked" ||
+    lowered === "unavailable" ||
+    lowered.startsWith("reserved")
+  ) {
+    return sourceName || "External";
+  }
+  return raw;
+}
+
+function nightsForRange(
+  days: string[],
+  covers: (nightKey: string) => boolean
+): string[] {
+  return days.filter(covers);
+}
+
+function buildSpanFromNights(
+  nights: string[],
+  partial: Omit<CalendarSpan, "startDay" | "endDay" | "dayCount">
+): CalendarSpan | null {
+  if (nights.length === 0) return null;
+  return {
+    ...partial,
+    startDay: nights[0],
+    endDay: nights[nights.length - 1],
+    dayCount: nights.length,
+  };
+}
+
 async function fetchExternalBlocks(listing: {
   icalUrl: string | null;
   calendarSources: { icalUrl: string; name: string }[];
 }) {
-  const blocks: Array<{ start: Date; end: Date; name: string }> = [];
+  const blocks: Array<{
+    start: Date;
+    end: Date;
+    name: string;
+    summary?: string;
+  }> = [];
   const sources = [
     ...(listing.icalUrl ? [{ name: "Airbnb", icalUrl: listing.icalUrl }] : []),
     ...listing.calendarSources.map((source) => ({
@@ -104,6 +173,7 @@ async function fetchExternalBlocks(listing: {
           start: block.start,
           end: block.end,
           name: source.name,
+          summary: block.summary,
         }))
       );
     } catch (error) {
@@ -166,14 +236,71 @@ export async function buildHotelCalendarData(
     );
     const externalBlocks = await fetchExternalBlocks(listing);
     const cells: Record<string, CalendarCell> = {};
+    const spans: CalendarSpan[] = [];
+
+    for (const booking of listing.bookings) {
+      const nights = nightsForRange(days, (nightKey) =>
+        bookingCoversNight(booking, nightKey)
+      );
+      const guestName =
+        booking.guestName?.trim() || guestNameFromEmail(booking.guestEmail);
+      const guestCount = booking.guestCount ?? null;
+      const span = buildSpanFromNights(nights, {
+        id: `booking-${booking.id}`,
+        kind: "booking",
+        label:
+          booking.status === "CONFIRMED"
+            ? "Confirmed"
+            : booking.authorizedAt
+              ? "Processing"
+              : "Awaiting payment",
+        guestName,
+        guestCount,
+        bookingId: booking.id,
+        bookingStatus: booking.status,
+      });
+      if (span) spans.push(span);
+    }
+
+    for (const block of listing.manualBlocks) {
+      const nights = nightsForRange(days, (nightKey) =>
+        manualBlockCoversNight(block, parseDateKey(nightKey))
+      );
+      const span = buildSpanFromNights(nights, {
+        id: `block-${block.id}`,
+        kind: "manual_block",
+        label: "Blocked",
+        blockId: block.id,
+      });
+      if (span) spans.push(span);
+    }
+
+    externalBlocks.forEach((block, index) => {
+      const nights = nightsForRange(days, (nightKey) =>
+        externalCoversNight(block, nightKey)
+      );
+      const guestName = externalGuestLabel(block.summary, block.name);
+      const span = buildSpanFromNights(nights, {
+        id: `external-${listing.id}-${index}-${nights[0] || index}`,
+        kind: "external",
+        label: "External",
+        guestName: options.includeGuestDetails ? guestName : guestName,
+      });
+      if (span) spans.push(span);
+    });
 
     for (const day of days) {
       const priceOverride = dailyPrices.has(day);
       const priceCents = dailyPrices.get(day) ?? listing.nightlyBasePrice;
 
-      const booking = listing.bookings.find((item) => bookingCoversNight(item, day));
+      const booking = listing.bookings.find((item) =>
+        bookingCoversNight(item, day)
+      );
 
       if (booking) {
+        const guestName =
+          booking.guestName?.trim() || guestNameFromEmail(booking.guestEmail);
+        const guestCount = booking.guestCount ?? null;
         cells[day] = {
           status: "booking",
           priceCents,
@@ -182,6 +309,9 @@ export async function buildHotelCalendarData(
           bookingStatus: booking.status,
           guestEmail: options.includeGuestDetails ? booking.guestEmail : undefined,
           guestPhone: options.includeGuestDetails ? booking.guestPhone : undefined,
+          guestName,
+          guestCount,
+          spanId: `booking-${booking.id}`,
           label:
             booking.status === "CONFIRMED"
               ? "Booked"
@@ -202,17 +332,26 @@ export async function buildHotelCalendarData(
           priceCents,
           priceOverride,
           blockId: manualBlock.id,
+          spanId: `block-${manualBlock.id}`,
           label: "Blocked",
         };
         continue;
       }
 
-      const external = externalBlocks.find((block) => externalCoversNight(block, day));
-      if (external) {
+      const externalIndex = externalBlocks.findIndex((block) =>
+        externalCoversNight(block, day)
+      );
+      if (externalIndex >= 0) {
+        const external = externalBlocks[externalIndex];
+        const nights = nightsForRange(days, (nightKey) =>
+          externalCoversNight(external, nightKey)
+        );
         cells[day] = {
           status: "external",
           priceCents,
           priceOverride,
+          guestName: externalGuestLabel(external.summary, external.name),
+          spanId: `external-${listing.id}-${externalIndex}-${nights[0] || externalIndex}`,
           label: "External",
         };
         continue;
@@ -232,6 +371,7 @@ export async function buildHotelCalendarData(
       nightlyBasePrice: listing.nightlyBasePrice,
       baseCurrency: listing.baseCurrency,
       cells,
+      spans,
     });
   }
 
@@ -272,6 +412,7 @@ export async function getHotelIdForShareToken(token: string) {
 }
 
 export function getHotelCalendarShareUrl(token: string) {
-  const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
   return `${base}/calendar/${token}`;
 }

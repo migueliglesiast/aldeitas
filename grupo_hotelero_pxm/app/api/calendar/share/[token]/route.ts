@@ -16,7 +16,7 @@ export async function GET(
   }
 
   const data = await buildHotelCalendarData(hotelId, {
-    includeGuestDetails: false,
+    includeGuestDetails: true,
     readOnly: true,
   });
 

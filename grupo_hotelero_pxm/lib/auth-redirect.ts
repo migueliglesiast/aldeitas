@@ -9,8 +9,9 @@ export function safeNextPath(
   return value;
 }
 
+/** URL for unauthenticated admin access — sign-in form lives on /admin. */
 export function signInUrl(next?: string): string {
   const path = safeNextPath(next, "");
-  if (!path) return "/sign-in";
-  return `/sign-in?next=${encodeURIComponent(path)}`;
+  if (!path || path === "/admin") return "/admin";
+  return `/admin?next=${encodeURIComponent(path)}`;
 }

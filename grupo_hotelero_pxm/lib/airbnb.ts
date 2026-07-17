@@ -2,7 +2,11 @@ import axios from "axios";
 import ical from "node-ical";
 import * as cheerio from "cheerio";
 
-export type AvailabilityBlock = { start: Date; end: Date };
+export type AvailabilityBlock = {
+  start: Date;
+  end: Date;
+  summary?: string;
+};
 
 export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBlock[]> {
   const data = await axios.get(icalUrl).then((r) => r.data as string);
@@ -11,7 +15,11 @@ export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBloc
   for (const key of Object.keys(events)) {
     const ev = events[key];
     if (ev.type === "VEVENT") {
-      blocks.push({ start: ev.start as Date, end: ev.end as Date });
+      blocks.push({
+        start: ev.start as Date,
+        end: ev.end as Date,
+        summary: typeof ev.summary === "string" ? ev.summary : undefined,
+      });
     }
   }
   return blocks;
@@ -174,7 +182,22 @@ export async function scrapeListingContent(airbnbUrl: string) {
 }
 
 export async function fetchDynamicPricing(airbnbId: string, checkIn: string, checkOut: string) {
-  // Best-effort RapidAPI integration (if key provided)
+  // Prefer Airbnb's public GraphQL pricing (same source guests see on the listing).
+  try {
+    const { fetchAirbnbStayPrice } = await import("@/lib/airbnb-prices");
+    const { extractAirbnbListingId } = await import("@/lib/airbnb-listing-id");
+    const listingId = extractAirbnbListingId(airbnbId);
+    if (listingId) {
+      const stay = await fetchAirbnbStayPrice(listingId, checkIn, checkOut);
+      if (stay) {
+        return { nightlyCents: stay.nightlyCents, currency: stay.currency };
+      }
+    }
+  } catch {
+    // fall through to RapidAPI
+  }
+
+  // Optional RapidAPI fallback when configured
   try {
     const apiKey = process.env.AIRBNB_RAPIDAPI_KEY;
     if (apiKey) {
@@ -189,7 +212,6 @@ export async function fetchDynamicPricing(airbnbId: string, checkIn: string, che
           timeout: 8000,
         }
       );
-      // Try to infer nightly price from response (schema varies by provider)
       const data = resp.data as any;
       const nightly = data?.nights?.[0]?.price?.total || data?.price || data?.price_total || null;
       if (nightly) {

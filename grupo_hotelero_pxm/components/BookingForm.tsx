@@ -34,6 +34,8 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   const [end, setEnd] = useState<string>(searchParams?.checkOut || "");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestCount, setGuestCount] = useState("2");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingData | null>(null);
@@ -131,6 +133,8 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
           end,
           email,
           phone,
+          guestName: guestName.trim() || undefined,
+          guestCount: guestCount ? Number(guestCount) : undefined,
           paymentProvider: providers.length > 0 ? paymentProvider : undefined,
         }),
       });
@@ -197,6 +201,28 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded border px-3 py-2"
+          required
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="block text-sm">Guest name</label>
+        <input
+          type="text"
+          value={guestName}
+          onChange={(e) => setGuestName(e.target.value)}
+          className="w-full rounded border px-3 py-2"
+          placeholder="Name on the reservation"
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="block text-sm">Number of guests</label>
+        <input
+          type="number"
+          min={1}
+          max={50}
+          value={guestCount}
+          onChange={(e) => setGuestCount(e.target.value)}
           className="w-full rounded border px-3 py-2"
           required
         />

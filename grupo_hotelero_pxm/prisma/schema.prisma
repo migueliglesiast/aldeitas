@@ -185,6 +185,8 @@ model Booking {
   listing                 Listing       @relation(fields: [listingId], references: [id])
   guestEmail              String
   guestPhone              String
+  guestName               String?
+  guestCount              Int?
   startDate               DateTime
   endDate                 DateTime
   totalPriceCents         Int

@@ -29,6 +29,8 @@ const bodySchema = z.object({
   end: z.string(),
   email: z.string().email(),
   phone: z.string().min(6),
+  guestName: z.string().min(1).max(120).optional(),
+  guestCount: z.number().int().min(1).max(50).optional(),
   paymentProvider: z.enum(["conekta", "mercadopago"]).optional(),
 });
 
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const { listingId, start, end, email, phone } = parsed.data;
+  const { listingId, start, end, email, phone, guestName, guestCount } = parsed.data;
   const paymentProvider =
     parsed.data.paymentProvider && isPaymentProviderConfigured(parsed.data.paymentProvider)
       ? parsed.data.paymentProvider
@@ -115,6 +117,8 @@ export async function POST(req: NextRequest) {
       listingId,
       guestEmail: email,
       guestPhone: phone,
+      guestName: guestName || null,
+      guestCount: guestCount ?? null,
       startDate: new Date(start),
       endDate: new Date(end),
       totalPriceCents: totalCents,

@@ -1,11 +1,11 @@
 import { getCurrentUser } from "@/lib/auth";
-import { signInUrl } from "@/lib/auth-redirect";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getHotelCoverCandidates } from "@/lib/hotel-cover";
 import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import NicknameEditor from "@/components/NicknameEditor";
+import AdminSignInForm from "@/components/AdminSignInForm";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,11 @@ export default async function AdminPage() {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect(signInUrl("/admin"));
+    return (
+      <Suspense fallback={<div className="mx-auto max-w-md text-center text-gray-500">Loading...</div>}>
+        <AdminSignInForm />
+      </Suspense>
+    );
   }
 
   // Get hotels managed by this user

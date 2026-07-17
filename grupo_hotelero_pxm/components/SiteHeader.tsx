@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import AuthButton from "@/components/AuthButton";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { Comfortaa, Dancing_Script } from "next/font/google";
@@ -31,7 +30,6 @@ export default function SiteHeader() {
         </Link>
         <div className="flex items-center gap-3 self-start md:self-auto">
           <LanguageSwitcher />
-          <AuthButton />
         </div>
       </div>
       <p className={`${dancingScript.className} text-2xl md:text-3xl text-gray-600 md:ml-[60px]`}>

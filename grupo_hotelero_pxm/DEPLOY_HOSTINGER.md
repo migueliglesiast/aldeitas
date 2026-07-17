@@ -146,6 +146,24 @@ POST https://yourdomain.com/api/bookings/reconcile?secret=YOUR_BOOKING_RECONCILE
 
 Schedule: every **5–10 minutes**.
 
+### Airbnb price sync cron (recommended)
+
+Keeps multicalendar prices aligned with Airbnb without PriceLabs’ Customer API.
+
+```http
+GET https://yourdomain.com/api/cron/sync-airbnb-prices?secret=YOUR_BOOKING_RECONCILE_SECRET
+```
+
+Schedule: every **1–2 hours** (each hit syncs **one** hotel — the stalest — so free cron timeouts are fine; a full portfolio rotates through the day).
+
+Optional query params:
+
+- `hotelId=...` — sync one specific hotel
+- `list=1` — list hotels in the sync queue
+- `all=1` — sync every linked hotel in one request (may time out)
+
+Uses `AIRBNB_PRICE_SYNC_SECRET` if set, otherwise `BOOKING_RECONCILE_SECRET`.
+
 ---
 
 ## 5. Mercado Pago webhook
@@ -187,6 +205,7 @@ If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
 - [ ] `NEXT_PUBLIC_SITE_URL` = production HTTPS → redeploy
 - [ ] Mercado Pago production keys
 - [ ] `BOOKING_RECONCILE_SECRET` + cron-job.org every 5–10 min
+- [ ] Airbnb price sync cron every 1–2 hours (`/api/cron/sync-airbnb-prices`)
 - [ ] MP webhook configured
 - [ ] Test booking end-to-end
 - [ ] Airbnb `.ics` per room

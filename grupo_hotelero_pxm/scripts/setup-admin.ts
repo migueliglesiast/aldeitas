@@ -76,7 +76,7 @@ async function main() {
     console.log(`Linked ${user.email} → ${hotel.name}`);
   }
 
-  console.log("\nSign in at /sign-in with your email or username and password.");
+  console.log("\nSign in at /admin with your email or username and password.");
   console.log("Admin panel: /admin");
 }
 
