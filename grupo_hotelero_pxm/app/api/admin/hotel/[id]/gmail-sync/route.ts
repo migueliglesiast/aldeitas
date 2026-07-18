@@ -169,10 +169,18 @@ export async function POST(
 
   try {
     const result = await syncHotelGmailBookings(params.id);
+    const skipHint =
+      result.updated === 0 && result.samples.length
+        ? ` Top skips: ${result.samples
+            .map((s) => s.reason)
+            .filter(Boolean)
+            .slice(0, 3)
+            .join("; ")}`
+        : "";
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Scanned ${result.scanned} Airbnb emails · updated ${result.updated} reservation(s).`,
+      message: `Scanned ${result.scanned} Airbnb emails · updated ${result.updated} reservation(s).${skipHint}`,
     });
   } catch (error: any) {
     await prisma.hotel.update({

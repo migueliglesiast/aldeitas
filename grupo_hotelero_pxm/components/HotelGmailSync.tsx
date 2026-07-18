@@ -14,11 +14,23 @@ type Status = {
   lastError: string | null;
 };
 
+type SyncSample = {
+  subject: string;
+  guestName: string | null;
+  guestCount: number | null;
+  checkIn: string | null;
+  checkOut: string | null;
+  listingTitle?: string;
+  payoutCents?: number | null;
+  reason?: string;
+};
+
 export default function HotelGmailSync({ hotelId }: Props) {
   const [email, setEmail] = useState("");
   const [appPassword, setAppPassword] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [samples, setSamples] = useState<SyncSample[]>([]);
   const [busy, setBusy] = useState(false);
 
   const loadStatus = useCallback(async () => {
@@ -61,6 +73,7 @@ export default function HotelGmailSync({ hotelId }: Props) {
   async function runAction(action: "sync" | "test" | "disconnect") {
     setBusy(true);
     setMessage(null);
+    if (action === "sync") setSamples([]);
     try {
       const res = await fetch(`/api/admin/hotel/${hotelId}/gmail-sync`, {
         method: "POST",
@@ -70,6 +83,9 @@ export default function HotelGmailSync({ hotelId }: Props) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Action failed");
       setMessage(json.message || (action === "disconnect" ? "Disconnected." : "Done."));
+      if (action === "sync" && Array.isArray(json.samples)) {
+        setSamples(json.samples);
+      }
       await loadStatus();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Action failed");
@@ -93,8 +109,8 @@ export default function HotelGmailSync({ hotelId }: Props) {
           >
             App Password
           </a>{" "}
-          so we can read Airbnb reservation emails and fill guest name + guest count on the
-          calendar.
+          so we can read Airbnb reservation emails and fill guest name, guest count, and payout on the
+          calendar. Matching uses the listing name in the email (and iCal dates when needed).
         </p>
       </div>
 
@@ -106,6 +122,10 @@ export default function HotelGmailSync({ hotelId }: Props) {
         </li>
         <li>Paste the Gmail address and 16-character App Password below, then Connect.</li>
         <li>Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).</li>
+        <li>
+          For best matching, keep each room title in Aldeitas close to the Airbnb listing name shown in
+          confirmation emails.
+        </li>
       </ol>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -199,6 +219,27 @@ export default function HotelGmailSync({ hotelId }: Props) {
           }`}
         >
           {message}
+        </div>
+      ) : null}
+
+      {samples.length > 0 ? (
+        <div className="rounded border bg-white px-3 py-2 text-xs text-gray-600">
+          <div className="mb-1 font-medium text-gray-800">Recent sync details</div>
+          <ul className="space-y-1">
+            {samples.slice(0, 8).map((sample, index) => (
+              <li key={`${sample.subject}-${index}`}>
+                <span className="font-medium">{sample.subject || "(no subject)"}</span>
+                {sample.guestName ? ` · ${sample.guestName}` : ""}
+                {sample.guestCount != null ? ` · ${sample.guestCount} guests` : ""}
+                {sample.listingTitle ? ` · ${sample.listingTitle}` : ""}
+                {sample.checkIn ? ` · ${sample.checkIn}` : ""}
+                {sample.payoutCents != null
+                  ? ` · $${(sample.payoutCents / 100).toLocaleString()}`
+                  : ""}
+                {sample.reason ? ` — ${sample.reason}` : ""}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>

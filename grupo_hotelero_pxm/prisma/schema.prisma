@@ -180,6 +180,9 @@ model CalendarGuestMeta {
   endDate    DateTime
   guestName  String?
   guestCount Int?
+  /** Host payout from Airbnb email, in minor units (cents). */
+  payoutCents    Int?
+  payoutCurrency String?
   sourceUid  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

@@ -700,6 +700,15 @@ export default function HotelMultiCalendar({
                   : selected.cell.guestName || "Guest"}
                 {selected.cell.guestPhone ? ` · ${selected.cell.guestPhone}` : ""}
                 {selected.cell.guestEmail ? ` · ${selected.cell.guestEmail}` : ""}
+                {selected.span?.payoutCents != null ? (
+                  <div className="mt-1 text-gray-600">
+                    Payout:{" "}
+                    {(selected.span.payoutCents / 100).toLocaleString(undefined, {
+                      style: "currency",
+                      currency: selected.span.payoutCurrency || "MXN",
+                    })}
+                  </div>
+                ) : null}
               </div>
               {!readOnly ? (
                 <div className="flex flex-wrap items-end gap-2">

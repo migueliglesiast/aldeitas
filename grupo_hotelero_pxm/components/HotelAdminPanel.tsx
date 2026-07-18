@@ -316,6 +316,8 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
             </button>
           </div>
 
+          <HotelGmailSync hotelId={hotel.id} />
+
           <div className="bg-white rounded-lg border p-6 space-y-4">
             <h2 className="text-xl font-semibold">Hotel Images</h2>
             <HotelImageUpload
@@ -337,7 +339,6 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
 
       {tab === "maintenance" ? (
         <div className="space-y-6">
-          <HotelGmailSync hotelId={hotel.id} />
           <HotelContactsSection hotelId={hotel.id} initialContacts={hotel.contacts} />
         </div>
       ) : null}

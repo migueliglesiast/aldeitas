@@ -46,6 +46,8 @@ export type CalendarSpan = {
   label: string;
   guestName?: string;
   guestCount?: number | null;
+  payoutCents?: number | null;
+  payoutCurrency?: string | null;
   bookingId?: string;
   bookingStatus?: string;
   blockId?: string;
@@ -237,6 +239,41 @@ async function fetchExternalBlocks(listing: {
   return blocks;
 }
 
+type GuestMetaRow = {
+  startDate: Date;
+  endDate: Date;
+  guestName: string | null;
+  guestCount: number | null;
+  payoutCents: number | null;
+  payoutCurrency: string | null;
+  sourceUid: string | null;
+};
+
+function resolveGuestMeta(args: {
+  byUid: Map<string, GuestMetaRow>;
+  metas: GuestMetaRow[];
+  uid?: string;
+  start: Date;
+  end: Date;
+}): GuestMetaRow | undefined {
+  if (args.uid) {
+    const byUid = args.byUid.get(args.uid);
+    if (byUid) return byUid;
+  }
+  const rangeKey = `${toDateKey(args.start)}|${toDateKey(args.end)}`;
+  const exact = args.metas.find(
+    (meta) => `${toDateKey(meta.startDate)}|${toDateKey(meta.endDate)}` === rangeKey
+  );
+  if (exact) return exact;
+
+  // Soft match: same start (±1 day) or overlapping stay window
+  return args.metas.find((meta) => {
+    const startDiff = Math.abs(meta.startDate.getTime() - args.start.getTime());
+    if (startDiff <= 24 * 60 * 60 * 1000) return true;
+    return meta.startDate < args.end && args.start < meta.endDate;
+  });
+}
+
 export async function buildHotelCalendarData(
   hotelId: string,
   options: BuildOptions = {}
@@ -291,14 +328,9 @@ export async function buildHotelCalendarData(
     const externalBlocks = await fetchExternalBlocks(listing);
     const cells: Record<string, CalendarCell> = {};
     const spans: CalendarSpan[] = [];
-    const guestMetaByRange = new Map(
-      listing.guestMetas.map((meta) => [
-        `${toDateKey(meta.startDate)}|${toDateKey(meta.endDate)}`,
-        meta,
-      ])
-    );
+    const guestMetas = listing.guestMetas as GuestMetaRow[];
     const guestMetaByUid = new Map(
-      listing.guestMetas
+      guestMetas
         .filter((meta) => meta.sourceUid)
         .map((meta) => [meta.sourceUid as string, meta])
     );
@@ -352,10 +384,13 @@ export async function buildHotelCalendarData(
 
       const rangeStartDay = toDateKey(block.start);
       const checkoutDay = toDateKey(block.end);
-      const rangeKey = `${rangeStartDay}|${checkoutDay}`;
-      const saved =
-        (block.uid ? guestMetaByUid.get(block.uid) : undefined) ||
-        guestMetaByRange.get(rangeKey);
+      const saved = resolveGuestMeta({
+        byUid: guestMetaByUid,
+        metas: guestMetas,
+        uid: block.uid,
+        start: block.start,
+        end: block.end,
+      });
       const parsed = parseIcalGuestDetails(block.summary, block.description);
 
       const guestName =
@@ -370,6 +405,8 @@ export async function buildHotelCalendarData(
         label: "External",
         guestName,
         guestCount,
+        payoutCents: saved?.payoutCents ?? null,
+        payoutCurrency: saved?.payoutCurrency ?? null,
         checkoutDay,
         rangeStartDay,
         sourceUid: block.uid,
@@ -435,10 +472,13 @@ export async function buildHotelCalendarData(
           externalCoversNight(external, nightKey)
         );
         const checkoutDay = toDateKey(external.end);
-        const rangeKey = `${toDateKey(external.start)}|${checkoutDay}`;
-        const saved =
-          (external.uid ? guestMetaByUid.get(external.uid) : undefined) ||
-          guestMetaByRange.get(rangeKey);
+        const saved = resolveGuestMeta({
+          byUid: guestMetaByUid,
+          metas: guestMetas,
+          uid: external.uid,
+          start: external.start,
+          end: external.end,
+        });
         const parsed = parseIcalGuestDetails(
           external.summary,
           external.description
