@@ -25,4 +25,18 @@ copyDir(
   path.join(standaloneDir, ".next", "static")
 );
 
+// Ensure IMAP/mail packages exist in standalone (Hostinger chdirs into standalone/).
+const packagesToMirror = ["imapflow", "mailparser", "nodemailer", "he", "htmlparser2", "iconv-lite", "libmime", "linkify-it", "tlds", "punycode.js", "encoding-japanese", "peberminta", "libqp", "libbase64", "domutils", "domelementtype", "domhandler", "entities", "html-to-text", "selderee", "@selderee/plugin-htmlparser2", "parseley", "leac", "uc.micro"];
+const rootNodeModules = path.join(root, "node_modules");
+const standaloneNodeModules = path.join(standaloneDir, "node_modules");
+fs.mkdirSync(standaloneNodeModules, { recursive: true });
+
+for (const name of packagesToMirror) {
+  const src = path.join(rootNodeModules, name);
+  const dest = path.join(standaloneNodeModules, name);
+  if (!fs.existsSync(src)) continue;
+  if (fs.existsSync(dest)) continue;
+  copyDir(src, dest);
+}
+
 console.log("[standalone] assets ready");

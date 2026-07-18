@@ -18,11 +18,12 @@ for (const host of process.env.STOREFRONT_ALLOWED_ORIGINS?.split(",") ?? []) {
 
 const nextConfig = {
   output: "standalone",
-  serverExternalPackages: ["imapflow", "mailparser", "nodemailer"],
   experimental: {
     // Shared hosting (Hostinger/CloudLinux) limits process/thread count.
     workerThreads: false,
     cpus: 1,
+    // Next 14: keep Node mail deps out of the RSC bundler when possible.
+    serverComponentsExternalPackages: ["imapflow", "mailparser"],
     serverActions: {
       allowedOrigins,
     },
