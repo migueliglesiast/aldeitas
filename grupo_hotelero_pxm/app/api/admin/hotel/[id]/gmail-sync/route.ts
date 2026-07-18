@@ -9,7 +9,8 @@ import {
 } from "@/lib/gmail-booking-sync";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const saveSchema = z.object({
   email: z.string().email(),
@@ -177,19 +178,27 @@ export async function POST(
             .slice(0, 3)
             .join("; ")}`
         : "";
+    const timeoutHint = result.timedOut
+      ? " (stopped early to avoid server timeout — run Sync again for more)"
+      : "";
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Scanned ${result.scanned} Airbnb emails · updated ${result.updated} reservation(s).${skipHint}`,
+      message: `Scanned ${result.scanned} Airbnb emails · updated ${result.updated} reservation(s).${timeoutHint}${skipHint}`,
     });
   } catch (error: any) {
-    await prisma.hotel.update({
-      where: { id: params.id },
-      data: {
-        gmailSyncLastAt: new Date(),
-        gmailSyncLastError: error?.message || "Sync failed",
-      },
-    });
+    console.error("[gmail-sync]", error);
+    try {
+      await prisma.hotel.update({
+        where: { id: params.id },
+        data: {
+          gmailSyncLastAt: new Date(),
+          gmailSyncLastError: error?.message || "Sync failed",
+        },
+      });
+    } catch {
+      // ignore secondary failure
+    }
     return NextResponse.json(
       { error: error?.message || "Failed to sync Gmail bookings" },
       { status: 500 }

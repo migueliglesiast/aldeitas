@@ -25,6 +25,23 @@ type SyncSample = {
   reason?: string;
 };
 
+async function readApiJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    const snippet = text.replace(/\s+/g, " ").slice(0, 160);
+    if (res.status >= 500) {
+      throw new Error(
+        `Server error (${res.status}). Sync may have timed out on Hostinger — try again, or use Test connection first.`
+      );
+    }
+    throw new Error(
+      `Unexpected server response (${res.status}): ${snippet || "empty body"}`
+    );
+  }
+}
+
 export default function HotelGmailSync({ hotelId }: Props) {
   const [email, setEmail] = useState("");
   const [appPassword, setAppPassword] = useState("");
@@ -35,7 +52,7 @@ export default function HotelGmailSync({ hotelId }: Props) {
 
   const loadStatus = useCallback(async () => {
     const res = await fetch(`/api/admin/hotel/${hotelId}/gmail-sync`);
-    const json = await res.json();
+    const json = await readApiJson(res);
     if (res.ok) {
       setStatus(json);
       if (json.email) setEmail(json.email);
@@ -58,7 +75,7 @@ export default function HotelGmailSync({ hotelId }: Props) {
           ...(appPassword.trim() ? { appPassword: appPassword.trim() } : {}),
         }),
       });
-      const json = await res.json();
+      const json = await readApiJson(res);
       if (!res.ok) throw new Error(json.error || "Failed to connect Gmail");
       setAppPassword("");
       setMessage(json.message || "Gmail connected.");
@@ -80,9 +97,11 @@ export default function HotelGmailSync({ hotelId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      const json = await res.json();
+      const json = await readApiJson(res);
       if (!res.ok) throw new Error(json.error || "Action failed");
-      setMessage(json.message || (action === "disconnect" ? "Disconnected." : "Done."));
+      setMessage(
+        json.message || (action === "disconnect" ? "Disconnected." : "Done.")
+      );
       if (action === "sync" && Array.isArray(json.samples)) {
         setSamples(json.samples);
       }
@@ -93,6 +112,12 @@ export default function HotelGmailSync({ hotelId }: Props) {
       setBusy(false);
     }
   }
+
+  const messageLooksBad =
+    !!message &&
+    /fail|could not|error|unexpected|timeout|timed out|server error/i.test(
+      message
+    );
 
   return (
     <div className="bg-white rounded-lg border p-6 space-y-4">
@@ -121,7 +146,9 @@ export default function HotelGmailSync({ hotelId }: Props) {
           <span className="font-medium">myaccount.google.com/apppasswords</span> (select Mail).
         </li>
         <li>Paste the Gmail address and 16-character App Password below, then Connect.</li>
-        <li>Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).</li>
+        <li>
+          Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).
+        </li>
         <li>
           For best matching, keep each room title in Aldeitas close to the Airbnb listing name shown in
           confirmation emails.
@@ -170,7 +197,7 @@ export default function HotelGmailSync({ hotelId }: Props) {
           onClick={() => void runAction("sync")}
           className="rounded border border-[#00a19c] px-4 py-2 text-sm text-[#008a86] hover:bg-[#e8f6f5] disabled:opacity-50"
         >
-          Sync booking emails now
+          {busy ? "Working…" : "Sync booking emails now"}
         </button>
         <button
           type="button"
@@ -211,11 +238,7 @@ export default function HotelGmailSync({ hotelId }: Props) {
       {message ? (
         <div
           className={`rounded px-3 py-2 text-sm ${
-            message.toLowerCase().includes("fail") ||
-            message.toLowerCase().includes("could not") ||
-            message.toLowerCase().includes("error")
-              ? "bg-red-50 text-red-700"
-              : "bg-green-50 text-green-700"
+            messageLooksBad ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
           }`}
         >
           {message}

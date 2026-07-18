@@ -18,6 +18,7 @@ for (const host of process.env.STOREFRONT_ALLOWED_ORIGINS?.split(",") ?? []) {
 
 const nextConfig = {
   output: "standalone",
+  serverExternalPackages: ["imapflow", "mailparser", "nodemailer"],
   experimental: {
     // Shared hosting (Hostinger/CloudLinux) limits process/thread count.
     workerThreads: false,
