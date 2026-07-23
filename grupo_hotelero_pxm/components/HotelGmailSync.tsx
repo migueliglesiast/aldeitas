@@ -151,8 +151,7 @@ export default function HotelGmailSync({ hotelId }: Props) {
           Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).
         </li>
         <li>
-          Click <span className="font-medium">Sync</span> multiple times to walk through older
-          emails in batches (Hostinger cannot scan the whole inbox in one request).
+          Sync searches your inbox for Airbnb mail and processes the <span className="font-medium">100 most recent</span> messages.
         </li>
         <li>
           For best matching, keep each room title in Aldeitas close to the Airbnb listing name shown in
@@ -230,9 +229,6 @@ export default function HotelGmailSync({ hotelId }: Props) {
               {status.lastSyncedAt
                 ? ` · Last sync ${new Date(status.lastSyncedAt).toLocaleString()}`
                 : " · Not synced yet"}
-              {typeof status.syncOffset === "number"
-                ? ` · Next batch offset ${status.syncOffset}`
-                : ""}
               {status.lastError ? (
                 <div className="mt-1 text-red-600">Last error: {status.lastError}</div>
               ) : null}

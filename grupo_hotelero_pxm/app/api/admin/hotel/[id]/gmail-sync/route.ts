@@ -186,11 +186,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Batch ${result.batchOffset ?? 0}+ of ${result.inboxMatches ?? "?"} Airbnb emails · scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
-        result.nextOffset != null
-          ? ` Next sync continues at offset ${result.nextOffset}.`
-          : ""
-      }${skipHint}`,
+      message: `Searched newest ${result.batchSize ?? 100} of ${result.inboxMatches ?? "?"} Airbnb emails · scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${skipHint}`,
     });
   } catch (error: any) {
     console.error("[gmail-sync]", error);

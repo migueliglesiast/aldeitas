@@ -279,10 +279,10 @@ export async function syncHotelGmailBookings(
   hotelId: string,
   options: { lookbackDays?: number; limit?: number; timeBudgetMs?: number } = {}
 ): Promise<GmailSyncResult> {
-  // Multi-pass sync: each click advances an offset through the inbox.
-  const lookbackDays = options.lookbackDays ?? 180;
-  const batchSize = options.limit ?? 60;
-  const timeBudgetMs = options.timeBudgetMs ?? 50_000;
+  // Always process the newest N Airbnb emails (default 100).
+  const lookbackDays = options.lookbackDays ?? 365;
+  const limit = options.limit ?? 100;
+  const timeBudgetMs = options.timeBudgetMs ?? 55_000;
   const startedAt = Date.now();
   const timeLeft = () => timeBudgetMs - (Date.now() - startedAt);
 
@@ -303,7 +303,6 @@ export async function syncHotelGmailBookings(
   const password = decryptSecret(hotel.gmailSyncPasswordEnc);
   const since = new Date();
   since.setDate(since.getDate() - lookbackDays);
-  const offset = Math.max(0, hotel.gmailSyncOffset || 0);
 
   const client = new ImapFlow({
     host: "imap.gmail.com",
@@ -325,8 +324,7 @@ export async function syncHotelGmailBookings(
     matched: 0,
     updated: 0,
     skipped: 0,
-    batchOffset: offset,
-    batchSize,
+    batchSize: limit,
     errors: [],
     samples: [],
   };
@@ -360,38 +358,22 @@ export async function syncHotelGmailBookings(
         result.timedOut = true;
         result.errors.push("Timed out before reading inbox");
       } else {
-        const searches = await Promise.all([
-          client.search({ since, from: "airbnb.com", subject: "reserva" }),
-          client.search({ since, from: "airbnb.com", subject: "reservation" }),
-          client.search({ since, from: "airbnb.com", subject: "confirm" }),
-          client.search({ since, from: "airbnb.com", subject: "llega" }),
-          client.search({ since, from: "airbnb.com", subject: "arrives" }),
-          client.search({ since, from: "airbnb.com", subject: "booking" }),
-          client.search({ since, from: "airbnb.mx", subject: "reserva" }),
-          client.search({ since, from: "airbnb.mx", subject: "confirm" }),
-          client.search({ since, from: "airbnb.mx", subject: "llega" }),
-          client.search({ since, from: "airbnb.com" }),
-          client.search({ since, from: "airbnb.mx" }),
-        ]);
-
-        const uidSet = new Set<number>();
-        for (const searched of searches) {
-          for (const uid of Array.isArray(searched) ? searched : []) {
-            const n = Number(uid);
-            if (Number.isFinite(n)) uidSet.add(n);
-          }
-        }
+        // Search the inbox for Airbnb mail, then take the newest `limit` messages.
+        const searchedA = await client.search({ since, from: "airbnb.com" });
+        const searchedB = await client.search({ since, from: "airbnb.mx" });
+        const uidSet = new Set<number>(
+          [
+            ...(Array.isArray(searchedA) ? searchedA : []),
+            ...(Array.isArray(searchedB) ? searchedB : []),
+          ]
+            .map(Number)
+            .filter((n) => Number.isFinite(n))
+        );
         const allUids = [...uidSet].sort((a, b) => b - a);
         result.inboxMatches = allUids.length;
-
-        const start = allUids.length === 0 ? 0 : offset % allUids.length;
-        const uids = allUids.slice(start, start + batchSize);
-        if (uids.length < batchSize && allUids.length > uids.length) {
-          uids.push(...allUids.slice(0, batchSize - uids.length));
-        }
+        const uids = allUids.slice(0, limit);
 
         let sharedBlocks: ExternalBlock[] | null = null;
-        let processedInBatch = 0;
 
         for (const uid of uids) {
           if (timeLeft() < 6_000) {
@@ -405,7 +387,6 @@ export async function syncHotelGmailBookings(
               { source: true, envelope: true },
               { uid: true }
             );
-            processedInBatch += 1;
             if (!msg || !msg.source) {
               result.skipped += 1;
               continue;
@@ -515,7 +496,6 @@ export async function syncHotelGmailBookings(
             const guestCount = parsed.guestCount;
             const payoutCents = parsed.payoutCents;
             const payoutCurrency = parsed.payoutCurrency;
-            // Prefer iCal UID so shareable/admin calendars can join meta → bars.
             const sourceUid =
               aligned.sourceUid ||
               overlap?.sourceUid ||
@@ -610,10 +590,6 @@ export async function syncHotelGmailBookings(
             result.errors.push(error?.message || "Failed to parse one email");
           }
         }
-
-        const advanced = Math.max(processedInBatch, result.scanned, 1);
-        result.nextOffset =
-          allUids.length === 0 ? 0 : (start + advanced) % allUids.length;
       }
     } finally {
       lock.release();
@@ -626,7 +602,6 @@ export async function syncHotelGmailBookings(
     where: { id: hotelId },
     data: {
       gmailSyncLastAt: new Date(),
-      gmailSyncOffset: result.nextOffset ?? offset,
       gmailSyncLastError: result.errors.length
         ? result.errors.slice(0, 3).join("; ")
         : result.timedOut
