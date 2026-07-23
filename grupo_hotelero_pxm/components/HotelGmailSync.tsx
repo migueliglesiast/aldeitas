@@ -153,8 +153,8 @@ export default function HotelGmailSync({ hotelId }: Props) {
           Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).
         </li>
         <li>
-          Sync searches for Airbnb <span className="font-medium">reservation/booking</span> emails
-          (not marketing) and processes the 100 most recent matches.
+          Sync finds Airbnb reservation emails, then processes as many as Hostinger allows per
+          click. Click Sync again to continue through the rest.
         </li>
         <li>
           For best matching, keep each room title in Aldeitas close to the Airbnb listing name shown in

@@ -279,8 +279,8 @@ export async function syncHotelGmailBookings(
   hotelId: string,
   options: { lookbackDays?: number; limit?: number; timeBudgetMs?: number } = {}
 ): Promise<GmailSyncResult> {
-  // Always process the newest N Airbnb emails (default 100).
-  const lookbackDays = options.lookbackDays ?? 365;
+  // Hostinger kills long requests — keep searches lean and process newest matches.
+  const lookbackDays = options.lookbackDays ?? 180;
   const limit = options.limit ?? 100;
   const timeBudgetMs = options.timeBudgetMs ?? 55_000;
   const startedAt = Date.now();
@@ -303,6 +303,7 @@ export async function syncHotelGmailBookings(
   const password = decryptSecret(hotel.gmailSyncPasswordEnc);
   const since = new Date();
   since.setDate(since.getDate() - lookbackDays);
+  const offset = Math.max(0, hotel.gmailSyncOffset || 0);
 
   const client = new ImapFlow({
     host: "imap.gmail.com",
@@ -325,6 +326,7 @@ export async function syncHotelGmailBookings(
     updated: 0,
     skipped: 0,
     batchSize: limit,
+    batchOffset: offset,
     errors: [],
     samples: [],
   };
@@ -358,21 +360,8 @@ export async function syncHotelGmailBookings(
         result.timedOut = true;
         result.errors.push("Timed out before reading inbox");
       } else {
-        // Prefer reservation-like subjects so we don't spend the time budget on
-        // marketing mail (this inbox can have thousands of Airbnb messages).
-        const subjectTerms = [
-          "reserva",
-          "reservation",
-          "confirm",
-          "llega",
-          "arrives",
-          "booking",
-          "alteraci",
-          "alteration",
-          "huésped",
-          "huesped",
-          "guest",
-        ];
+        // Few IMAP searches (each is expensive on Hostinger).
+        const subjectTerms = ["reserva", "reservation", "confirm", "llega", "arrives"];
         const searchJobs: Promise<unknown>[] = [];
         for (const from of ["airbnb.com", "airbnb.mx"] as const) {
           for (const subject of subjectTerms) {
@@ -389,37 +378,38 @@ export async function syncHotelGmailBookings(
         }
         const allUids = [...uidSet].sort((a, b) => b - a);
         result.inboxMatches = allUids.length;
-        const uids = allUids.slice(0, limit);
+
+        // Continue from last offset so repeated Sync clicks cover more than one pass.
+        const start = allUids.length === 0 ? 0 : offset % allUids.length;
+        const uids = allUids.slice(start, start + limit);
+        if (uids.length < limit && allUids.length > uids.length) {
+          uids.push(...allUids.slice(0, limit - uids.length));
+        }
+        result.batchOffset = start;
 
         let sharedBlocks: ExternalBlock[] | null = null;
+        let processedInBatch = 0;
 
         for (const uid of uids) {
-          if (timeLeft() < 6_000) {
+          if (timeLeft() < 3_000) {
             result.timedOut = true;
             break;
           }
 
           try {
-            // Cheap envelope check before downloading the full message body.
-            const envelopeMsg = await client.fetchOne(
+            // One fetch per message (envelope + body) — double fetch was too slow.
+            const msg = await client.fetchOne(
               uid,
-              { envelope: true },
+              { source: true, envelope: true },
               { uid: true }
             );
-            const envelopeSubject =
-              (envelopeMsg &&
-                "envelope" in envelopeMsg &&
-                envelopeMsg.envelope?.subject) ||
-              "";
-            if (
-              envelopeSubject &&
-              !/reserva|reservation|confirm|llega|arrives|booking|alteraci|hu[eé]sped|huesped|guest|ganar|payout|c[oó]digo/i.test(
-                envelopeSubject
-              )
-            ) {
+            processedInBatch += 1;
+            if (!msg || !msg.source) {
               result.skipped += 1;
               continue;
             }
+
+            const envelopeSubject = msg.envelope?.subject || "";
             if (
               /tip|inspiration|wishlist|weekly update|hosting tips|aircover|experience near|review reminder/i.test(
                 envelopeSubject
@@ -429,21 +419,16 @@ export async function syncHotelGmailBookings(
               continue;
             }
 
-            const msg = await client.fetchOne(
-              uid,
-              { source: true, envelope: true },
-              { uid: true }
-            );
-            if (!msg || !msg.source) {
-              result.skipped += 1;
-              continue;
-            }
-
             const parsedMail = await simpleParser(msg.source);
             const subject = parsedMail.subject || envelopeSubject || "";
-            const html =
-              typeof parsedMail.html === "string" ? parsedMail.html : "";
+            // Prefer plain text — HTML parse is much slower on large Airbnb emails.
             const textBody = parsedMail.text || "";
+            const html =
+              textBody.length > 200
+                ? ""
+                : typeof parsedMail.html === "string"
+                  ? parsedMail.html
+                  : "";
             const parsed = parseAirbnbBookingEmail({
               subject,
               text: textBody,
@@ -637,6 +622,10 @@ export async function syncHotelGmailBookings(
             result.errors.push(error?.message || "Failed to parse one email");
           }
         }
+
+        const advanced = Math.max(processedInBatch, 1);
+        result.nextOffset =
+          allUids.length === 0 ? 0 : (start + advanced) % allUids.length;
       }
     } finally {
       lock.release();
@@ -649,6 +638,7 @@ export async function syncHotelGmailBookings(
     where: { id: hotelId },
     data: {
       gmailSyncLastAt: new Date(),
+      gmailSyncOffset: result.nextOffset ?? offset,
       gmailSyncLastError: result.errors.length
         ? result.errors.slice(0, 3).join("; ")
         : result.updated > 0

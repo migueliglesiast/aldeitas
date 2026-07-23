@@ -186,7 +186,11 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Searched newest ${Math.min(result.batchSize ?? 100, result.inboxMatches ?? 0)} reservation-like of ${result.inboxMatches ?? "?"} Airbnb booking emails · scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${skipHint}`,
+      message: `Reservation emails: ${result.inboxMatches ?? "?"} found · this pass scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
+        result.nextOffset != null
+          ? ` Click Sync again to continue (offset ${result.nextOffset}).`
+          : ""
+      }${skipHint}`,
     });
   } catch (error: any) {
     console.error("[gmail-sync]", error);
