@@ -181,12 +181,12 @@ export async function POST(
             .join("; ")}`
         : "";
     const timeoutHint = result.timedOut
-      ? " (stopped early to avoid server timeout — run Sync again for more)"
+      ? " (finished early under Hostinger time limit)"
       : "";
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Searched newest ${result.batchSize ?? 100} of ${result.inboxMatches ?? "?"} Airbnb emails · scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${skipHint}`,
+      message: `Searched newest ${Math.min(result.batchSize ?? 100, result.inboxMatches ?? 0)} reservation-like of ${result.inboxMatches ?? "?"} Airbnb booking emails · scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${skipHint}`,
     });
   } catch (error: any) {
     console.error("[gmail-sync]", error);

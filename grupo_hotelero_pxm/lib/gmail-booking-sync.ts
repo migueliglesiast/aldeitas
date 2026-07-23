@@ -358,17 +358,35 @@ export async function syncHotelGmailBookings(
         result.timedOut = true;
         result.errors.push("Timed out before reading inbox");
       } else {
-        // Search the inbox for Airbnb mail, then take the newest `limit` messages.
-        const searchedA = await client.search({ since, from: "airbnb.com" });
-        const searchedB = await client.search({ since, from: "airbnb.mx" });
-        const uidSet = new Set<number>(
-          [
-            ...(Array.isArray(searchedA) ? searchedA : []),
-            ...(Array.isArray(searchedB) ? searchedB : []),
-          ]
-            .map(Number)
-            .filter((n) => Number.isFinite(n))
-        );
+        // Prefer reservation-like subjects so we don't spend the time budget on
+        // marketing mail (this inbox can have thousands of Airbnb messages).
+        const subjectTerms = [
+          "reserva",
+          "reservation",
+          "confirm",
+          "llega",
+          "arrives",
+          "booking",
+          "alteraci",
+          "alteration",
+          "huésped",
+          "huesped",
+          "guest",
+        ];
+        const searchJobs: Promise<unknown>[] = [];
+        for (const from of ["airbnb.com", "airbnb.mx"] as const) {
+          for (const subject of subjectTerms) {
+            searchJobs.push(client.search({ since, from, subject }));
+          }
+        }
+        const searches = await Promise.all(searchJobs);
+        const uidSet = new Set<number>();
+        for (const searched of searches) {
+          for (const uid of Array.isArray(searched) ? searched : []) {
+            const n = Number(uid);
+            if (Number.isFinite(n)) uidSet.add(n);
+          }
+        }
         const allUids = [...uidSet].sort((a, b) => b - a);
         result.inboxMatches = allUids.length;
         const uids = allUids.slice(0, limit);
@@ -382,6 +400,35 @@ export async function syncHotelGmailBookings(
           }
 
           try {
+            // Cheap envelope check before downloading the full message body.
+            const envelopeMsg = await client.fetchOne(
+              uid,
+              { envelope: true },
+              { uid: true }
+            );
+            const envelopeSubject =
+              (envelopeMsg &&
+                "envelope" in envelopeMsg &&
+                envelopeMsg.envelope?.subject) ||
+              "";
+            if (
+              envelopeSubject &&
+              !/reserva|reservation|confirm|llega|arrives|booking|alteraci|hu[eé]sped|huesped|guest|ganar|payout|c[oó]digo/i.test(
+                envelopeSubject
+              )
+            ) {
+              result.skipped += 1;
+              continue;
+            }
+            if (
+              /tip|inspiration|wishlist|weekly update|hosting tips|aircover|experience near|review reminder/i.test(
+                envelopeSubject
+              )
+            ) {
+              result.skipped += 1;
+              continue;
+            }
+
             const msg = await client.fetchOne(
               uid,
               { source: true, envelope: true },
@@ -393,7 +440,7 @@ export async function syncHotelGmailBookings(
             }
 
             const parsedMail = await simpleParser(msg.source);
-            const subject = parsedMail.subject || msg.envelope?.subject || "";
+            const subject = parsedMail.subject || envelopeSubject || "";
             const html =
               typeof parsedMail.html === "string" ? parsedMail.html : "";
             const textBody = parsedMail.text || "";
@@ -604,11 +651,11 @@ export async function syncHotelGmailBookings(
       gmailSyncLastAt: new Date(),
       gmailSyncLastError: result.errors.length
         ? result.errors.slice(0, 3).join("; ")
-        : result.timedOut
-          ? `Partial sync (time limit). Updated ${result.updated}. ${summarizeSkipReasons(result.samples) || ""}`.trim()
-          : result.updated === 0
-            ? summarizeSkipReasons(result.samples)
-            : null,
+        : result.updated > 0
+          ? null
+          : result.timedOut
+            ? `Partial sync (time limit). ${summarizeSkipReasons(result.samples) || ""}`.trim()
+            : summarizeSkipReasons(result.samples),
     },
   });
 

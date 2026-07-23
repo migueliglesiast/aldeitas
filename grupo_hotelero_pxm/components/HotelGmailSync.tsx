@@ -116,9 +116,11 @@ export default function HotelGmailSync({ hotelId }: Props) {
 
   const messageLooksBad =
     !!message &&
-    /fail|could not|error|unexpected|timeout|timed out|server error/i.test(
-      message
-    );
+    /fail|could not|error|unexpected|server error/i.test(message) &&
+    !/updated [1-9]/i.test(message);
+
+  const lastErrorLooksPartial =
+    !!status?.lastError && /partial sync|time limit/i.test(status.lastError);
 
   return (
     <div className="bg-white rounded-lg border p-6 space-y-4">
@@ -151,7 +153,8 @@ export default function HotelGmailSync({ hotelId }: Props) {
           Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).
         </li>
         <li>
-          Sync searches your inbox for Airbnb mail and processes the <span className="font-medium">100 most recent</span> messages.
+          Sync searches for Airbnb <span className="font-medium">reservation/booking</span> emails
+          (not marketing) and processes the 100 most recent matches.
         </li>
         <li>
           For best matching, keep each room title in Aldeitas close to the Airbnb listing name shown in
@@ -230,7 +233,14 @@ export default function HotelGmailSync({ hotelId }: Props) {
                 ? ` · Last sync ${new Date(status.lastSyncedAt).toLocaleString()}`
                 : " · Not synced yet"}
               {status.lastError ? (
-                <div className="mt-1 text-red-600">Last error: {status.lastError}</div>
+                <div
+                  className={`mt-1 ${
+                    lastErrorLooksPartial ? "text-amber-700" : "text-red-600"
+                  }`}
+                >
+                  {lastErrorLooksPartial ? "Note: " : "Last error: "}
+                  {status.lastError}
+                </div>
               ) : null}
             </>
           ) : (
