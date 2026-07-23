@@ -44,6 +44,7 @@ export async function GET(
       gmailSyncLastAt: true,
       gmailSyncLastError: true,
       gmailSyncPasswordEnc: true,
+      gmailSyncOffset: true,
     },
   });
 
@@ -57,6 +58,7 @@ export async function GET(
     enabled: hotel.gmailSyncEnabled,
     lastSyncedAt: hotel.gmailSyncLastAt,
     lastError: hotel.gmailSyncLastError,
+    syncOffset: hotel.gmailSyncOffset,
   });
 }
 
@@ -184,7 +186,11 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Scanned ${result.scanned} Airbnb emails · updated ${result.updated} reservation(s).${timeoutHint}${skipHint}`,
+      message: `Batch ${result.batchOffset ?? 0}+ of ${result.inboxMatches ?? "?"} Airbnb emails · scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
+        result.nextOffset != null
+          ? ` Next sync continues at offset ${result.nextOffset}.`
+          : ""
+      }${skipHint}`,
     });
   } catch (error: any) {
     console.error("[gmail-sync]", error);

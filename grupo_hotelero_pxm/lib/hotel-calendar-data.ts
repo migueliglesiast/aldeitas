@@ -260,17 +260,26 @@ function resolveGuestMeta(args: {
     const byUid = args.byUid.get(args.uid);
     if (byUid) return byUid;
   }
-  const rangeKey = `${toDateKey(args.start)}|${toDateKey(args.end)}`;
+
+  const blockStart = toDateKey(args.start);
+  const blockEnd = toDateKey(args.end);
+
   const exact = args.metas.find(
-    (meta) => `${toDateKey(meta.startDate)}|${toDateKey(meta.endDate)}` === rangeKey
+    (meta) =>
+      toDateKey(meta.startDate) === blockStart &&
+      toDateKey(meta.endDate) === blockEnd
   );
   if (exact) return exact;
 
-  // Soft match: same start (±1 day) or overlapping stay window
+  // Soft match by calendar day (avoids timezone ms mismatches from email vs iCal)
+  const startMs = parseDateKey(blockStart).getTime();
   return args.metas.find((meta) => {
-    const startDiff = Math.abs(meta.startDate.getTime() - args.start.getTime());
-    if (startDiff <= 24 * 60 * 60 * 1000) return true;
-    return meta.startDate < args.end && args.start < meta.endDate;
+    const metaStart = toDateKey(meta.startDate);
+    const metaEnd = toDateKey(meta.endDate);
+    const metaStartMs = parseDateKey(metaStart).getTime();
+    const dayDiff = Math.abs(metaStartMs - startMs) / (24 * 60 * 60 * 1000);
+    if (dayDiff <= 2) return true;
+    return metaStart < blockEnd && blockStart < metaEnd;
   });
 }
 

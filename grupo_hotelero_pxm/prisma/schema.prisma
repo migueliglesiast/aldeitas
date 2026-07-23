@@ -70,6 +70,8 @@ model Hotel {
   gmailSyncEnabled    Boolean  @default(false)
   gmailSyncLastAt     DateTime?
   gmailSyncLastError  String?
+  /** Offset into Airbnb inbox search results for multi-pass sync. */
+  gmailSyncOffset     Int      @default(0)
 }
 
 model HotelCalendarShare {

@@ -12,6 +12,7 @@ type Status = {
   enabled: boolean;
   lastSyncedAt: string | null;
   lastError: string | null;
+  syncOffset?: number;
 };
 
 type SyncSample = {
@@ -150,6 +151,10 @@ export default function HotelGmailSync({ hotelId }: Props) {
           Optional: in Gmail, filter Airbnb mail into that inbox (or forward hotel Airbnb mail there).
         </li>
         <li>
+          Click <span className="font-medium">Sync</span> multiple times to walk through older
+          emails in batches (Hostinger cannot scan the whole inbox in one request).
+        </li>
+        <li>
           For best matching, keep each room title in Aldeitas close to the Airbnb listing name shown in
           confirmation emails.
         </li>
@@ -225,6 +230,9 @@ export default function HotelGmailSync({ hotelId }: Props) {
               {status.lastSyncedAt
                 ? ` · Last sync ${new Date(status.lastSyncedAt).toLocaleString()}`
                 : " · Not synced yet"}
+              {typeof status.syncOffset === "number"
+                ? ` · Next batch offset ${status.syncOffset}`
+                : ""}
               {status.lastError ? (
                 <div className="mt-1 text-red-600">Last error: {status.lastError}</div>
               ) : null}
