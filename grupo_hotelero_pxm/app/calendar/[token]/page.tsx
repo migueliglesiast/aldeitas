@@ -21,12 +21,16 @@ export default async function SharedHotelCalendarPage({
   if (!hotel) notFound();
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-[1600px] space-y-3 px-2 py-4 sm:space-y-6 sm:px-4 sm:py-8">
       <div>
-        <p className="text-sm uppercase tracking-wide text-gray-500">Shared calendar</p>
-        <h1 className="text-3xl font-semibold">{hotel.name}</h1>
-        <p className="text-gray-600">{hotel.location}</p>
-        <p className="mt-2 text-sm text-gray-500">Read-only view for the next 3 months.</p>
+        <p className="text-[10px] uppercase tracking-wide text-gray-500 sm:text-sm">
+          Shared calendar
+        </p>
+        <h1 className="text-xl font-semibold leading-tight sm:text-3xl">{hotel.name}</h1>
+        <p className="text-sm text-gray-600 sm:text-base">{hotel.location}</p>
+        <p className="mt-1 text-xs text-gray-500 sm:mt-2 sm:text-sm">
+          Read-only · next 3 months · swipe sideways to see more dates
+        </p>
       </div>
       <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={params.token} />
     </div>

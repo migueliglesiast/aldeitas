@@ -70,7 +70,7 @@ function spanTitle(span: CalendarSpan) {
   return name;
 }
 
-function spanGuestLabel(span: CalendarSpan) {
+function spanGuestLabel(span: CalendarSpan, compact = false) {
   const name =
     span.guestName && !/^airbnb guest$/i.test(span.guestName)
       ? span.guestName
@@ -79,14 +79,26 @@ function spanGuestLabel(span: CalendarSpan) {
         : span.guestName || span.label;
   const count =
     span.guestCount != null && span.guestCount > 0 ? span.guestCount : null;
-  // Short spans: keep count compact so the name can truncate inside the bubble.
+  // Short spans / phone: keep count compact so the name can truncate inside the bubble.
   const countText =
     count == null
       ? null
-      : span.dayCount <= 2
+      : compact || span.dayCount <= 2
         ? `· ${count}`
         : `· ${count} guest${count === 1 ? "" : "s"}`;
   return { name, countText };
+}
+
+function useCompactCalendarLayout() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const apply = () => setCompact(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+  return compact;
 }
 
 function buildRowSegments(
@@ -142,6 +154,11 @@ export default function HotelMultiCalendar({
   const [sharing, setSharing] = useState(false);
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [busy, setBusy] = useState(false);
+  const compact = useCompactCalendarLayout();
+  // Share / phone: tighter columns so more nights fit on screen.
+  const phoneShare = Boolean(shareToken || readOnly) && compact;
+  const roomColWidth = phoneShare ? 76 : compact ? 100 : 180;
+  const dayColWidth = phoneShare ? 32 : compact ? 40 : 56;
 
   const loadCalendar = useCallback(async () => {
     setLoading(true);
@@ -477,12 +494,18 @@ export default function HotelMultiCalendar({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col gap-2 sm:gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Multi Calendar</h2>
-          <p className="text-sm text-gray-600">
-            {data.startDate} → {data.endDate} ({data.days.length} nights shown)
+          <h2 className={`font-semibold ${shareToken ? "text-base sm:text-xl" : "text-xl"}`}>
+            {shareToken ? "Availability" : "Multi Calendar"}
+          </h2>
+          <p className="text-xs text-gray-600 sm:text-sm">
+            {data.startDate} → {data.endDate}
+            <span className="hidden sm:inline">
+              {" "}
+              ({data.days.length} nights shown)
+            </span>
           </p>
         </div>
         {!readOnly ? (
@@ -564,51 +587,88 @@ export default function HotelMultiCalendar({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-3 text-xs">
-        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-white border" /> Available</span>
-        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-slate-300" /> Blocked</span>
-        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-rose-200" /> Booked</span>
-        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-amber-200" /> Processing</span>
-        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded bg-violet-200" /> External</span>
+      <div
+        className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] sm:gap-3 sm:text-xs ${
+          shareToken ? "text-gray-600" : ""
+        }`}
+      >
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+          <span className="h-2.5 w-2.5 rounded border bg-white sm:h-3 sm:w-3" /> Available
+        </span>
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+          <span className="h-2.5 w-2.5 rounded bg-slate-300 sm:h-3 sm:w-3" /> Blocked
+        </span>
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+          <span className="h-2.5 w-2.5 rounded bg-rose-200 sm:h-3 sm:w-3" /> Booked
+        </span>
+        {!shareToken ? (
+          <span className="inline-flex items-center gap-1.5 sm:gap-2">
+            <span className="h-2.5 w-2.5 rounded bg-amber-200 sm:h-3 sm:w-3" /> Processing
+          </span>
+        ) : null}
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+          <span className="h-2.5 w-2.5 rounded bg-violet-200 sm:h-3 sm:w-3" /> External
+        </span>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-white">
+      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
         <table
-          className="border-collapse text-xs"
+          className="border-collapse text-[10px] sm:text-xs"
           style={{
             tableLayout: "fixed",
-            width: 180 + data.days.length * 56,
+            width: roomColWidth + data.days.length * dayColWidth,
           }}
         >
           <colgroup>
-            <col style={{ width: 180 }} />
+            <col style={{ width: roomColWidth }} />
             {data.days.map((day) => (
-              <col key={`col-${day}`} style={{ width: 56 }} />
+              <col key={`col-${day}`} style={{ width: dayColWidth }} />
             ))}
           </colgroup>
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] border-b border-r bg-gray-50 px-3 py-2 text-left">
+              <th
+                className="sticky left-0 z-20 border-b border-r bg-gray-50 px-1.5 py-1.5 text-left sm:px-3 sm:py-2"
+                style={{
+                  width: roomColWidth,
+                  minWidth: roomColWidth,
+                  maxWidth: roomColWidth,
+                }}
+              >
                 Room
               </th>
               {monthGroups.map((group) => (
                 <th
                   key={group.label}
                   colSpan={group.days.length}
-                  className="border-b bg-gray-50 px-2 py-2 text-center font-medium text-gray-700"
+                  className="border-b bg-gray-50 px-0.5 py-1.5 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:py-2 sm:text-xs"
                 >
-                  {group.label}
+                  {phoneShare
+                    ? group.label.replace(/(\w+)\s+(\d{4})/, (_, m, y) => `${m.slice(0, 3)} ${y}`)
+                    : group.label}
                 </th>
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] border-b border-r bg-gray-50 px-3 py-2 text-left">
-                Base price
+              <th
+                className="sticky left-0 z-20 border-b border-r bg-gray-50 px-1.5 py-1 text-left text-[10px] text-gray-500 sm:px-3 sm:py-2 sm:text-xs"
+                style={{
+                  width: roomColWidth,
+                  minWidth: roomColWidth,
+                  maxWidth: roomColWidth,
+                }}
+              >
+                {phoneShare ? "" : "Base price"}
               </th>
               {data.days.map((day) => (
                 <th
                   key={day}
-                  className="w-14 min-w-[56px] max-w-[56px] border-b px-0 py-2 text-center font-normal text-gray-500"
+                  className="border-b px-0 py-1 text-center font-normal text-gray-500 sm:py-2"
+                  style={{
+                    width: dayColWidth,
+                    minWidth: dayColWidth,
+                    maxWidth: dayColWidth,
+                  }}
                 >
                   {new Date(`${day}T00:00:00`).getDate()}
                 </th>
@@ -624,8 +684,21 @@ export default function HotelMultiCalendar({
               );
               return (
               <tr key={room.id}>
-                <td className="sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] border-r bg-gray-50 px-3 py-3 align-top">
-                  <div className="font-medium text-gray-900">{room.title}</div>
+                <td
+                  className="sticky left-0 z-10 border-r bg-gray-50 px-1.5 py-2 align-top sm:px-3 sm:py-3"
+                  style={{
+                    width: roomColWidth,
+                    minWidth: roomColWidth,
+                    maxWidth: roomColWidth,
+                  }}
+                >
+                  <div
+                    className={`font-medium leading-tight text-gray-900 ${
+                      phoneShare ? "line-clamp-2 text-[10px]" : "text-xs sm:text-sm"
+                    }`}
+                  >
+                    {room.title}
+                  </div>
                   {!readOnly ? (
                     <div className="mt-2 flex items-center gap-2">
                       <input
@@ -648,7 +721,7 @@ export default function HotelMultiCalendar({
                         Save
                       </button>
                     </div>
-                  ) : (
+                  ) : phoneShare ? null : (
                     <div className="mt-1 text-gray-600">
                       {formatMoneyShort(room.nightlyBasePrice, room.baseCurrency)}
                     </div>
@@ -663,13 +736,13 @@ export default function HotelMultiCalendar({
                       selected?.roomId === room.id &&
                       segment.days.includes(selected.day);
                     const title = spanTitle(span);
-                    const { name, countText } = spanGuestLabel(span);
-                    const spanWidthPx = segment.days.length * 56;
+                    const { name, countText } = spanGuestLabel(span, phoneShare);
+                    const spanWidthPx = segment.days.length * dayColWidth;
                     return (
                       <td
                         key={`${room.id}-${span.id}`}
                         colSpan={segment.days.length}
-                        className="border-b border-r p-0.5 align-middle"
+                        className="border-b border-r p-px align-middle sm:p-0.5"
                         style={{
                           width: spanWidthPx,
                           maxWidth: spanWidthPx,
@@ -687,7 +760,10 @@ export default function HotelMultiCalendar({
                             });
                           }}
                           className={[
-                            "flex h-12 w-full min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full px-2 text-left text-[11px] font-medium shadow-sm transition",
+                            "flex w-full min-w-0 max-w-full items-center gap-0.5 overflow-hidden rounded-full text-left font-medium shadow-sm transition sm:gap-1",
+                            phoneShare
+                              ? "h-8 px-1 text-[9px] leading-tight"
+                              : "h-12 px-2 text-[11px]",
                             spanBarClass(span),
                             isSelected ? "ring-2 ring-[#00a19c] ring-offset-1" : "",
                             "cursor-pointer hover:brightness-95",
@@ -711,7 +787,12 @@ export default function HotelMultiCalendar({
                   return (
                     <td
                       key={`${room.id}-${day}`}
-                      className="w-14 min-w-[56px] max-w-[56px] border-b border-r p-0"
+                      className="border-b border-r p-0"
+                      style={{
+                        width: dayColWidth,
+                        minWidth: dayColWidth,
+                        maxWidth: dayColWidth,
+                      }}
                     >
                       <button
                         type="button"
@@ -732,16 +813,30 @@ export default function HotelMultiCalendar({
                           });
                         }}
                         className={[
-                          "flex h-14 w-14 flex-col items-center justify-center border transition",
+                          "flex flex-col items-center justify-center border transition",
+                          phoneShare ? "h-8 w-full" : "h-14 w-14",
                           cellClass(cell),
                           isSelected ? "ring-2 ring-[#00a19c]" : "",
                           readOnly ? "cursor-default" : "cursor-pointer",
                         ].join(" ")}
+                        style={
+                          phoneShare
+                            ? { width: dayColWidth, height: 32 }
+                            : undefined
+                        }
                         title={cell.label}
                       >
-                        <span className="text-[10px]">
-                          {formatMoneyShort(cell.priceCents, room.baseCurrency)}
-                        </span>
+                        {!phoneShare || cell.status === "available" ? (
+                          <span
+                            className={
+                              phoneShare ? "text-[7px] leading-none text-gray-500" : "text-[10px]"
+                            }
+                          >
+                            {phoneShare
+                              ? ""
+                              : formatMoneyShort(cell.priceCents, room.baseCurrency)}
+                          </span>
+                        ) : null}
                       </button>
                     </td>
                   );
@@ -754,7 +849,7 @@ export default function HotelMultiCalendar({
       </div>
 
       {selected ? (
-        <div className="rounded-lg border bg-gray-50 p-4 space-y-3">
+        <div className="rounded-lg border bg-gray-50 p-3 space-y-3 sm:p-4">
           <div className="text-sm">
             <span className="font-medium">{selected.roomTitle}</span> · {selected.day} ·{" "}
             {selected.cell.label}
