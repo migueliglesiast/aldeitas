@@ -160,6 +160,53 @@ function findListingByIcalOverlap(args: {
 }): { listingId: string | null; reason: string } {
   const end =
     args.checkOut || new Date(args.checkIn.getTime() + 24 * 60 * 60 * 1000);
+
+  // Prefer blocks with the same stay window (check-in + checkout), not just any overlap.
+  // Many rooms are booked on the same nights — full-range overlap alone is too ambiguous.
+  const stayMatches = args.externalBlocks.filter(
+    (block) =>
+      datesClose(block.start, args.checkIn, 1) &&
+      datesClose(block.end, end, 1)
+  );
+  const stayListingIds = [...new Set(stayMatches.map((block) => block.listingId))];
+  if (stayListingIds.length === 1) {
+    return { listingId: stayListingIds[0], reason: "iCal stay dates match" };
+  }
+  if (
+    stayListingIds.length > 1 &&
+    args.preferredListingId &&
+    stayListingIds.includes(args.preferredListingId)
+  ) {
+    return {
+      listingId: args.preferredListingId,
+      reason: "listing + iCal stay match",
+    };
+  }
+
+  // Next: same check-in day only (checkout sometimes off by 1 in exports)
+  const checkInMatches = args.externalBlocks.filter((block) =>
+    datesClose(block.start, args.checkIn, 1)
+  );
+  const checkInListingIds = [
+    ...new Set(checkInMatches.map((block) => block.listingId)),
+  ];
+  if (checkInListingIds.length === 1) {
+    return {
+      listingId: checkInListingIds[0],
+      reason: "unique iCal check-in match",
+    };
+  }
+  if (
+    checkInListingIds.length > 1 &&
+    args.preferredListingId &&
+    checkInListingIds.includes(args.preferredListingId)
+  ) {
+    return {
+      listingId: args.preferredListingId,
+      reason: "listing + iCal check-in match",
+    };
+  }
+
   const overlappingListingIds = [
     ...new Set(
       args.externalBlocks
@@ -424,14 +471,10 @@ export async function syncHotelGmailBookings(
 
             const parsedMail = await simpleParser(msg.source);
             const subject = parsedMail.subject || envelopeSubject || "";
-            // Prefer plain text — HTML parse is much slower on large Airbnb emails.
             const textBody = parsedMail.text || "";
+            // Always keep HTML for /rooms/{id} links (often missing from plain text).
             const html =
-              textBody.length > 200
-                ? ""
-                : typeof parsedMail.html === "string"
-                  ? parsedMail.html
-                  : "";
+              typeof parsedMail.html === "string" ? parsedMail.html : "";
             const parsed = parseAirbnbBookingEmail({
               subject,
               text: textBody,
@@ -455,7 +498,7 @@ export async function syncHotelGmailBookings(
               continue;
             }
 
-            const emailText = `${subject}\n${textBody}\n${html}`;
+            const emailText = `${subject}\n${textBody}`;
             const checkIn = parsed.checkIn ? parseDateKey(parsed.checkIn) : null;
             const checkOut = parsed.checkOut
               ? parseDateKey(parsed.checkOut)
@@ -468,19 +511,22 @@ export async function syncHotelGmailBookings(
               listingHint: parsed.listingHint,
             });
 
-            if (!match.listingId && checkIn && timeLeft() > 10_000) {
+            // For multi-room hotels, iCal stay dates are the reliable room assignment.
+            if (checkIn && timeLeft() > 5_000) {
               if (!sharedBlocks) sharedBlocks = await allBlocks();
               const byDate = findListingByIcalOverlap({
                 checkIn,
                 checkOut,
                 externalBlocks: sharedBlocks,
-                preferredListingId: null,
+                preferredListingId: match.listingId,
               });
               if (byDate.listingId) {
                 match = {
                   listingId: byDate.listingId,
-                  score: 30,
-                  reason: byDate.reason,
+                  score: Math.max(match.score, 40),
+                  reason: match.listingId
+                    ? `${match.reason} + ${byDate.reason}`
+                    : byDate.reason,
                 };
               }
             }
@@ -497,7 +543,7 @@ export async function syncHotelGmailBookings(
                   payoutCents: parsed.payoutCents,
                   reason: !checkIn
                     ? "missing check-in date"
-                    : `listing not matched (${match.reason})`,
+                    : `listing not matched (${match.reason}; hint=${parsed.listingHint || "none"}; roomId=${parsed.airbnbListingId || "none"})`,
                 });
               }
               continue;

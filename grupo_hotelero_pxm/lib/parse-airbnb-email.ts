@@ -254,7 +254,13 @@ export function parseAirbnbBookingEmail(input: {
   referenceDate?: Date | string | null;
 }): ParsedAirbnbBookingEmail | null {
   const subject = input.subject || "";
-  const bodyText = [input.text || "", stripHtml(input.html || "")].join("\n");
+  const richText = input.text || "";
+  const html = input.html || "";
+  // Avoid stripping huge HTML on every email when plain text already exists (Hostinger time).
+  const bodyText = [
+    richText,
+    richText.length > 200 ? "" : stripHtml(html),
+  ].join("\n");
   const text = [subject, bodyText]
     .join("\n")
     .replace(/\u00a0/g, " ")
@@ -306,11 +312,19 @@ export function parseAirbnbBookingEmail(input: {
     referenceDate
   );
 
-  const airbnbListingId = firstMatch(text, [
-    /airbnb\.[a-z.]+\/rooms\/(\d{5,})/i,
-    /listing[_/\s-]?id\s*[:\-–]?\s*(\d{5,})/i,
-    /\/rooms\/(\d{5,})/i,
-  ]);
+  const airbnbListingId =
+    firstMatch(text, [
+      /airbnb\.[a-z.]+\/rooms\/(\d{5,})/i,
+      /listing[_/\s-]?id\s*[:\-–]?\s*(\d{5,})/i,
+      /\/rooms\/(\d{5,})/i,
+    ]) ||
+    // Listing links are often only in HTML hrefs, not plain text
+    firstMatch(html, [
+      /airbnb\.[a-z.]+\/rooms\/(\d{5,})/i,
+      /\/rooms\/(\d{5,})/i,
+      /\/calendar\/ical\/(\d{5,})/i,
+      /listing_id=(\d{5,})/i,
+    ]);
 
   const listingHint = firstMatch(text, [
     // Airbnb often puts the listing title on its own line above "Entire home/apt"
