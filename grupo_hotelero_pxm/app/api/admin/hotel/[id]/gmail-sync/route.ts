@@ -7,6 +7,8 @@ import {
   syncHotelGmailBookings,
   testHotelGmailConnection,
 } from "@/lib/gmail-booking-sync";
+import { parseDateKey, toDateKey } from "@/lib/calendar-dates";
+import { buildGmailReservationSheet } from "@/lib/gmail-reservation-sheet";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +54,26 @@ export async function GET(
     return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
   }
 
+  const yearReviews = await prisma.calendarGuestMeta.findMany({
+    where: {
+      yearNeedsReview: true,
+      listing: { hotelId: params.id },
+    },
+    orderBy: { startDate: "asc" },
+    take: 40,
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      guestName: true,
+      guestCount: true,
+      yearReviewNote: true,
+      listing: { select: { id: true, title: true } },
+    },
+  });
+
+  const sheet = await buildGmailReservationSheet(params.id);
+
   return NextResponse.json({
     email: hotel.gmailSyncEmail,
     connected: Boolean(hotel.gmailSyncEmail && hotel.gmailSyncPasswordEnc),
@@ -59,6 +81,18 @@ export async function GET(
     lastSyncedAt: hotel.gmailSyncLastAt,
     lastError: hotel.gmailSyncLastError,
     syncOffset: hotel.gmailSyncOffset,
+    yearReviews: yearReviews.map((row) => ({
+      id: row.id,
+      listingId: row.listing.id,
+      listingTitle: row.listing.title,
+      guestName: row.guestName,
+      guestCount: row.guestCount,
+      startDate: toDateKey(row.startDate),
+      endDate: toDateKey(row.endDate),
+      note: row.yearReviewNote,
+    })),
+    reservations: sheet.rows,
+    reservationCounts: sheet.counts,
   });
 }
 
@@ -142,6 +176,92 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const action = body.action || "sync";
 
+  if (action === "fix-year") {
+    const metaId = typeof body.metaId === "string" ? body.metaId : "";
+    const year = Number(body.year);
+    const confirmOnly = body.confirmOnly === true;
+    if (!metaId) {
+      return NextResponse.json({ error: "Provide metaId" }, { status: 400 });
+    }
+    if (
+      !confirmOnly &&
+      (!Number.isFinite(year) || year < 2020 || year > 2040)
+    ) {
+      return NextResponse.json(
+        { error: "Provide a valid year (2020–2040)" },
+        { status: 400 }
+      );
+    }
+
+    const meta = await prisma.calendarGuestMeta.findFirst({
+      where: {
+        id: metaId,
+        listing: { hotelId: params.id },
+      },
+    });
+    if (!meta) {
+      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    if (confirmOnly) {
+      await prisma.calendarGuestMeta.update({
+        where: { id: meta.id },
+        data: { yearNeedsReview: false, yearReviewNote: null },
+      });
+      return NextResponse.json({
+        ok: true,
+        message: "Year confirmed.",
+        startDate: meta.startDate.toISOString().slice(0, 10),
+        endDate: meta.endDate.toISOString().slice(0, 10),
+      });
+    }
+
+    const startKey = toDateKey(meta.startDate);
+    const endKey = toDateKey(meta.endDate);
+    const yearDelta = year - Number(startKey.slice(0, 4));
+    const shiftKey = (key: string) => {
+      const y = Number(key.slice(0, 4)) + yearDelta;
+      return `${y}${key.slice(4)}`;
+    };
+    const startDate = parseDateKey(shiftKey(startKey));
+    const endDate = parseDateKey(shiftKey(endKey));
+
+    // Avoid unique collisions if another meta already sits on the new dates.
+    const clash = await prisma.calendarGuestMeta.findFirst({
+      where: {
+        listingId: meta.listingId,
+        startDate,
+        endDate,
+        NOT: { id: meta.id },
+      },
+    });
+    if (clash) {
+      return NextResponse.json(
+        {
+          error: `Another guest record already exists for ${shiftKey(startKey)} → ${shiftKey(endKey)}. Merge or delete one first.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const updated = await prisma.calendarGuestMeta.update({
+      where: { id: meta.id },
+      data: {
+        startDate,
+        endDate,
+        yearNeedsReview: false,
+        yearReviewNote: null,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: `Updated stay year to ${year}.`,
+      startDate: toDateKey(updated.startDate),
+      endDate: toDateKey(updated.endDate),
+    });
+  }
+
   if (action === "disconnect") {
     await prisma.hotel.update({
       where: { id: params.id },
@@ -171,7 +291,8 @@ export async function POST(
   }
 
   try {
-    const result = await syncHotelGmailBookings(params.id);
+    const restart = body.restart !== false;
+    const result = await syncHotelGmailBookings(params.id, { restart });
     const skipHint =
       result.updated === 0 && result.samples.length
         ? ` Top skips: ${result.samples
@@ -183,12 +304,19 @@ export async function POST(
     const timeoutHint = result.timedOut
       ? " (finished early under Hostinger time limit)"
       : "";
+    const sheet = await buildGmailReservationSheet(params.id);
+    const gapHint =
+      result.gapsFound != null
+        ? ` Calendar gaps without guest names: ${result.gapsFound} · emails targeted: ${result.gapsTargeted ?? 0}.`
+        : "";
     return NextResponse.json({
       ok: true,
       ...result,
-      message: `Reservation emails: ${result.inboxMatches ?? "?"} found · this pass scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
-        result.nextOffset != null
-          ? ` Click Sync again to continue (offset ${result.nextOffset}).`
+      reservations: sheet.rows,
+      reservationCounts: sheet.counts,
+      message: `Filled missing guests from email.${gapHint} Scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
+        result.nextOffset != null && result.updated > 0
+          ? " Click Sync again for more gaps."
           : ""
       }${skipHint}`,
     });

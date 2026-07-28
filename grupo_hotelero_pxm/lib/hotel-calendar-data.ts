@@ -264,16 +264,19 @@ function resolveGuestMeta(args: {
   const blockStart = toDateKey(args.start);
   const blockEnd = toDateKey(args.end);
 
-  const exact = args.metas.find(
+  const exact = args.metas.filter(
     (meta) =>
       toDateKey(meta.startDate) === blockStart &&
       toDateKey(meta.endDate) === blockEnd
   );
-  if (exact) return exact;
+  const preferNamed = (rows: GuestMetaRow[]) =>
+    rows.find((meta) => meta.guestName?.trim()) || rows[0];
+
+  if (exact.length) return preferNamed(exact);
 
   // Soft match by calendar day (avoids timezone ms mismatches from email vs iCal)
   const startMs = parseDateKey(blockStart).getTime();
-  return args.metas.find((meta) => {
+  const soft = args.metas.filter((meta) => {
     const metaStart = toDateKey(meta.startDate);
     const metaEnd = toDateKey(meta.endDate);
     const metaStartMs = parseDateKey(metaStart).getTime();
@@ -281,6 +284,22 @@ function resolveGuestMeta(args: {
     if (dayDiff <= 2) return true;
     return metaStart < blockEnd && blockStart < metaEnd;
   });
+  // Prefer metas that also share checkout (±2 days) and have a guest name.
+  soft.sort((a, b) => {
+    const aName = a.guestName?.trim() ? 1 : 0;
+    const bName = b.guestName?.trim() ? 1 : 0;
+    if (bName !== aName) return bName - aName;
+    const aEnd = Math.abs(
+      parseDateKey(toDateKey(a.endDate)).getTime() -
+        parseDateKey(blockEnd).getTime()
+    );
+    const bEnd = Math.abs(
+      parseDateKey(toDateKey(b.endDate)).getTime() -
+        parseDateKey(blockEnd).getTime()
+    );
+    return aEnd - bEnd;
+  });
+  return soft[0];
 }
 
 export async function buildHotelCalendarData(

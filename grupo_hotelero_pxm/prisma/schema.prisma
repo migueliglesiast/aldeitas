@@ -186,11 +186,15 @@ model CalendarGuestMeta {
   payoutCents    Int?
   payoutCurrency String?
   sourceUid  String?
+  /** True when check-in/out year was inferred (Airbnb omitted the year) and may need review. */
+  yearNeedsReview Boolean @default(false)
+  yearReviewNote  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@unique([listingId, startDate, endDate])
   @@index([listingId, startDate, endDate])
+  @@index([yearNeedsReview])
 }
 
 model Image {
