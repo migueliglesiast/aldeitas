@@ -272,8 +272,8 @@ export default function HotelGmailSync({ hotelId }: Props) {
           >
             App Password
           </a>
-          . Sync looks at calendar bars still showing “Airbnb guest”, then searches only for those
-          missing reservation emails (by check-in date) instead of re-reading everything.
+          . Guest names fill automatically when you open the calendar (and via cron). Use the button
+          below only if you want to force another pass now.
         </p>
       </div>
 

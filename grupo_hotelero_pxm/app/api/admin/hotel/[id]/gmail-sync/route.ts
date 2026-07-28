@@ -292,7 +292,12 @@ export async function POST(
 
   try {
     const restart = body.restart !== false;
-    const result = await syncHotelGmailBookings(params.id, { restart });
+    const background = body.background === true;
+    const result = await syncHotelGmailBookings(params.id, {
+      restart,
+      // Manual clicks always run; background calendar triggers respect the throttle.
+      minIntervalMs: background ? undefined : 0,
+    });
     const skipHint =
       result.updated === 0 && result.samples.length
         ? ` Top skips: ${result.samples
@@ -304,21 +309,35 @@ export async function POST(
     const timeoutHint = result.timedOut
       ? " (finished early under Hostinger time limit)"
       : "";
-    const sheet = await buildGmailReservationSheet(params.id);
+    const sheet = background
+      ? null
+      : await buildGmailReservationSheet(params.id);
     const gapHint =
       result.gapsFound != null
         ? ` Calendar gaps without guest names: ${result.gapsFound} · emails targeted: ${result.gapsTargeted ?? 0}.`
         : "";
+    const throttled =
+      result.scanned === 0 &&
+      result.updated === 0 &&
+      result.skipped === 0 &&
+      !result.timedOut &&
+      background;
     return NextResponse.json({
       ok: true,
       ...result,
-      reservations: sheet.rows,
-      reservationCounts: sheet.counts,
-      message: `Filled missing guests from email.${gapHint} Scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
-        result.nextOffset != null && result.updated > 0
-          ? " Click Sync again for more gaps."
-          : ""
-      }${skipHint}`,
+      ...(sheet
+        ? {
+            reservations: sheet.rows,
+            reservationCounts: sheet.counts,
+          }
+        : {}),
+      message: throttled
+        ? "Guest email sync ran recently — skipped."
+        : `Filled missing guests from email.${gapHint} Scanned ${result.scanned} · updated ${result.updated}${timeoutHint}.${
+            result.nextOffset != null && result.updated > 0
+              ? " Click Sync again for more gaps."
+              : ""
+          }${skipHint}`,
     });
   } catch (error: any) {
     console.error("[gmail-sync]", error);

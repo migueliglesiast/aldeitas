@@ -172,7 +172,7 @@ If hotels connect Gmail under **Admin → Hotel → Maintenance**, pull guest na
 GET https://yourdomain.com/api/cron/sync-gmail-bookings?secret=YOUR_BOOKING_RECONCILE_SECRET
 ```
 
-Schedule: every **1–2 hours** (same secret as above).
+Schedule: every **15–30 minutes** (each hit syncs **one** connected hotel — the stalest — so Hostinger timeouts stay happy). Also runs automatically in the background when a hotel admin opens the multi-calendar.
 
 ---
 

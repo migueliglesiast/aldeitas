@@ -497,12 +497,16 @@ export async function syncHotelGmailBookings(
     limit?: number;
     timeBudgetMs?: number;
     restart?: boolean;
+    /** Skip if a sync finished within this many ms (default 12 min). Use 0 to force. */
+    minIntervalMs?: number;
   } = {}
 ): Promise<GmailSyncResult> {
   // Hostinger kills long requests — keep searches lean and process newest matches.
   const lookbackDays = options.lookbackDays ?? 180;
   const limit = options.limit ?? 100;
   const timeBudgetMs = options.timeBudgetMs ?? 55_000;
+  const minIntervalMs =
+    options.minIntervalMs === undefined ? 12 * 60 * 1000 : options.minIntervalMs;
   const startedAt = Date.now();
   const timeLeft = () => timeBudgetMs - (Date.now() - startedAt);
 
@@ -517,6 +521,26 @@ export async function syncHotelGmailBookings(
 
   if (!hotel?.gmailSyncEmail || !hotel.gmailSyncPasswordEnc) {
     throw new Error("Connect a Gmail address and App Password first.");
+  }
+
+  if (
+    minIntervalMs > 0 &&
+    hotel.gmailSyncLastAt &&
+    Date.now() - hotel.gmailSyncLastAt.getTime() < minIntervalMs
+  ) {
+    return {
+      hotelId,
+      scanned: 0,
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      batchSize: limit,
+      batchOffset: hotel.gmailSyncOffset || 0,
+      errors: [],
+      samples: [],
+      gapsFound: 0,
+      gapsTargeted: 0,
+    };
   }
 
   const listings = hotel.listings as ListingWithSources[];
@@ -1065,22 +1089,31 @@ export async function syncHotelGmailBookings(
   return result;
 }
 
-export async function syncAllConnectedGmailHotels() {
+export async function syncAllConnectedGmailHotels(options?: {
+  /** When true (default for cron), only sync the stalest hotel per call. */
+  oneHotel?: boolean;
+}) {
+  const oneHotel = options?.oneHotel !== false;
   const hotels = await prisma.hotel.findMany({
     where: {
       gmailSyncEnabled: true,
       gmailSyncEmail: { not: null },
       gmailSyncPasswordEnc: { not: null },
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, gmailSyncLastAt: true },
+    orderBy: [{ gmailSyncLastAt: "asc" }, { name: "asc" }],
   });
 
+  const queue = oneHotel ? hotels.slice(0, 1) : hotels;
   const results = [];
-  for (const hotel of hotels) {
+  for (const hotel of queue) {
     try {
       results.push({
         hotelName: hotel.name,
-        ...(await syncHotelGmailBookings(hotel.id)),
+        ...(await syncHotelGmailBookings(hotel.id, {
+          restart: true,
+          minIntervalMs: 0,
+        })),
       });
     } catch (error: any) {
       await prisma.hotel.update({

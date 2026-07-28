@@ -70,6 +70,25 @@ function spanTitle(span: CalendarSpan) {
   return name;
 }
 
+function spanGuestLabel(span: CalendarSpan) {
+  const name =
+    span.guestName && !/^airbnb guest$/i.test(span.guestName)
+      ? span.guestName
+      : span.kind === "external"
+        ? "Airbnb guest"
+        : span.guestName || span.label;
+  const count =
+    span.guestCount != null && span.guestCount > 0 ? span.guestCount : null;
+  // Short spans: keep count compact so the name can truncate inside the bubble.
+  const countText =
+    count == null
+      ? null
+      : span.dayCount <= 2
+        ? `· ${count}`
+        : `· ${count} guest${count === 1 ? "" : "s"}`;
+  return { name, countText };
+}
+
 function buildRowSegments(
   days: string[],
   cells: Record<string, CalendarCell>,
@@ -154,6 +173,41 @@ export default function HotelMultiCalendar({
   useEffect(() => {
     loadCalendar();
   }, [loadCalendar]);
+
+  // Automatically fill missing guest names in the background (admin calendar only).
+  // Throttled server-side (~12 min) so opening the calendar does not hammer Gmail.
+  useEffect(() => {
+    if (readOnly || shareToken || !hotelId) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/admin/hotel/${hotelId}/gmail-sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "sync",
+              restart: true,
+              background: true,
+            }),
+          });
+          if (!res.ok || cancelled) return;
+          const json = await res.json().catch(() => ({}));
+          if (!cancelled && Number(json.updated) > 0) {
+            await loadCalendar();
+          }
+        } catch {
+          // Silent — manual fill button remains available under Maintenance.
+        }
+      })();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [hotelId, readOnly, shareToken, loadCalendar]);
 
   const monthGroups = useMemo(() => {
     if (!data) return [];
@@ -519,10 +573,22 @@ export default function HotelMultiCalendar({
       </div>
 
       <div className="overflow-x-auto rounded-lg border bg-white">
-        <table className="min-w-max border-collapse text-xs">
+        <table
+          className="border-collapse text-xs"
+          style={{
+            tableLayout: "fixed",
+            width: 180 + data.days.length * 56,
+          }}
+        >
+          <colgroup>
+            <col style={{ width: 180 }} />
+            {data.days.map((day) => (
+              <col key={`col-${day}`} style={{ width: 56 }} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 min-w-[180px] border-b border-r bg-gray-50 px-3 py-2 text-left">
+              <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] border-b border-r bg-gray-50 px-3 py-2 text-left">
                 Room
               </th>
               {monthGroups.map((group) => (
@@ -536,13 +602,13 @@ export default function HotelMultiCalendar({
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-20 border-b border-r bg-gray-50 px-3 py-2 text-left">
+              <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] border-b border-r bg-gray-50 px-3 py-2 text-left">
                 Base price
               </th>
               {data.days.map((day) => (
                 <th
                   key={day}
-                  className="border-b px-1 py-2 text-center font-normal text-gray-500"
+                  className="w-14 min-w-[56px] max-w-[56px] border-b px-0 py-2 text-center font-normal text-gray-500"
                 >
                   {new Date(`${day}T00:00:00`).getDate()}
                 </th>
@@ -558,7 +624,7 @@ export default function HotelMultiCalendar({
               );
               return (
               <tr key={room.id}>
-                <td className="sticky left-0 z-10 border-r bg-gray-50 px-3 py-3 align-top">
+                <td className="sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] border-r bg-gray-50 px-3 py-3 align-top">
                   <div className="font-medium text-gray-900">{room.title}</div>
                   {!readOnly ? (
                     <div className="mt-2 flex items-center gap-2">
@@ -597,11 +663,17 @@ export default function HotelMultiCalendar({
                       selected?.roomId === room.id &&
                       segment.days.includes(selected.day);
                     const title = spanTitle(span);
+                    const { name, countText } = spanGuestLabel(span);
+                    const spanWidthPx = segment.days.length * 56;
                     return (
                       <td
                         key={`${room.id}-${span.id}`}
                         colSpan={segment.days.length}
                         className="border-b border-r p-0.5 align-middle"
+                        style={{
+                          width: spanWidthPx,
+                          maxWidth: spanWidthPx,
+                        }}
                       >
                         <button
                           type="button"
@@ -615,24 +687,17 @@ export default function HotelMultiCalendar({
                             });
                           }}
                           className={[
-                            "flex h-12 w-full items-center gap-2 overflow-hidden rounded-full px-3 text-left text-[11px] font-medium shadow-sm transition",
+                            "flex h-12 w-full min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full px-2 text-left text-[11px] font-medium shadow-sm transition",
                             spanBarClass(span),
                             isSelected ? "ring-2 ring-[#00a19c] ring-offset-1" : "",
                             "cursor-pointer hover:brightness-95",
                           ].join(" ")}
                           title={title}
                         >
-                          <span className="truncate">
-                            {span.guestName && !/^airbnb guest$/i.test(span.guestName)
-                              ? span.guestName
-                              : span.kind === "external"
-                                ? "Airbnb guest"
-                                : span.guestName || span.label}
-                          </span>
-                          {span.guestCount != null && span.guestCount > 0 ? (
-                            <span className="shrink-0 opacity-90">
-                              · {span.guestCount}{" "}
-                              {span.guestCount === 1 ? "guest" : "guests"}
+                          <span className="min-w-0 flex-1 truncate">{name}</span>
+                          {countText ? (
+                            <span className="shrink-0 whitespace-nowrap opacity-90">
+                              {countText}
                             </span>
                           ) : null}
                         </button>
@@ -644,7 +709,10 @@ export default function HotelMultiCalendar({
                   const isSelected =
                     selected?.roomId === room.id && selected?.day === day;
                   return (
-                    <td key={`${room.id}-${day}`} className="border-b border-r p-0">
+                    <td
+                      key={`${room.id}-${day}`}
+                      className="w-14 min-w-[56px] max-w-[56px] border-b border-r p-0"
+                    >
                       <button
                         type="button"
                         disabled={readOnly && cell.status === "available"}

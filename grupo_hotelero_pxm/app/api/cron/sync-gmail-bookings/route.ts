@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { syncAllConnectedGmailHotels } from "@/lib/gmail-booking-sync";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 function isAuthorized(req: NextRequest) {
   if (
@@ -35,12 +35,21 @@ async function run(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const results = await syncAllConnectedGmailHotels();
+
+  // Default: one hotel per hit (stalest first) so Hostinger / free cron stay under timeout.
+  // Pass all=1 to sync every connected hotel in one request.
+  const all = req.nextUrl.searchParams.get("all") === "1";
+  const results = await syncAllConnectedGmailHotels({ oneHotel: !all });
   return NextResponse.json({
     ok: true,
+    mode: all ? "all" : "next",
     count: results.length,
     results,
-    message: `Synced Gmail for ${results.length} hotel(s).`,
+    message: all
+      ? `Synced Gmail for ${results.length} hotel(s).`
+      : results[0]
+        ? `Synced Gmail for ${"hotelName" in results[0] ? results[0].hotelName : "1 hotel"}.`
+        : "No hotels with Gmail connected.",
   });
 }
 
