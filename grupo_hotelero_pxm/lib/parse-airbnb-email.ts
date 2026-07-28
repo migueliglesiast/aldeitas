@@ -70,7 +70,7 @@ function cleanName(raw: string | null): string | null {
     .replace(/\b(arrives|llega|is coming|confirmed|confirmad[oa])\b.*$/i, "")
     .trim();
   if (cleaned.length < 2 || cleaned.length > 80) return null;
-  if (/^(reservation|reserva|booking|airbnb|guest|hu[eé]sped)/i.test(cleaned)) {
+  if (/^(reservation|reserva|booking|airbnb|guest|hu[eé]sped|new booking)\b/i.test(cleaned)) {
     return null;
   }
   return cleaned;
@@ -94,9 +94,31 @@ function toIsoDate(year: number, monthIndex: number, day: number): string | null
   return `${year}-${m}-${d}`;
 }
 
-function parseFlexibleDate(raw: string | null): string | null {
+/** Pick year for Airbnb dates that omit it (e.g. "Tue, Jul 21 at 3:00 PM"). */
+function inferYear(monthIndex: number, day: number, reference?: Date | null): number {
+  const ref = reference && !Number.isNaN(reference.getTime()) ? reference : new Date();
+  let year = ref.getFullYear();
+  const candidate = new Date(year, monthIndex, day);
+  // If the stay date is > 11 months behind the email/ref date, it is next year.
+  const monthsBehind =
+    (ref.getFullYear() - candidate.getFullYear()) * 12 +
+    (ref.getMonth() - candidate.getMonth());
+  if (monthsBehind > 11) year += 1;
+  // If the stay date is > 2 months ahead of a Dec email, it may be previous year — rare for confirmations.
+  if (monthsBehind < -2 && ref.getMonth() <= 1 && monthIndex >= 10) year -= 1;
+  return year;
+}
+
+function parseFlexibleDate(
+  raw: string | null,
+  referenceDate?: Date | null
+): string | null {
   if (!raw) return null;
-  const value = raw.replace(/\./g, "").replace(/\s+/g, " ").trim();
+  const value = raw
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\bat\s+\d{1,2}:\d{2}\s*(am|pm)?/gi, "")
+    .trim();
 
   const iso = value.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
@@ -111,10 +133,35 @@ function parseFlexibleDate(raw: string | null): string | null {
   }
 
   // Aug 15, 2025 / August 15 2025
-  const en = value.match(/([a-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})/i);
-  if (en) {
-    const month = MONTHS[en[1].toLowerCase()];
-    if (month != null) return toIsoDate(Number(en[3]), month, Number(en[2]));
+  const enWithYear = value.match(/([a-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})/i);
+  if (enWithYear) {
+    const month = MONTHS[enWithYear[1].toLowerCase()];
+    if (month != null) {
+      return toIsoDate(Number(enWithYear[3]), month, Number(enWithYear[2]));
+    }
+  }
+
+  // Tue, Jul 21 / Jul 21 / jue, 21 jul  (no year — common in Airbnb emails)
+  const enNoYear = value.match(
+    /(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+)?([a-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s|,|$)/i
+  );
+  if (enNoYear) {
+    const month = MONTHS[enNoYear[1].toLowerCase()];
+    if (month != null) {
+      const day = Number(enNoYear[2]);
+      return toIsoDate(inferYear(month, day, referenceDate), month, day);
+    }
+  }
+
+  const esNoYear = value.match(
+    /(?:[a-záéíóúñ]{2,9},?\s+)?(\d{1,2})\s+(?:de\s+)?([a-záéíóúñ]{3,12})\b/i
+  );
+  if (esNoYear) {
+    const month = MONTHS[esNoYear[2].toLowerCase()];
+    if (month != null) {
+      const day = Number(esNoYear[1]);
+      return toIsoDate(inferYear(month, day, referenceDate), month, day);
+    }
   }
 
   // 15/08/2025 or 08/15/2025 — prefer day-first for MX hosts
@@ -130,7 +177,7 @@ function parseFlexibleDate(raw: string | null): string | null {
   }
 
   const parsed = new Date(value);
-  if (!Number.isNaN(parsed.getTime())) {
+  if (!Number.isNaN(parsed.getTime()) && /\d{4}/.test(value)) {
     return toIsoDate(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
   }
   return null;
@@ -138,20 +185,27 @@ function parseFlexibleDate(raw: string | null): string | null {
 
 function parseMoneyAmount(raw: string): { cents: number; currency: string | null } | null {
   const cleaned = raw.replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+
+  // Reject labels that are not dollar amounts (e.g. "2 nights room fee")
+  if (!/[\$€]|MXN|USD|EUR|\d+[.,]\d{2}/i.test(cleaned)) return null;
+
   const currencyMatch = cleaned.match(/\b(MXN|USD|EUR|CAD|GBP|AUD)\b/i);
   const currency = currencyMatch ? currencyMatch[1].toUpperCase() : null;
 
   // European: 3.450,00
   const european = cleaned.match(/\$?\s*(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})\b/);
-  if (european) {
+  if (european && /[\$€]|MXN|USD|EUR|,|\./i.test(cleaned)) {
     const amount = Number(european[1].replace(/\./g, "").replace(",", "."));
     if (Number.isFinite(amount) && amount > 0) {
       return { cents: Math.round(amount * 100), currency };
     }
   }
 
-  // US / MX Airbnb: $3,450.00 or 3450.00
-  const us = cleaned.match(/\$?\s*(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+(?:\.\d{2})?)\b/);
+  // Prefer amounts with $ or thousands separators / decimals
+  const us = cleaned.match(
+    /\$\s*(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2}|\d{1,3}(?:,\d{3})+|\d{2,})/
+  );
   if (us) {
     const amount = Number(us[1].replace(/,/g, ""));
     if (Number.isFinite(amount) && amount > 0) {
@@ -178,9 +232,8 @@ function isReservationEmail(subject: string, text: string) {
     return false;
   }
 
-  // Skip pure marketing / tips / reviews when no reservation signals
   const reservationSignal =
-    /reserva(ci[oó]n)?\s+confirmad|reservation\s+confirm|booking\s+confirm|new\s+reservation|nueva\s+reserva|alteraci[oó]n|reservation\s+alter|llega el|arrives|check-?in|c[oó]digo de confirmaci[oó]n|confirmation code|ganar[aá]s|you will earn|payout|hu[eé]sped(es)?|guests?/i.test(
+    /reserva(ci[oó]n)?\s+confirmad|reservation\s+confirm|booking\s+confirm|new booking confirmed|new\s+reservation|nueva\s+reserva|alteraci[oó]n|reservation\s+alter|llega el|arrives|check-?in|c[oó]digo de confirmaci[oó]n|confirmation code|ganar[aá]s|you earn|you will earn|payout|hu[eé]sped(es)?|guests?/i.test(
       `${subject}\n${text}`
     );
   if (!reservationSignal) return false;
@@ -197,6 +250,8 @@ export function parseAirbnbBookingEmail(input: {
   subject?: string | null;
   text?: string | null;
   html?: string | null;
+  /** Email Date header — used to infer year when Airbnb omits it. */
+  referenceDate?: Date | string | null;
 }): ParsedAirbnbBookingEmail | null {
   const subject = input.subject || "";
   const bodyText = [input.text || "", stripHtml(input.html || "")].join("\n");
@@ -208,18 +263,26 @@ export function parseAirbnbBookingEmail(input: {
 
   if (!isReservationEmail(subject, text)) return null;
 
+  const referenceDate =
+    input.referenceDate instanceof Date
+      ? input.referenceDate
+      : input.referenceDate
+        ? new Date(input.referenceDate)
+        : null;
+
   const guestName = cleanName(
     firstMatch(text, [
-      /(?:reservation confirmed|confirmaci[oó]n de reserva|reserva confirmada)[^\n]{0,40}[-–:]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+(?:llega|arrives)/i,
-      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+llega(?:\s+el)?\b/i,
-      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+arrives\b/i,
+      /(?:reservation confirmed|confirmaci[oó]n de reserva|reserva confirmada)\s*[-–:]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,4})\s+(?:llega|arrives)/i,
+      /new booking confirmed!\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+arrives/i,
+      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,4})\s+llega(?:\s+el)?\b/i,
+      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,4})\s+arrives\b/i,
       /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+is\s+coming/i,
       /(?:guest|hu[eé]sped|traveler|traveller|nombre)\s*[:\-–]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-\s]{1,80})/i,
-      /^([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,2})\s*$/m,
     ])
   );
 
   const guestCountRaw = firstMatch(text, [
+    /(?:guests?|hu[eé]spedes?|huespedes?)\s*\n+\s*(\d+)\s*(?:adults?|guests?|hu[eé]spedes?)?/i,
     /(\d+)\s*(?:guests?|hu[eé]spedes?|huespedes?|adults?|travelers?|travellers?|personas?)\b/i,
     /(?:guests?|hu[eé]spedes?|huespedes?)\s*[:\-–]?\s*(\d+)/i,
   ]);
@@ -227,18 +290,20 @@ export function parseAirbnbBookingEmail(input: {
 
   const checkIn = parseFlexibleDate(
     firstMatch(text, [
-      /(?:check[-\s]?in|llegada|start date|fecha de llegada)\s*[:\-–]?\s*([^\n]{6,40})/i,
-      /llega(?:\s+el)?\s+([^\n.]{6,40})/i,
-      /arrives(?:\s+on)?\s+([^\n.]{6,40})/i,
+      /(?:check[-\s]?in|llegada|start date|fecha de llegada)\s*[:\-–]?\s*\n?\s*([^\n]{4,50})/i,
+      /arrives\s+([A-Za-z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
+      /llega(?:\s+el)?\s+([^\n.]{4,40})/i,
       /(\d{1,2}\s+(?:de\s+)?[A-Za-zÁÉÍÓÚáéíóúñ.]{3,12}\s+(?:de\s+)?\d{4})/i,
-    ])
+    ]),
+    referenceDate
   );
 
   const checkOut = parseFlexibleDate(
     firstMatch(text, [
-      /(?:check[-\s]?out|salida|end date|fecha de salida)\s*[:\-–]?\s*([^\n]{6,40})/i,
+      /(?:check[-\s]?out|checkout|salida|end date|fecha de salida)\s*[:\-–]?\s*\n?\s*([^\n]{4,50})/i,
       /(?:to|–|-|through|hasta)\s+(\d{4}-\d{2}-\d{2}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:de\s+)?[A-Za-zÁÉÍÓÚáéíóúñ.]{3,12}\s+(?:de\s+)?\d{4})/i,
-    ])
+    ]),
+    referenceDate
   );
 
   const airbnbListingId = firstMatch(text, [
@@ -248,22 +313,33 @@ export function parseAirbnbBookingEmail(input: {
   ]);
 
   const listingHint = firstMatch(text, [
+    // Airbnb often puts the listing title on its own line above "Entire home/apt"
+    /^([A-Za-z0-9ÁÉÍÓÚÑáéíóúñ][^\n]{8,120})\s*\n\s*Entire (?:home|place|apt|villa|bungalow)/im,
     /(?:listing|propiedad|alojamiento|anuncio|room)\s*[:\-–]\s*([^\n]{3,140})/i,
     /(?:confirmed for|confirmad[oa] para|reserva(?:da)? en)\s+([^\n]{3,140})/i,
     /(?:staying at|se alojar[aá] en|en tu anuncio)\s+([^\n]{3,140})/i,
   ]);
 
   const confirmationCode = firstMatch(text, [
-    /confirmation\s+code\s*[:\-–]?\s*([A-Z0-9]{8,12})/i,
-    /c[oó]digo\s+de\s+confirmaci[oó]n\s*[:\-–]?\s*([A-Z0-9]{8,12})/i,
+    /confirmation\s+code\s*[:\-–]?\s*\n?\s*([A-Z0-9]{8,12})/i,
+    /c[oó]digo\s+de\s+confirmaci[oó]n\s*[:\-–]?\s*\n?\s*([A-Z0-9]{8,12})/i,
     /\b(HM[A-Z0-9]{8,})\b/,
   ]);
 
   const payoutRaw = firstMatch(text, [
-    /(?:you will earn|you'll earn|ganar[aá]s|ganaras|payout|pago(?:\s+previsto)?|expected payout|total\s*\(host\))\s*[:\-–]?\s*([^\n]{4,40})/i,
-    /(?:earn|ganar)\s+([\$€]?\s*[\d.,]+\s*(?:MXN|USD|EUR)?)/i,
+    /you earn\s*[:\-–]?\s*\n?\s*([\$€]?[\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
+    /(?:you will earn|you'll earn|ganar[aá]s|ganaras)\s*[:\-–]?\s*\n?\s*([\$€]?[\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
+    /(?:expected payout|host payout)\s*[:\-–]?\s*\n?\s*([\$€][\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
   ]);
-  const payout = payoutRaw ? parseMoneyAmount(payoutRaw) : null;
+  let payout = payoutRaw ? parseMoneyAmount(payoutRaw) : null;
+  if (!payout) {
+    // Fallback: line after "You earn"
+    const earnBlock = text.match(/you earn\s*\n+\s*([\$€][\d.,]+)/i);
+    if (earnBlock?.[1]) payout = parseMoneyAmount(earnBlock[1]);
+  }
+  if (payout && !payout.currency && /\bMXN\b/i.test(text)) {
+    payout = { ...payout, currency: "MXN" };
+  }
 
   if (
     !guestName &&
@@ -326,12 +402,16 @@ export function scoreListingNameInText(
       best = Math.max(best, 100 + name.length);
       continue;
     }
+    // Also: email listing title contained in room title (or reverse) for long Airbnb names
+    if (name.length >= 12 && (haystack.includes(name.slice(0, 20)) || name.includes(haystack.slice(0, 20)))) {
+      best = Math.max(best, 70);
+    }
     const tokens = name.split(" ").filter((token) => token.length >= 3);
     if (tokens.length === 0) continue;
     const hit = tokens.filter((token) => haystack.includes(token)).length;
     if (hit === 0) continue;
     const ratio = hit / tokens.length;
-    if (ratio >= 0.6) {
+    if (ratio >= 0.5) {
       best = Math.max(best, Math.round(ratio * 80) + name.length);
     }
   }

@@ -123,8 +123,11 @@ function findListingByName(args: {
 
     if (listingHint) {
       score += scoreListingNameInText(room.title, listingHint);
+      // Reverse: distinctive words from the Airbnb listing title vs room title
+      score += scoreListingNameInText(listingHint, room.title);
       for (const source of room.calendarSources) {
         score += scoreListingNameInText(source.name, listingHint);
+        score += scoreListingNameInText(listingHint, source.name);
       }
     }
 
@@ -433,6 +436,7 @@ export async function syncHotelGmailBookings(
               subject,
               text: textBody,
               html,
+              referenceDate: parsedMail.date || msg.envelope?.date || null,
             });
             result.scanned += 1;
 
