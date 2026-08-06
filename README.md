@@ -14,8 +14,8 @@ lives in `apps/web`.
 
 - **Development, unit tests and E2E**: SQLite via Prisma (`DATABASE_URL=file:./dev.db` for dev,
   `file:./e2e.db` for Playwright — the E2E web server resets and seeds it on every run).
-- **Production (Vercel)**: Postgres via `apps/web/prisma/schema.postgres.prisma`. Set
-  `PRISMA_SCHEMA=prisma/schema.postgres.prisma` so `postinstall` generates the Postgres client,
+- **Production (Vercel)**: Postgres via `apps/web/prisma/schema.postgres.prisma`. Run
+  `npm run generate:postgres` in the build step to generate the Postgres client,
   and point `DATABASE_URL` at the Postgres instance. `npm run db:push:postgres` pushes the schema.
 
 ## Getting started

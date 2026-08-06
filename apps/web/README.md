@@ -29,7 +29,7 @@ run; it never touches development data.
 The app deploys to Vercel through the Git integration. Production uses Postgres via
 `prisma/schema.postgres.prisma`:
 
-- Set `PRISMA_SCHEMA=prisma/schema.postgres.prisma` so `postinstall` generates the Postgres client.
+- Run `npm run generate:postgres` in the Vercel build step to generate the Postgres client.
 - Point `DATABASE_URL` at the Postgres instance.
 - Push the schema with `npm run db:push:postgres`.
 
