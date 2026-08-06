@@ -2,7 +2,7 @@
   "name": "aldeitas",
   "version": "1.0.0",
   "private": true,
-  "description": "Aldeitas monorepo: Next.js booking platform (apps/web) and Casa Yahua static site (apps/yahua-static)",
+  "description": "Aldeitas monorepo: Next.js booking platform (apps/web)",
   "workspaces": [
     "apps/*"
   ],
@@ -28,6 +28,7 @@
   "overrides": {
     "postcss": "^8.5.26",
     "glob": "^11.0.0",
-    "vite": "^7.1.0"
+    "vite": "^7.1.0",
+    "minimatch@10": "^10.2.6"
   }
 }

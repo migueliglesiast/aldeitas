@@ -159,37 +159,47 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded border p-4">
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">Check-in</label>
-        <input 
-          type="date" 
-          value={start} 
-          onChange={(e) => handleStartChange(e.target.value)} 
-          min={minDate}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c]" 
-          required 
-        />
+    <form onSubmit={submit} className="space-y-4 rounded-2xl border border-line bg-white p-6 shadow-card">
+      <p className="text-lg">
+        <span className="font-semibold text-ink">${(nightlyCents / 100).toFixed(0)}</span>
+        <span className="text-muted"> / night</span>
+      </p>
+      <div className="overflow-hidden rounded-xl border border-line">
+        <div className="grid grid-cols-2 divide-x divide-line">
+          <div className="space-y-0.5 p-3">
+            <label className="block text-[11px] font-bold uppercase tracking-wide text-ink">Check-in</label>
+            <input 
+              type="date" 
+              aria-label="Check-in"
+              value={start} 
+              onChange={(e) => handleStartChange(e.target.value)} 
+              min={minDate}
+              className="w-full bg-transparent text-sm text-ink focus:outline-none" 
+              required 
+            />
+          </div>
+          <div className="space-y-0.5 p-3">
+            <label className="block text-[11px] font-bold uppercase tracking-wide text-ink">Check-out</label>
+            <input 
+              type="date" 
+              aria-label="Check-out"
+              value={end} 
+              onChange={(e) => handleEndChange(e.target.value)} 
+              min={getMinCheckoutDate()}
+              disabled={!start}
+              className="w-full bg-transparent text-sm text-ink focus:outline-none disabled:cursor-not-allowed disabled:text-muted" 
+              required 
+            />
+          </div>
+        </div>
       </div>
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">Check-out</label>
-        <input 
-          type="date" 
-          value={end} 
-          onChange={(e) => handleEndChange(e.target.value)} 
-          min={getMinCheckoutDate()}
-          disabled={!start}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#00a19c] focus:outline-none focus:ring-1 focus:ring-[#00a19c] disabled:bg-gray-100 disabled:cursor-not-allowed" 
-          required 
-        />
+        <label className="block text-sm font-medium text-ink">Email</label>
+        <input type="email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
       </div>
       <div className="space-y-1">
-        <label className="block text-sm">Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded border px-3 py-2" required />
-      </div>
-      <div className="space-y-1">
-        <label className="block text-sm">Phone</label>
-        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded border px-3 py-2" required />
+        <label className="block text-sm font-medium text-ink">Phone</label>
+        <input type="tel" aria-label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
       </div>
       <div className="space-y-2 text-sm">
         <div className="flex items-center justify-between text-gray-600">
@@ -219,7 +229,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
           </div>
         )}
       </div>
-      <button disabled={loading} className="w-full rounded bg-[#00a19c] py-2 text-white hover:bg-[#008a86] disabled:opacity-50">
+      <button disabled={loading} className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition-colors hover:bg-brand-dark disabled:opacity-50">
         {loading ? "Processing..." : "Reserve"}
       </button>
       {message && <p className="text-sm text-red-600">{message}</p>}

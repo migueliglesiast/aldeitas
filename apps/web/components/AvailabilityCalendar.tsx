@@ -341,7 +341,7 @@ export default function AvailabilityCalendar({
                 title = 'Booked';
               } else if (isOnlyCheckIn) {
                 // Only check-in selected - highlight border only, no fill
-                className += ' bg-transparent border-2 border-[#00a19c] text-gray-700 font-semibold cursor-pointer hover:bg-[#00a19c]/5';
+                className += ' bg-transparent border-2 border-ink text-ink font-semibold cursor-pointer hover:bg-surface';
                 title = 'Check-in selected';
               } else if (inRange) {
                 // Highlight selected range - teal if available, orange if unavailable
@@ -358,7 +358,7 @@ export default function AvailabilityCalendar({
                   title = 'Selected (Range contains unavailable dates)';
                 } else {
                   // Teal styling for available range - matches title color
-                  className += ' bg-[#00a19c]/20 text-[#00a19c] border border-[#00a19c]/30 font-semibold';
+                  className += ' bg-brand/15 text-brand-dark border border-brand/30 font-semibold';
                   if (rangeStart && rangeEnd) {
                     className += ' rounded-lg';
                   } else if (rangeStart) {
@@ -370,8 +370,8 @@ export default function AvailabilityCalendar({
                 }
               } else if (today) {
                 className += clickable 
-                  ? ' bg-[#00a19c]/10 text-[#00a19c] border-2 border-[#00a19c] font-semibold cursor-pointer hover:bg-[#00a19c]/20'
-                  : ' bg-[#00a19c]/10 text-[#00a19c] border-2 border-[#00a19c] font-semibold cursor-not-allowed opacity-50';
+                  ? ' bg-surface text-ink border-2 border-ink font-semibold cursor-pointer hover:bg-line/50'
+                  : ' bg-surface text-ink border-2 border-ink font-semibold cursor-not-allowed opacity-50';
                 title = 'Today';
               } else if (past) {
                 className += ' text-gray-300 cursor-not-allowed';
@@ -399,7 +399,7 @@ export default function AvailabilityCalendar({
                   title = 'Unavailable';
                 }
               } else {
-                className += ' text-gray-700 hover:bg-gray-50 cursor-pointer hover:font-semibold active:bg-[#00a19c]/10';
+                className += ' text-gray-700 hover:bg-gray-50 cursor-pointer hover:font-semibold active:bg-surface';
                 title = 'Available';
               }
 
@@ -435,7 +435,7 @@ export default function AvailabilityCalendar({
       <div className="py-8">
         <div className="flex items-center justify-center">
           <svg
-            className="animate-spin h-8 w-8 text-[#00a19c]"
+            className="animate-spin h-8 w-8 text-brand"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -480,13 +480,13 @@ export default function AvailabilityCalendar({
             <span>Booked</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-lg bg-[#00a19c]/10 border-2 border-[#00a19c]"></div>
+            <div className="w-4 h-4 rounded-lg bg-surface border-2 border-ink"></div>
             <span>Today</span>
           </div>
           {selectedRange && (
             <>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-lg bg-[#00a19c]/20 border border-[#00a19c]/40"></div>
+                <div className="w-4 h-4 rounded-lg bg-brand/15 border border-brand/30"></div>
                 <span>Selected</span>
               </div>
               {isRangeUnavailable && (

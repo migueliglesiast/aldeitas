@@ -19,7 +19,7 @@ export default function ContentContainer({ children }: { children: ReactNode }) 
   }, [selectedHotelImage]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-4 md:py-6 rounded-lg mt-[1vh] md:mt-[2vh] relative overflow-hidden">
+    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8 relative">
       {/* Blurred background layer */}
       {selectedHotelImage && imageLoaded && (
         <div

@@ -39,14 +39,16 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage
-          path: |
-            apps/web/coverage/lcov.info
-            apps/yahua-static/coverage/lcov.info
+          path: apps/web/coverage/lcov.info
           if-no-files-found: error
 
   e2e:
-    name: Playwright E2E
+    name: Playwright E2E (${{ matrix.browser }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -58,11 +60,11 @@ jobs:
       - run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
         working-directory: apps/web
 
       - name: Run Playwright
-        run: npm run e2e
+        run: npm run e2e -- --project=${{ matrix.browser }}
         working-directory: apps/web
         env:
           DATABASE_URL: file:./e2e.db
@@ -70,7 +72,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: apps/web/playwright-report
           if-no-files-found: ignore
 
@@ -106,6 +108,10 @@ jobs:
 
       - run: npm ci
 
+      - name: Generate Prisma client and Next.js route types
+        run: npx prisma generate && npx next typegen
+        working-directory: apps/web
+
       - name: Type check apps/web
         run: npx tsc --noEmit
         working-directory: apps/web
@@ -115,7 +121,5 @@ jobs:
       - name: Dependency audit (report)
         run: npm audit || true
 
-      # The next@14 advisories are knowingly accepted: the only fix is a major
-      # upgrade to next@16. Everything else must stay below critical.
       - name: Dependency audit (fails on critical)
         run: npm audit --audit-level=critical

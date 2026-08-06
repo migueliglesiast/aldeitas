@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import ImageCarousel from "./ImageCarousel";
 
 type ImageType = { id: string; url: string; position: number };
 type Listing = { id: string; title: string; nightlyBasePrice: number; baseCurrency: string; images: ImageType[] };
@@ -30,37 +30,59 @@ export default function ListingGrid({ hotels }: { hotels: Hotel[] }) {
   }, [hotels, query, min, max]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <input placeholder="Search location or title" value={query} onChange={(e) => setQuery(e.target.value)} className="rounded border px-3 py-2 sm:col-span-2" />
-        <input placeholder="Min $/night" value={min} onChange={(e) => setMin(e.target.value)} className="rounded border px-3 py-2" />
-        <input placeholder="Max $/night" value={max} onChange={(e) => setMax(e.target.value)} className="rounded border px-3 py-2" />
+        <input
+          placeholder="Search location or title"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="rounded-full border border-line px-4 py-2.5 text-sm placeholder:text-muted focus:border-ink focus:outline-none sm:col-span-2"
+        />
+        <input
+          placeholder="Min $/night"
+          value={min}
+          onChange={(e) => setMin(e.target.value)}
+          className="rounded-full border border-line px-4 py-2.5 text-sm placeholder:text-muted focus:border-ink focus:outline-none"
+        />
+        <input
+          placeholder="Max $/night"
+          value={max}
+          onChange={(e) => setMax(e.target.value)}
+          className="rounded-full border border-line px-4 py-2.5 text-sm placeholder:text-muted focus:border-ink focus:outline-none"
+        />
       </div>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
         {listings.map((l) => (
-          <Link href={`/listing/${l.id}`} key={l.id} className="group rounded border hover:shadow">
-            <div className="relative h-44 w-full overflow-hidden rounded-t">
-              {l.images?.[0] ? (
-                <Image src={l.images[0].url} alt={l.title} fill className="object-cover transition-transform group-hover:scale-105" />
+          <div key={l.id} className="group relative">
+            <Link
+              href={`/listing/${l.id}`}
+              aria-label={`View ${l.title}`}
+              className="absolute inset-0 z-[5] rounded-2xl"
+            />
+            <div className="relative aspect-[20/13] w-full overflow-hidden rounded-2xl bg-surface">
+              {l.images?.length ? (
+                <ImageCarousel
+                  images={l.images.map((img) => img.url)}
+                  alt={l.title}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-400">No image yet</div>
+                <div className="flex h-full w-full items-center justify-center bg-surface text-muted">No image yet</div>
               )}
             </div>
-            <div className="p-3">
-              <div className="flex items-center justify-between">
-                <p className="font-medium">{l.title}</p>
-                <p className="text-sm text-gray-500">from ${(l.nightlyBasePrice / 100).toFixed(0)} {l.baseCurrency}</p>
+            <Link href={`/listing/${l.id}`} className="relative z-10 mt-3 block space-y-0.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="truncate font-semibold text-ink">{l.title}</p>
+                <p className="shrink-0 text-sm font-semibold text-ink">from ${(l.nightlyBasePrice / 100).toFixed(0)} {l.baseCurrency}</p>
               </div>
-              <p className="text-sm text-gray-600">{l.hotel.location}</p>
-            </div>
-          </Link>
+              <p className="text-sm text-muted">{l.hotel.location}</p>
+            </Link>
+          </div>
         ))}
         {listings.length === 0 && (
-          <div className="text-gray-600">No results. Adjust filters.</div>
+          <div className="col-span-full text-muted">No results. Adjust filters.</div>
         )}
       </div>
     </div>
   );
 }
-
-

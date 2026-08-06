@@ -182,7 +182,7 @@ describe("HotelGrid", () => {
 
   it("filters hotels by name or location and shows an empty state", async () => {
     renderHotels();
-    const grid = screen.getByText("Hotel Uno").closest("div.space-y-4");
+    const grid = screen.getByText("Hotel Uno").closest("div.space-y-6");
     expect(grid).toBeTruthy();
 
     // HotelGrid keeps its query in local state; drive it through the exposed input

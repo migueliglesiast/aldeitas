@@ -6,9 +6,6 @@ node_modules/
 out/
 .turbo/
 
-# Generated static site output
-apps/yahua-static/public/
-
 # Test artifacts
 coverage/
 playwright-report/
