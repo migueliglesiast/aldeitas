@@ -175,10 +175,16 @@ async function main() {
         console.log(`[${spec.name}] Removing ${remainingGeneric.length} unused generic room(s)...`);
         for (const genericRoom of remainingGeneric) {
           try {
+            // Bookings are business data, never seed data: keep any room that has them.
+            const bookingCount = await prisma.booking.count({ where: { listingId: genericRoom.id } });
+            if (bookingCount > 0) {
+              console.warn(`  ! Keeping "${genericRoom.title}" in ${spec.name}: ${bookingCount} booking(s) exist`);
+              continue;
+            }
+
             // Delete related data first to avoid foreign key constraints
             await prisma.calendarSource.deleteMany({ where: { listingId: genericRoom.id } });
             await prisma.image.deleteMany({ where: { listingId: genericRoom.id } });
-            await prisma.booking.deleteMany({ where: { listingId: genericRoom.id } });
             
             // Now delete the listing
             await prisma.listing.delete({ where: { id: genericRoom.id } });
