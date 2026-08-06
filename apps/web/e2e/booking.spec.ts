@@ -8,6 +8,7 @@ import {
   E2E_LISTING as FREE_LISTING,
   FREE_END,
   FREE_START,
+  freeBookingRange,
 } from "./fixtures";
 
 async function setDates(page: Page, start: string, end: string) {
@@ -40,10 +41,11 @@ test("searching filters the grid by the availability API response", async ({ pag
   await expect(page.getByText("No results found. Try adjusting your search.")).toBeVisible();
 });
 
-test("a guest can book available dates and gets a PENDING booking", async ({ page }) => {
+test("a guest can book available dates and gets a PENDING booking", async ({ page }, testInfo) => {
   await openListing(page, FREE_LISTING);
 
-  await setDates(page, FREE_START, FREE_END);
+  const { start, end } = freeBookingRange(testInfo.project.name);
+  await setDates(page, start, end);
   await page.locator('input[type="email"]').fill("guest@example.com");
   await page.locator('input[type="tel"]').fill("5215551234");
 

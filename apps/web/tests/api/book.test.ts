@@ -147,6 +147,71 @@ describe("POST /api/book", () => {
     });
   });
 
+  it("returns 409 when the legacy icalUrl blocks the dates", async () => {
+    prismaMock.listing.findUnique.mockResolvedValue({
+      ...LISTING,
+      icalUrl: "https://www.airbnb.com/legacy.ics",
+    });
+    fetchIcalBlocks.mockResolvedValue([
+      { start: new Date("2025-01-02"), end: new Date("2025-01-04") },
+    ]);
+
+    const res = await POST(request(VALID_BODY));
+
+    expect(res.status).toBe(409);
+    expect(prismaMock.booking.create).not.toHaveBeenCalled();
+  });
+
+  it("sends the booking metadata and redirect URLs to Stripe checkout", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://aldeitas.example";
+    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
+    sessionsCreate.mockResolvedValue({ url: "https://checkout.stripe.com/s/2" });
+
+    try {
+      const res = await POST(request(VALID_BODY));
+
+      expect(res.status).toBe(200);
+      expect(sessionsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: "payment",
+          line_items: [
+            expect.objectContaining({
+              quantity: 1,
+              price_data: expect.objectContaining({
+                currency: "USD",
+                unit_amount: 20000,
+              }),
+            }),
+          ],
+          success_url: "https://aldeitas.example/listing/l1?success=1",
+          cancel_url: "https://aldeitas.example/listing/l1?canceled=1",
+          metadata: { bookingId: "b1" },
+        })
+      );
+    } finally {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
+  });
+
+  it("returns a generic 500 when Stripe checkout creation fails", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
+    sessionsCreate.mockRejectedValue(new Error("stripe down"));
+
+    const res = await POST(request(VALID_BODY));
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ error: "Internal server error" });
+  });
+
+  it("rejects an invalid email with 400 before touching the database", async () => {
+    const res = await POST(request({ ...VALID_BODY, email: "not-an-email" }));
+
+    expect(res.status).toBe(400);
+    expect(prismaMock.listing.findUnique).not.toHaveBeenCalled();
+  });
+
   it("fails closed with 503 when a calendar cannot be fetched", async () => {
     prismaMock.listing.findUnique.mockResolvedValue({
       ...LISTING,

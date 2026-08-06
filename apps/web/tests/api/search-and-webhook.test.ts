@@ -173,6 +173,54 @@ describe("POST /api/stripe/webhook", () => {
     );
   });
 
+  it("confirms the booking without emailing when SMTP is not configured", async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: { object: { metadata: { bookingId: "b1" }, payment_intent: "pi_1" } },
+    });
+    prismaMock.booking.update.mockResolvedValue({
+      guestEmail: "guest@example.com",
+      startDate: new Date("2025-01-01"),
+      endDate: new Date("2025-01-03"),
+      totalPriceCents: 20000,
+      currency: "USD",
+      listing: { title: "Suite" },
+    });
+
+    const res = await stripeWebhook(post({}, { "stripe-signature": "sig" }));
+
+    await expect(res.json()).resolves.toEqual({ received: true });
+    expect(prismaMock.booking.update).toHaveBeenCalledOnce();
+    expect(createTransport).not.toHaveBeenCalled();
+  });
+
+  it("includes the booking dates and total in the confirmation email", async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+    process.env.SMTP_HOST = "smtp.example.com";
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: { object: { metadata: { bookingId: "b1" }, payment_intent: "pi_1" } },
+    });
+    prismaMock.booking.update.mockResolvedValue({
+      guestEmail: "guest@example.com",
+      startDate: new Date("2025-01-01T12:00:00Z"),
+      endDate: new Date("2025-01-03T12:00:00Z"),
+      totalPriceCents: 20000,
+      currency: "USD",
+      listing: { title: "Suite" },
+    });
+
+    await stripeWebhook(post({}, { "stripe-signature": "sig" }));
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: "Booking confirmed: Suite",
+        text: expect.stringContaining("200.00 USD"),
+      })
+    );
+  });
+
   it("skips the booking update when the event carries no bookingId", async () => {
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
     constructEvent.mockReturnValue({

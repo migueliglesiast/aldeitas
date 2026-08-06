@@ -4,10 +4,19 @@ npm workspaces monorepo with one application:
 
 | Workspace | Package | Stack |
 | --- | --- | --- |
-| `apps/web` | `aldeitas-web` | Next.js 14 (App Router), Prisma + SQLite, Stripe |
+| `apps/web` | `aldeitas-web` | Next.js 16 (App Router) + React 19, Prisma, Stripe |
 
 Casa Yahua's suites (photos, iCal availability) are served through `apps/web` like every other
-hotel.
+hotel. The former `apps/yahua-static` static-site generator has been removed; its content now
+lives in `apps/web`.
+
+## Databases
+
+- **Development, unit tests and E2E**: SQLite via Prisma (`DATABASE_URL=file:./dev.db` for dev,
+  `file:./e2e.db` for Playwright — the E2E web server resets and seeds it on every run).
+- **Production (Vercel)**: Postgres via `apps/web/prisma/schema.postgres.prisma`. Set
+  `PRISMA_SCHEMA=prisma/schema.postgres.prisma` so `postinstall` generates the Postgres client,
+  and point `DATABASE_URL` at the Postgres instance. `npm run db:push:postgres` pushes the schema.
 
 ## Getting started
 
@@ -27,9 +36,15 @@ Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
 
 - **Unit tests**: Vitest. `apps/web` runs in `jsdom` with Testing Library. Coverage uses the V8
   provider with `all: true`, so files without tests are reported too. Reports land in
-  `apps/web/coverage/lcov.info`.
-- **E2E**: Playwright (`apps/web/playwright.config.ts`). The web server step resets a dedicated
-  SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs `next build && next start`.
+  `apps/web/coverage/lcov.info`. Coverage thresholds are enforced in
+  `apps/web/vitest.config.mts` (statements/lines 95%, branches 89%, functions 85%) —
+  `npm run test:coverage` fails when coverage drops below them.
+- **Accessibility**: axe-core checks (via `jest-axe`) run as part of the unit suite
+  (`apps/web/tests/a11y`), asserting the key forms and auth pages render without axe violations.
+- **E2E**: Playwright (`apps/web/playwright.config.ts`) across **chromium, firefox and webkit**
+  (`npm run e2e -- --project=chromium` to run a single browser). The web server step resets a
+  dedicated SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs
+  `next build && next start`.
   Stripe is intentionally unconfigured so bookings stop at `PENDING` instead of redirecting to Checkout.
 
 ## Outbound request allowlist
@@ -79,8 +94,7 @@ npm audit
 ```
 
 CI fails on any ESLint error, any type error, any Semgrep finding and any **critical** advisory.
-The `next@14` advisories are knowingly accepted: the only published fix is a major upgrade to
-`next@16`.
+
 
 If a SonarQube Cloud account becomes available later, this repository can be imported there without
 code changes — `apps/web` already emits `coverage/lcov.info`.
@@ -89,12 +103,15 @@ code changes — `apps/web` already emits `coverage/lcov.info`.
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every PR:
 
-1. `test` — `npm ci`, `npm run lint`, `npm run test:coverage`, uploads `apps/web/coverage/lcov.info`.
-2. `e2e` — Playwright against a freshly seeded SQLite database.
+1. `test` — `npm ci`, `npm run lint`, `npm run test:coverage` (fails below the coverage
+   thresholds), uploads `apps/web/coverage/lcov.info`.
+2. `e2e` — Playwright against a freshly seeded SQLite database, in a matrix across chromium,
+   firefox and webkit.
 3. `semgrep` — the rulesets above, failing on any finding.
 4. `static-analysis` — type check plus dependency audit (the SonarJS/security ESLint rules run in `test`).
 
 ## Deployment
 
 `apps/web` deploys to Vercel through Vercel's Git integration; there is no deploy workflow in this
-repository.
+repository. Production uses Postgres (see [Databases](#databases)); SQLite remains the database
+for local development, unit tests and E2E runs.

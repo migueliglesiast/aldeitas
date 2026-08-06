@@ -164,6 +164,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         <label className="block text-sm font-medium text-gray-700">Check-in</label>
         <input 
           type="date" 
+          aria-label="Check-in"
           value={start} 
           onChange={(e) => handleStartChange(e.target.value)} 
           min={minDate}
@@ -175,6 +176,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         <label className="block text-sm font-medium text-gray-700">Check-out</label>
         <input 
           type="date" 
+          aria-label="Check-out"
           value={end} 
           onChange={(e) => handleEndChange(e.target.value)} 
           min={getMinCheckoutDate()}
@@ -185,11 +187,11 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
       </div>
       <div className="space-y-1">
         <label className="block text-sm">Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded border px-3 py-2" required />
+        <input type="email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded border px-3 py-2" required />
       </div>
       <div className="space-y-1">
         <label className="block text-sm">Phone</label>
-        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded border px-3 py-2" required />
+        <input type="tel" aria-label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded border px-3 py-2" required />
       </div>
       <div className="space-y-2 text-sm">
         <div className="flex items-center justify-between text-gray-600">
