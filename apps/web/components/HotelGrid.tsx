@@ -16,6 +16,41 @@ type Hotel = {
   listings: Listing[]
 };
 
+function slugify(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getHotelImages(hotel: Hotel): string[] {
+  const slug = slugify(hotel.name);
+  const images: string[] = [];
+
+  // Priority 1: Use coverImageUrl from database (can be Google Drive URL)
+  if (hotel.coverImageUrl) {
+    images.push(hotel.coverImageUrl);
+  }
+
+  // Priority 2: Fallback to local public folder
+  images.push(`/images/hotels/${slug}/cover.jpg`);
+
+  return images;
+}
+
+type HotelCardProps = {
+  h: Hotel;
+  isExpanded: boolean;
+  isAnimating: boolean;
+  expandedRef: React.RefObject<HTMLDivElement | null>;
+  availableRooms: number | null;
+  setExpandedHotelId: (id: string | null) => void;
+  setSelectedHotelImage: (src: string | null) => void;
+};
+
 export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
   const [query, setQuery] = useState("");
   const [showMap, setShowMap] = useState(false);
@@ -97,32 +132,112 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
     }
   }, [expandedHotelId]);
 
-  function slugify(name: string) {
-    return name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/&/g, "and")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  }
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by name or location"
+          aria-label="Filter hotels by name or location"
+          className="w-full max-w-xs rounded-full border border-line px-4 py-2 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => setShowMap((v) => !v)}
+          aria-pressed={showMap}
+          className="inline-flex items-center gap-2 self-start rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03] sm:self-auto"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          {showMap ? "Hide map" : "Show map"}
+        </button>
+      </div>
 
-  function getHotelImages(hotel: Hotel): string[] {
-    const slug = slugify(hotel.name);
-    const images: string[] = [];
+      {showMap ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="space-y-3">
+            {mapHotels.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => setMapHotelId(h.id)}
+                className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors ${
+                  activeMapHotel?.id === h.id
+                    ? "border-ink bg-surface"
+                    : "border-line hover:border-ink/40"
+                }`}
+              >
+                <span>
+                  <span className="block font-semibold text-ink">{h.name}</span>
+                  <span className="block text-sm text-muted">{h.location}</span>
+                </span>
+                {h.listings?.length > 0 && (
+                  <span className="shrink-0 text-sm font-semibold text-ink">
+                    from ${(Math.min(...h.listings.map((l) => l.nightlyBasePrice)) / 100).toFixed(0)}
+                  </span>
+                )}
+              </button>
+            ))}
+            {mapHotels.length === 0 && (
+              <p className="text-muted">No hotels with map locations match your filters.</p>
+            )}
+          </div>
+          <div className="relative min-h-[420px] overflow-hidden rounded-2xl border border-line lg:sticky lg:top-40 lg:h-[calc(100vh-220px)]">
+            {activeMapHotel ? (
+              <iframe
+                title={`Map of ${activeMapHotel.name}`}
+                src={String(activeMapHotel.googleMapsUrl)}
+                width="100%"
+                height="100%"
+                style={{ border: 0, position: "absolute", inset: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted">
+                Map unavailable
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]" style={{ display: 'grid' }}>
+          {organizedHotels.map((h) => (
+            <HotelCard
+              key={h.id}
+              h={h}
+              isExpanded={expandedHotelId === h.id}
+              isAnimating={isAnimating}
+              expandedRef={expandedRef}
+              availableRooms={searchParams && hotelAvailability ? (hotelAvailability[h.id] || 0) : null}
+              setExpandedHotelId={setExpandedHotelId}
+              setSelectedHotelImage={setSelectedHotelImage}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <div className="col-span-full text-center text-muted py-8">
+              No results found. Try adjusting your search.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-    // Priority 1: Use coverImageUrl from database (can be Google Drive URL)
-    if (hotel.coverImageUrl) {
-      images.push(hotel.coverImageUrl);
-    }
-
-    // Priority 2: Fallback to local public folder
-    images.push(`/images/hotels/${slug}/cover.jpg`);
-
-    return images;
-  }
-
-  const HotelCard = memo(function HotelCard({ h, isExpanded }: { h: Hotel; isExpanded: boolean; expandedHotelId: string | null }) {
+const HotelCard = memo(function HotelCard({
+  h,
+  isExpanded,
+  isAnimating,
+  expandedRef,
+  availableRooms,
+  setExpandedHotelId,
+  setSelectedHotelImage,
+}: HotelCardProps) {
     const [coverIndex, setCoverIndex] = useState(0);
     const [carouselIndex, setCarouselIndex] = useState(0);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -154,11 +269,6 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
     const coverSrc = usingCover ? candidates[coverIndex] : undefined;
     const displaySrc = usingCover ? coverSrc : undefined;
     const totalRooms = h.listings?.length ?? 0;
-
-    // Get available room count if search is active
-    const availableRooms = (searchParams && hotelAvailability)
-      ? (hotelAvailability[h.id] || 0)
-      : null;
 
     // Use available rooms count if search is active, otherwise use total rooms
     const rooms = availableRooms !== null ? availableRooms : totalRooms;
@@ -389,91 +499,3 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
       </div>
     );
   });
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by name or location"
-          aria-label="Filter hotels by name or location"
-          className="w-full max-w-xs rounded-full border border-line px-4 py-2 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={() => setShowMap((v) => !v)}
-          aria-pressed={showMap}
-          className="inline-flex items-center gap-2 self-start rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03] sm:self-auto"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
-          {showMap ? "Hide map" : "Show map"}
-        </button>
-      </div>
-
-      {showMap ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="space-y-3">
-            {mapHotels.map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                onClick={() => setMapHotelId(h.id)}
-                className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors ${
-                  activeMapHotel?.id === h.id
-                    ? "border-ink bg-surface"
-                    : "border-line hover:border-ink/40"
-                }`}
-              >
-                <span>
-                  <span className="block font-semibold text-ink">{h.name}</span>
-                  <span className="block text-sm text-muted">{h.location}</span>
-                </span>
-                {h.listings?.length > 0 && (
-                  <span className="shrink-0 text-sm font-semibold text-ink">
-                    from ${(Math.min(...h.listings.map((l) => l.nightlyBasePrice)) / 100).toFixed(0)}
-                  </span>
-                )}
-              </button>
-            ))}
-            {mapHotels.length === 0 && (
-              <p className="text-muted">No hotels with map locations match your filters.</p>
-            )}
-          </div>
-          <div className="relative min-h-[420px] overflow-hidden rounded-2xl border border-line lg:sticky lg:top-40 lg:h-[calc(100vh-220px)]">
-            {activeMapHotel ? (
-              <iframe
-                title={`Map of ${activeMapHotel.name}`}
-                src={String(activeMapHotel.googleMapsUrl)}
-                width="100%"
-                height="100%"
-                style={{ border: 0, position: "absolute", inset: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted">
-                Map unavailable
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]" style={{ display: 'grid' }}>
-          {organizedHotels.map((h) => (
-            <HotelCard key={h.id} h={h} isExpanded={expandedHotelId === h.id} expandedHotelId={expandedHotelId} />
-          ))}
-          {filtered.length === 0 && (
-            <div className="col-span-full text-center text-muted py-8">
-              No results found. Try adjusting your search.
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
