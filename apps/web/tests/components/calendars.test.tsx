@@ -118,6 +118,7 @@ describe("CalendarSourceItem", () => {
 
     const select = await screen.findByRole("combobox");
     expect(screen.getByRole("button", { name: "Update Link" })).toBeDisabled();
+    await screen.findByRole("option", { name: "Hotel Uno - Suite Mar" });
     await userEvent.selectOptions(select, "l1");
     await userEvent.click(screen.getByRole("button", { name: "Update Link" }));
 

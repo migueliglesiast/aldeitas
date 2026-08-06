@@ -170,6 +170,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
             <label className="block text-[11px] font-bold uppercase tracking-wide text-ink">Check-in</label>
             <input 
               type="date" 
+              aria-label="Check-in"
               value={start} 
               onChange={(e) => handleStartChange(e.target.value)} 
               min={minDate}
@@ -181,6 +182,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
             <label className="block text-[11px] font-bold uppercase tracking-wide text-ink">Check-out</label>
             <input 
               type="date" 
+              aria-label="Check-out"
               value={end} 
               onChange={(e) => handleEndChange(e.target.value)} 
               min={getMinCheckoutDate()}
@@ -193,11 +195,11 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-ink">Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
+        <input type="email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-ink">Phone</label>
-        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
+        <input type="tel" aria-label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
       </div>
       <div className="space-y-2 text-sm">
         <div className="flex items-center justify-between text-gray-600">

@@ -118,6 +118,7 @@ export default function SearchForm() {
           <input
             ref={checkInInputRef}
             type="date"
+            aria-label="Check in"
             value={checkIn}
             onChange={(e) => handleDateChange('checkIn', e.target.value)}
             min={minDate}
@@ -149,6 +150,7 @@ export default function SearchForm() {
           <input
             ref={checkOutInputRef}
             type="date"
+            aria-label="Check out"
             value={checkOut}
             onChange={(e) => handleDateChange('checkOut', e.target.value)}
             min={getMinCheckoutDate()}
