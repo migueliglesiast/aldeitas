@@ -6,35 +6,14 @@ export type ListingDetail = NonNullable<Awaited<ReturnType<typeof getListingDeta
 export type HotelDetail = NonNullable<Awaited<ReturnType<typeof getHotelDetail>>>;
 
 export async function getHotelsWithListings() {
-  // Use raw query to get all hotel data including googleMapsUrl
-  const hotelsRaw = await prisma.$queryRaw<Array<{
-    id: string;
-    name: string;
-    description: string;
-    location: string;
-    googleMapsUrl: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }>>`
-    SELECT id, name, description, location, googleMapsUrl, createdAt, updatedAt 
-    FROM Hotel 
-    ORDER BY createdAt DESC
-  `;
-  
-  // Get listings for each hotel
-  return Promise.all(
-    hotelsRaw.map(async (hotel) => {
-      const listings = await prisma.listing.findMany({
-        where: { hotelId: hotel.id },
+  return prisma.hotel.findMany({
+    include: {
+      listings: {
         include: { images: { orderBy: { position: "asc" } } },
-      });
-      
-      return {
-        ...hotel,
-        listings,
-      };
-    })
-  );
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function getListingDetail(id: string) {

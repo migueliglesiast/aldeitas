@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const prismaMock = {
-  $queryRaw: vi.fn(),
-  listing: { findMany: vi.fn(), findUnique: vi.fn() },
-  hotel: { findUnique: vi.fn() },
+  listing: { findUnique: vi.fn() },
+  hotel: { findMany: vi.fn(), findUnique: vi.fn() },
 };
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -16,13 +15,10 @@ describe("getHotelsWithListings", () => {
   });
 
   it("attaches the listings of every hotel", async () => {
-    prismaMock.$queryRaw.mockResolvedValue([
-      { id: "h1", name: "Hotel 1" },
-      { id: "h2", name: "Hotel 2" },
+    prismaMock.hotel.findMany.mockResolvedValue([
+      { id: "h1", name: "Hotel 1", listings: [{ id: "l1" }] },
+      { id: "h2", name: "Hotel 2", listings: [] },
     ]);
-    prismaMock.listing.findMany
-      .mockResolvedValueOnce([{ id: "l1" }])
-      .mockResolvedValueOnce([]);
 
     const hotels = await getHotelsWithListings();
 
@@ -30,15 +26,17 @@ describe("getHotelsWithListings", () => {
       { id: "h1", name: "Hotel 1", listings: [{ id: "l1" }] },
       { id: "h2", name: "Hotel 2", listings: [] },
     ]);
-    expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { hotelId: "h1" } })
+    expect(prismaMock.hotel.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { listings: { include: { images: { orderBy: { position: "asc" } } } } },
+        orderBy: { createdAt: "desc" },
+      })
     );
   });
 
   it("returns an empty list when there are no hotels", async () => {
-    prismaMock.$queryRaw.mockResolvedValue([]);
+    prismaMock.hotel.findMany.mockResolvedValue([]);
     await expect(getHotelsWithListings()).resolves.toEqual([]);
-    expect(prismaMock.listing.findMany).not.toHaveBeenCalled();
   });
 });
 
