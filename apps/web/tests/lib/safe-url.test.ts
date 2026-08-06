@@ -48,6 +48,18 @@ describe("assertSafeUrl", () => {
     expect(() => assertSafeUrl("nope")).toThrow(/Invalid URL/);
   });
 
+  it("does not mistake domain names starting with IPv6 prefixes for private addresses", () => {
+    process.env.ICAL_ALLOWED_HOSTS = "fcbarcelona.com";
+    try {
+      expect(isSafeUrl("https://fd-cal.guesty.com/x.ics")).toBe(true);
+      expect(isSafeUrl("https://fe80cdn.airbnb.com/x.ics")).toBe(true);
+      expect(isSafeUrl("https://fcbarcelona.com/x.ics")).toBe(true);
+      expect(isSafeUrl("https://[fd00::1]/x")).toBe(false);
+    } finally {
+      delete process.env.ICAL_ALLOWED_HOSTS;
+    }
+  });
+
   it("normalizes a trailing dot in the hostname", () => {
     expect(isSafeUrl("https://www.airbnb.com./x")).toBe(true);
   });

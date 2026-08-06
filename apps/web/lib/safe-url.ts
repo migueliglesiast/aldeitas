@@ -47,6 +47,9 @@ function isPrivateIpv4(hostname: string): boolean {
 }
 
 function isPrivateIpv6(hostname: string): boolean {
+  // Only IPv6 literals may reach the prefix checks below; a plain domain name
+  // such as "fd-cal.guesty.com" must not be mistaken for a unique-local address.
+  if (!hostname.startsWith("[") && !hostname.includes(":")) return false;
   const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (host === "::1" || host === "::") return true;
   if (host.startsWith("fc") || host.startsWith("fd")) return true; // unique local

@@ -35,6 +35,23 @@ describe('assertSafeUrl', () => {
     expect(isSafeUrl('https://airbnb.com.evil.com/x.ics')).toBe(false);
   });
 
+  it('does not mistake domain names starting with IPv6 prefixes for private addresses', () => {
+    expect(isSafeUrl('https://fd-cal.guesty.com/x.ics')).toBe(true);
+    expect(isSafeUrl('https://fe80cdn.airbnb.com/x.ics')).toBe(true);
+    expect(isSafeUrl('https://[fd00::1]/x.ics')).toBe(false);
+  });
+
+  it('extends the allowlist with ICAL_ALLOWED_HOSTS', () => {
+    expect(isSafeUrl('https://app.lodgify.com/x.ics')).toBe(false);
+    process.env.ICAL_ALLOWED_HOSTS = 'lodgify.com';
+    try {
+      expect(isSafeUrl('https://app.lodgify.com/x.ics')).toBe(true);
+      expect(isSafeUrl('https://evil.com/x.ics')).toBe(false);
+    } finally {
+      delete process.env.ICAL_ALLOWED_HOSTS;
+    }
+  });
+
   it('rejects credentials embedded in the URL and malformed URLs', () => {
     expect(isSafeUrl('https://user:pass@www.airbnb.com/x.ics')).toBe(false);
     expect(() => assertSafeUrl('not a url')).toThrow(/Invalid URL/);
