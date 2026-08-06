@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Hotel {
+  id                String     @id @default(cuid())
+  name              String
+  description       String
+  location          String
+  googleMapsUrl     String?
+  googleDriveFolderId String? // Google Drive folder ID for hotel images
+  coverImageUrl     String?   // Direct URL to cover image (can be Google Drive)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  ownerId           String?
+  owner             User?      @relation(fields: [ownerId], references: [id])
+  listings          Listing[]
+}
+
+model User {
+  id               String    @id @default(cuid())
+  username         String    @unique
+  email            String    @unique
+  passwordHash     String
+  hotelName        String?
+  phoneNumber      String?
+  instagramLink    String?
+  shortDescription String?
+  publicAmenities  String?
+  verified         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  units            Unit[]
+  sessions         Session[]
+  hotels           Hotel[]
+}
+
+model Unit {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id])
+  nameOfUnit        String
+  numOfGuests       Int
+  description       String
+  privateAmenities  String?
+  numberOfBeds      Int
+  numberOfBathrooms Float
+  costNight         Float
+  icalUrl           String?
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  sessionToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model Listing {
+  id               String    @id @default(cuid())
+  hotelId          String
+  hotel            Hotel     @relation(fields: [hotelId], references: [id])
+  airbnbId         String
+  airbnbUrl        String
+  icalUrl          String?   // Legacy Airbnb iCal URL (deprecated, use CalendarSource instead)
+  title            String
+  description      String?   // Room-specific description and characteristics
+  baseCurrency     String    @default("USD")
+  nightlyBasePrice Int       @default(0)
+  images           Image[]
+  calendarSources  CalendarSource[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  bookings         Booking[]
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  url       String
+  position  Int
+}
+
+model CalendarSource {
+  id        String   @id @default(cuid())
+  name      String
+  icalUrl   String   @unique
+  listingId String?
+  listing   Listing? @relation(fields: [listingId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  listingId     String
+  listing       Listing  @relation(fields: [listingId], references: [id])
+  guestEmail    String
+  guestPhone    String
+  startDate     DateTime
+  endDate       DateTime
+  totalPriceCents Int
+  currency      String   @default("USD")
+  stripePaymentIntentId String?
+  status        BookingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+}
+
+
