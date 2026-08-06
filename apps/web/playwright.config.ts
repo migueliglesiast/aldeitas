@@ -34,6 +34,8 @@ export default defineConfig({
       NEXT_PUBLIC_SITE_URL: baseURL,
       // No Stripe key on purpose: bookings stay PENDING instead of redirecting to checkout.
       STRIPE_SECRET_KEY: "",
+      // WebKit drops Secure cookies over plain http, so relax the session cookie for e2e.
+      AUTH_INSECURE_COOKIE: "1",
     },
   },
 });
