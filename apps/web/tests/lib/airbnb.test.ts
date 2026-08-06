@@ -48,6 +48,23 @@ describe("fetchIcalBlocks", () => {
     );
   });
 
+  it("does not replay headers when a redirect changes host", async () => {
+    axiosGet
+      .mockResolvedValueOnce({
+        status: 301,
+        headers: { location: "https://calendar.guesty.com/final.ics" },
+        data: "",
+      })
+      .mockResolvedValueOnce({ status: 200, headers: {}, data: "<html></html>" });
+
+    await scrapeListingImages("https://www.airbnb.com/rooms/1");
+
+    expect(axiosGet).toHaveBeenLastCalledWith(
+      "https://calendar.guesty.com/final.ics",
+      expect.objectContaining({ headers: undefined })
+    );
+  });
+
   it("rejects a redirect that leaves the allowlist", async () => {
     axiosGet.mockResolvedValue({
       status: 302,

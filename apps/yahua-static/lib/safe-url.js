@@ -46,8 +46,21 @@ function isPrivateIpv6(hostname) {
   return false;
 }
 
+/**
+ * Extra calendar providers, as a comma separated list of domains
+ * (e.g. "lodgify.com,hostaway.com"). Subdomains are covered too.
+ */
+function extraAllowedHosts() {
+  return (process.env.ICAL_ALLOWED_HOSTS || '')
+    .split(',')
+    .map(host => host.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function isAllowedHost(hostname) {
-  return ALLOWED_HOSTS.some(allowed => hostname === allowed || hostname.endsWith(`.${allowed}`));
+  return [...ALLOWED_HOSTS, ...extraAllowedHosts()].some(
+    allowed => hostname === allowed || hostname.endsWith(`.${allowed}`)
+  );
 }
 
 function assertSafeUrl(rawUrl) {
@@ -94,4 +107,5 @@ module.exports = {
   REQUEST_TIMEOUT_MS,
   assertSafeUrl,
   isSafeUrl,
+  extraAllowedHosts,
 };

@@ -55,7 +55,7 @@ export default function CalendarForm() {
         <input className="w-full rounded border px-3 py-2 mt-1" value={name} onChange={(e) => setName(e.target.value)} required />
       </div>
       <div>
-        <label className="block text-sm font-medium">iCal URL (Guesty, Airbnb, or other)</label>
+        <label className="block text-sm font-medium">iCal URL (Airbnb, Guesty or Booking.com)</label>
         <input
           className="w-full rounded border px-3 py-2 mt-1"
           value={url}

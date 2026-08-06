@@ -29,7 +29,12 @@ async function fetchSafely(rawUrl: string, headers?: Record<string, string>): Pr
 
     const location = response.headers?.location as string | undefined;
     if (!location) throw new Error("Redirect without a location header");
-    target = assertSafeUrl(new URL(location, target).toString());
+    const next = assertSafeUrl(new URL(location, target).toString());
+    if (next.host !== target.host) {
+      // Never replay per-host headers on another host.
+      headers = undefined;
+    }
+    target = next;
   }
 
   throw new Error("Too many redirects");

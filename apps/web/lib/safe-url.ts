@@ -5,6 +5,17 @@
 
 export const ALLOWED_HOSTS = ["airbnb.com", "guesty.com", "booking.com"] as const;
 
+/**
+ * Extra calendar providers, as a comma separated list of domains
+ * (e.g. "lodgify.com,hostaway.com"). Subdomains are covered too.
+ */
+export function extraAllowedHosts(): string[] {
+  return (process.env.ICAL_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 export const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -45,7 +56,7 @@ function isPrivateIpv6(hostname: string): boolean {
 }
 
 function isAllowedHost(hostname: string): boolean {
-  return ALLOWED_HOSTS.some(
+  return [...ALLOWED_HOSTS, ...extraAllowedHosts()].some(
     (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`)
   );
 }

@@ -21,7 +21,7 @@ export default async function CalendarsAdminPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Calendar Sources</h1>
-        <p className="text-sm text-gray-600 mt-1">Add Guesty, Airbnb, or other iCal URLs for each room</p>
+        <p className="text-sm text-gray-600 mt-1">Add Airbnb, Guesty or Booking.com iCal URLs for each room (other providers must be allowed via ICAL_ALLOWED_HOSTS)</p>
       </div>
       <CalendarForm />
       <div className="space-y-2">

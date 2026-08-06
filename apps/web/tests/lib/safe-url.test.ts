@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { assertSafeUrl, isSafeUrl, ALLOWED_HOSTS } from "@/lib/safe-url";
 
 describe("assertSafeUrl", () => {
@@ -50,5 +50,22 @@ describe("assertSafeUrl", () => {
 
   it("normalizes a trailing dot in the hostname", () => {
     expect(isSafeUrl("https://www.airbnb.com./x")).toBe(true);
+  });
+});
+
+describe("ICAL_ALLOWED_HOSTS", () => {
+  afterEach(() => {
+    delete process.env.ICAL_ALLOWED_HOSTS;
+  });
+
+  it("extends the allowlist with extra providers and their subdomains", () => {
+    expect(isSafeUrl("https://app.lodgify.com/x.ics")).toBe(false);
+
+    process.env.ICAL_ALLOWED_HOSTS = " lodgify.com , Hostaway.com ";
+
+    expect(isSafeUrl("https://app.lodgify.com/x.ics")).toBe(true);
+    expect(isSafeUrl("https://hostaway.com/x.ics")).toBe(true);
+    expect(isSafeUrl("https://evil.com/x.ics")).toBe(false);
+    expect(isSafeUrl("https://127.0.0.1/x.ics")).toBe(false);
   });
 });

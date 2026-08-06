@@ -30,6 +30,22 @@ Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
   SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs `next build && next start`.
   Stripe is intentionally unconfigured so bookings stop at `PENDING` instead of redirecting to Checkout.
 
+## Outbound request allowlist
+
+Server-side iCal fetches and listing scraping only accept `https` URLs on `airbnb.com`,
+`guesty.com` and `booking.com` (subdomains included); private, loopback and metadata addresses are
+rejected. Redirects are followed manually and every hop is revalidated.
+
+Add other calendar providers with the `ICAL_ALLOWED_HOSTS` environment variable (comma separated
+domains, subdomains included):
+
+```bash
+ICAL_ALLOWED_HOSTS=lodgify.com,hostaway.com
+```
+
+Calendars on a host that is not allowed cannot be fetched, and `POST /api/book` fails closed with
+`503` rather than accepting a reservation it cannot verify.
+
 ## Security scanning
 
 ### Semgrep
