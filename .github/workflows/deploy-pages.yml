@@ -70,10 +70,11 @@ jobs:
         run: npm run build
 
       # public/ is generated, so the availability JSON must be refreshed on every
-      # deploy. A flaky iCal fetch must not block publishing the site.
+      # deploy. The script tolerates individual calendar failures but fails the
+      # job when none could be fetched, so a total outage keeps the previously
+      # published site instead of replacing it with empty calendars.
       - name: Sync availability calendars
         working-directory: apps/yahua-static
-        continue-on-error: true
         run: npm run sync-calendars
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3

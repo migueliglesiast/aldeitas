@@ -125,11 +125,15 @@ async function main({ configPath = CONFIG_PATH, outDir = AVAIL_DEST_DIR, fetcher
     return;
   }
 
+  let attempted = 0;
+  let succeeded = 0;
+
   for (const [slug, { icalUrl, name }] of entries) {
     if (!icalUrl) {
       console.log(`Skipping ${name} (${slug}): no iCal URL set.`);
       continue;
     }
+    attempted += 1;
     try {
       console.log(`Fetching iCal for ${name}...`);
       const ics = await fetcher(icalUrl);
@@ -137,9 +141,16 @@ async function main({ configPath = CONFIG_PATH, outDir = AVAIL_DEST_DIR, fetcher
       const outPath = path.join(outDir, `${slug}.json`);
       await fsp.writeFile(outPath, JSON.stringify({ bookedDates }, null, 2), 'utf8');
       console.log(`Saved availability: availability/${slug}.json (${bookedDates.length} booked days)`);
+      succeeded += 1;
     } catch (err) {
       console.error(`Failed for ${name}:`, err.message);
     }
+  }
+
+  // public/ is regenerated on every deploy, so publishing with no availability
+  // at all would silently replace the live calendars with empty ones.
+  if (attempted > 0 && succeeded === 0) {
+    throw new Error(`Availability sync failed for all ${attempted} suites`);
   }
 }
 

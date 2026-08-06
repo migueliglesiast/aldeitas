@@ -72,13 +72,30 @@ describe('sync-ical main', () => {
     expect(fs.existsSync(path.join(workdir, 'suite-2.json'))).toBe(false);
   });
 
-  it('keeps going when a calendar cannot be fetched', async () => {
+  it('keeps going when only some calendars cannot be fetched', async () => {
+    const configPath = await writeConfig({
+      'suite-1': { name: 'Suite 1', icalUrl: 'https://www.airbnb.com/calendar/ical/1.ics' },
+      'suite-2': { name: 'Suite 2', icalUrl: 'https://www.airbnb.com/calendar/ical/2.ics' },
+    });
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce('BEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20250101\r\nDTEND;VALUE=DATE:20250103\r\nEND:VEVENT');
+
+    await expect(syncIcal.main({ configPath, outDir: workdir, fetcher })).resolves.toBeUndefined();
+    expect(fs.existsSync(path.join(workdir, 'suite-1.json'))).toBe(false);
+    expect(fs.existsSync(path.join(workdir, 'suite-2.json'))).toBe(true);
+  });
+
+  it('fails when no calendar at all could be fetched', async () => {
     const configPath = await writeConfig({
       'suite-1': { name: 'Suite 1', icalUrl: 'https://www.airbnb.com/calendar/ical/1.ics' },
     });
     const fetcher = vi.fn().mockRejectedValue(new Error('boom'));
 
-    await expect(syncIcal.main({ configPath, outDir: workdir, fetcher })).resolves.toBeUndefined();
+    await expect(syncIcal.main({ configPath, outDir: workdir, fetcher })).rejects.toThrow(
+      /failed for all 1 suites/i
+    );
     expect(fs.existsSync(path.join(workdir, 'suite-1.json'))).toBe(false);
   });
 
