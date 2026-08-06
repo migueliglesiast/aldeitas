@@ -26,14 +26,15 @@ type DebugInfo = {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const debug =
       process.env.NODE_ENV !== "production" &&
       req.nextUrl.searchParams.get("debug") === "true";
     const listing = await prisma.listing.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         calendarSources: true,
         bookings: {

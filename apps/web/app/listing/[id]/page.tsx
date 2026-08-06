@@ -4,8 +4,9 @@ import BookingForm from "@/components/BookingForm";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import { prisma } from "@/lib/prisma";
 
-export default async function ListingPage({ params }: { params: { id: string } }) {
-  const listing = await getListingDetail(params.id);
+export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const listing = await getListingDetail(id);
 
   if (!listing) {
     return <div>Listing not found</div>;

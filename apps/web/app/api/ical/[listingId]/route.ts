@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import ical from "ical-generator";
 
-export async function GET(_req: NextRequest, { params }: { params: { listingId: string } }) {
-  const { listingId } = params;
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ listingId: string }> }) {
+  const { listingId } = await params;
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
   if (!listing) return new Response("Not found", { status: 404 });
 

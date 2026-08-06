@@ -78,7 +78,7 @@ describe("GET /api/listings/[id]/availability", () => {
   it("returns 404 for an unknown listing", async () => {
     prismaMock.listing.findUnique.mockResolvedValue(null);
 
-    const res = await getAvailability(get("http://localhost/api"), { params: { id: "l1" } });
+    const res = await getAvailability(get("http://localhost/api"), { params: Promise.resolve({ id: "l1" }) });
 
     expect(res.status).toBe(404);
   });
@@ -94,7 +94,7 @@ describe("GET /api/listings/[id]/availability", () => {
       .mockResolvedValueOnce([{ start: "2025-02-01", end: "2025-02-02" }])
       .mockResolvedValueOnce([{ start: "2025-03-01", end: "2025-03-02" }]);
 
-    const res = await getAvailability(get("http://localhost/api"), { params: { id: "l1" } });
+    const res = await getAvailability(get("http://localhost/api"), { params: Promise.resolve({ id: "l1" }) });
     const body = await res.json();
 
     expect(body.bookedDates).toEqual(["2025-01-01", "2025-01-02", "2025-02-01", "2025-03-01"]);
@@ -106,7 +106,7 @@ describe("GET /api/listings/[id]/availability", () => {
     prismaMock.listing.findUnique.mockResolvedValue(listing);
 
     const dev = await getAvailability(get("http://localhost/api?debug=true"), {
-      params: { id: "l1" },
+      params: Promise.resolve({ id: "l1" }),
     });
     expect((await dev.json()).debug).toMatchObject({ listingId: "l1" });
 
@@ -114,7 +114,7 @@ describe("GET /api/listings/[id]/availability", () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
       const prod = await getAvailability(get("http://localhost/api?debug=true"), {
-        params: { id: "l1" },
+        params: Promise.resolve({ id: "l1" }),
       });
       expect((await prod.json()).debug).toBeUndefined();
     } finally {
@@ -132,7 +132,7 @@ describe("GET /api/listings/[id]/availability", () => {
     fetchIcalBlocks.mockRejectedValue(new Error("unreachable"));
 
     const res = await getAvailability(get("http://localhost/api?debug=true"), {
-      params: { id: "l1" },
+      params: Promise.resolve({ id: "l1" }),
     });
     const body = await res.json();
 
@@ -144,7 +144,7 @@ describe("GET /api/listings/[id]/availability", () => {
   it("returns a generic 500 on failure", async () => {
     prismaMock.listing.findUnique.mockRejectedValue(new Error("db"));
 
-    const res = await getAvailability(get("http://localhost/api"), { params: { id: "l1" } });
+    const res = await getAvailability(get("http://localhost/api"), { params: Promise.resolve({ id: "l1" }) });
 
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ error: "Internal server error" });
@@ -153,7 +153,7 @@ describe("GET /api/listings/[id]/availability", () => {
 
 describe("GET /api/listings/[id]/pricing", () => {
   it("requires both dates", async () => {
-    const res = await getPricing(get("http://localhost/api"), { params: { id: "l1" } });
+    const res = await getPricing(get("http://localhost/api"), { params: Promise.resolve({ id: "l1" }) });
     expect(res.status).toBe(400);
   });
 
@@ -162,7 +162,7 @@ describe("GET /api/listings/[id]/pricing", () => {
 
     const res = await getPricing(
       get("http://localhost/api?checkIn=2025-01-01&checkOut=2025-01-03"),
-      { params: { id: "l1" } }
+      { params: Promise.resolve({ id: "l1" }) }
     );
 
     expect(res.status).toBe(404);
@@ -174,7 +174,7 @@ describe("GET /api/listings/[id]/pricing", () => {
 
     const res = await getPricing(
       get("http://localhost/api?checkIn=2025-01-03&checkOut=2025-01-03"),
-      { params: { id: "l1" } }
+      { params: Promise.resolve({ id: "l1" }) }
     );
 
     expect(res.status).toBe(400);
@@ -190,7 +190,7 @@ describe("GET /api/listings/[id]/pricing", () => {
 
     const res = await getPricing(
       get("http://localhost/api?checkIn=2025-01-01&checkOut=2025-01-03"),
-      { params: { id: "l1" } }
+      { params: Promise.resolve({ id: "l1" }) }
     );
 
     await expect(res.json()).resolves.toEqual({
@@ -214,7 +214,7 @@ describe("GET /api/listings/[id]/pricing", () => {
 
     const res = await getPricing(
       get("http://localhost/api?checkIn=2025-01-01&checkOut=2025-01-02"),
-      { params: { id: "l1" } }
+      { params: Promise.resolve({ id: "l1" }) }
     );
 
     await expect(res.json()).resolves.toMatchObject({
@@ -229,7 +229,7 @@ describe("GET /api/listings/[id]/pricing", () => {
 
     const res = await getPricing(
       get("http://localhost/api?checkIn=2025-01-01&checkOut=2025-01-03"),
-      { params: { id: "l1" } }
+      { params: Promise.resolve({ id: "l1" }) }
     );
 
     expect(res.status).toBe(500);
@@ -240,7 +240,7 @@ describe("GET /api/ical/[listingId]", () => {
   it("returns 404 for an unknown listing", async () => {
     prismaMock.listing.findUnique.mockResolvedValue(null);
 
-    const res = await getIcal(get("http://localhost/api"), { params: { listingId: "l1" } });
+    const res = await getIcal(get("http://localhost/api"), { params: Promise.resolve({ listingId: "l1" }) });
 
     expect(res.status).toBe(404);
   });
@@ -256,7 +256,7 @@ describe("GET /api/ical/[listingId]", () => {
       },
     ]);
 
-    const res = await getIcal(get("http://localhost/api"), { params: { listingId: "l1" } });
+    const res = await getIcal(get("http://localhost/api"), { params: Promise.resolve({ listingId: "l1" }) });
     const body = await res.text();
 
     expect(res.headers.get("content-type")).toContain("text/calendar");

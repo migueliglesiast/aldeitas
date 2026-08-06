@@ -77,7 +77,7 @@ describe("hotel detail page", () => {
   it("renders the not-found state", async () => {
     dataMock.getHotelDetail.mockResolvedValue(null);
 
-    render(await HotelPage({ params: { id: "missing" } }));
+    render(await HotelPage({ params: Promise.resolve({ id: "missing" }) }));
 
     expect(screen.getByText("Hotel not found")).toBeInTheDocument();
   });
@@ -91,7 +91,7 @@ describe("hotel detail page", () => {
       ],
     });
 
-    render(await HotelPage({ params: { id: "h1" } }));
+    render(await HotelPage({ params: Promise.resolve({ id: "h1" }) }));
 
     expect(screen.getByRole("heading", { name: "Hotel Uno" })).toBeInTheDocument();
     expect(screen.getByTestId("listing-grid")).toHaveTextContent("l1");
@@ -102,7 +102,7 @@ describe("listing detail page", () => {
   it("renders the not-found state", async () => {
     dataMock.getListingDetail.mockResolvedValue(null);
 
-    render(await ListingPage({ params: { id: "missing" } }));
+    render(await ListingPage({ params: Promise.resolve({ id: "missing" }) }));
 
     expect(screen.getByText("Listing not found")).toBeInTheDocument();
   });
@@ -118,7 +118,7 @@ describe("listing detail page", () => {
       hotel: { location: "Tulum" },
     });
 
-    render(await ListingPage({ params: { id: "l1" } }));
+    render(await ListingPage({ params: Promise.resolve({ id: "l1" }) }));
 
     expect(screen.getByAltText("Suite Mar")).toBeInTheDocument();
     expect(screen.getByText("Sea view")).toBeInTheDocument();
@@ -137,7 +137,7 @@ describe("listing detail page", () => {
       hotel: { location: "Tulum" },
     });
 
-    render(await ListingPage({ params: { id: "l1" } }));
+    render(await ListingPage({ params: Promise.resolve({ id: "l1" }) }));
 
     expect(screen.getByText("Images coming soon")).toBeInTheDocument();
   });

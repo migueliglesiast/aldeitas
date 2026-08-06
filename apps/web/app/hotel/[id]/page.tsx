@@ -3,8 +3,9 @@ import Link from "next/link";
 import FilteredListingGrid from "@/components/FilteredListingGrid";
 import SearchForm from "@/components/SearchForm";
 
-export default async function HotelPage({ params }: { params: { id: string } }) {
-  const hotel = await getHotelDetail(params.id);
+export default async function HotelPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const hotel = await getHotelDetail(id);
   if (!hotel) {
     return <div>Hotel not found</div>;
   }
