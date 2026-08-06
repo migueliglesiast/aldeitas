@@ -6,13 +6,14 @@ import AuthButton from "../components/AuthButton";
 import ParallaxBackground from "../components/ParallaxBackground";
 import ContentContainer from "../components/ContentContainer";
 import { HotelProvider } from "../lib/hotel-context";
-import { Poppins, Playfair_Display, Comfortaa, Dancing_Script, Great_Vibes } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 
-const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
-const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
-const comfortaa = Comfortaa({ subsets: ["latin"], weight: ["700"] });
-const dancingScript = Dancing_Script({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
-const greatVibes = Great_Vibes({ subsets: ["latin"], weight: ["400"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+});
 
 export const metadata = {
   title: "Aldeitas",
@@ -25,41 +26,51 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${poppins.className} min-h-screen text-slate-700`}>
+      <body className={`${inter.variable} ${jakarta.variable} min-h-screen bg-white font-sans text-ink antialiased`}>
         <HotelProvider>
           <ParallaxBackground />
-          {/* Title and auth sit above the content container, scroll with the page */}
-          <div className="mx-auto max-w-7xl px-4 mt-[4vh] md:mt-[6vh]">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-2">
-              <Link href="/" className="flex items-center gap-3">
+          <header className="sticky top-0 z-50 border-b border-line/60 bg-white/90 backdrop-blur-md">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
+              <Link href="/" className="flex items-center gap-2.5">
                 <Image
                   src="/images/aldeitas_logo.png"
                   alt="Las Aldeitas logo"
-                  width={48}
-                  height={48}
+                  width={40}
+                  height={40}
                   priority
-                  className="h-10 w-10 md:h-12 md:w-12 object-contain"
+                  className="h-9 w-9 object-contain md:h-10 md:w-10"
                 />
-                <span className={`${comfortaa.className} text-3xl md:text-5xl leading-tight font-bold text-[#00a19c]`}>
-                  Aldeitas
+                <span className="hidden flex-col leading-tight sm:flex">
+                  <span className="font-display text-2xl font-extrabold tracking-tight text-brand">
+                    Aldeitas
+                  </span>
+                  <span className="text-xs font-medium text-muted">
+                    Long term stays in unique places
+                  </span>
                 </span>
               </Link>
-              <div className="self-start md:self-auto">
+              <div className="shrink-0">
                 <AuthButton />
               </div>
             </div>
-            <p className={`${dancingScript.className} text-2xl md:text-3xl text-gray-600 md:ml-[60px]`}>
-              Long term stays in unique places
-            </p>
-          </div>
+          </header>
 
           <ContentContainer>
             {children}
           </ContentContainer>
+
+          <footer className="mt-16 border-t border-line/60 bg-surface">
+            <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-muted md:flex-row md:px-6">
+              <p>© {new Date().getFullYear()} Aldeitas · Long term stays in unique places</p>
+              <p className="flex items-center gap-4">
+                <Link href="/" className="hover:text-ink hover:underline">Home</Link>
+                <Link href="/hotel" className="hover:text-ink hover:underline">Browse hotels</Link>
+                <Link href="/sign-up" className="hover:text-ink hover:underline">Sign up</Link>
+              </p>
+            </div>
+          </footer>
         </HotelProvider>
       </body>
     </html>
   );
 }
-
-

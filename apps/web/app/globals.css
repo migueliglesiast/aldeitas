@@ -4,15 +4,6 @@
 
 html, body { height: 100%; }
 
-.font-brand { font-family: Didot, "Bodoni MT", "Didot LT STD", "Hoefler Text", "Baskerville", Georgia, "Times New Roman", serif; }
-
-.parallax {
-    background-image: url('/images/background.jpeg');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-}
-
 @keyframes fadeInScale {
   from {
     opacity: 0;

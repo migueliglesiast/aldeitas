@@ -40,8 +40,8 @@ export default function AuthButton() {
   if (!user) {
     return (
       <div className="flex gap-2">
-        <Link href="/sign-in" className="rounded border px-3 py-2 hover:bg-gray-50">Sign in</Link>
-        <Link href="/sign-up" className="rounded bg-[#00a19c] px-3 py-2 text-white hover:bg-[#008a86]">Sign up</Link>
+        <Link href="/sign-in" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">Sign in</Link>
+        <Link href="/sign-up" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black">Sign up</Link>
       </div>
     );
   }
@@ -54,7 +54,7 @@ export default function AuthButton() {
   return (
     <div className="flex items-center gap-3">
       <span className="text-sm text-gray-600">Hi, {user.username}</span>
-      <button onClick={onSignOut} className="rounded border px-3 py-2 hover:bg-gray-50">Sign out</button>
+      <button onClick={onSignOut} className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">Sign out</button>
     </div>
   );
 }

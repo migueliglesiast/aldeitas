@@ -25,11 +25,9 @@ export default function ParallaxBackground() {
         zIndex: -1,
         pointerEvents: "none",
         transform: `translateY(${-offset}px)`,
-        backgroundImage: "url('/images/background_image.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center top",
-        backgroundRepeat: "no-repeat",
-        backgroundColor: "#000",
+        backgroundImage:
+          "radial-gradient(1200px 500px at 15% 0%, rgba(255, 56, 92, 0.06), transparent 60%), radial-gradient(1000px 450px at 85% 10%, rgba(255, 180, 0, 0.05), transparent 60%), linear-gradient(to bottom, #ffffff 0%, #f7f7f7 100%)",
+        backgroundColor: "#ffffff",
       }}
     />
   );

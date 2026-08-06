@@ -104,7 +104,7 @@ export default function SearchForm() {
 
   return (
     <form onSubmit={handleSearch} className="w-full">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-white rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible">
         {/* Check-in Date - Airbnb style */}
         <div 
           className="flex-1 relative cursor-pointer group"
@@ -112,7 +112,7 @@ export default function SearchForm() {
             checkInInputRef.current?.showPicker?.() || checkInInputRef.current?.focus();
           }}
         >
-          <label className="absolute left-4 top-3 text-xs font-medium text-gray-700 pointer-events-none z-10">
+          <label className="absolute left-5 top-2.5 text-xs font-semibold text-ink pointer-events-none z-10">
             Check in
           </label>
           <input
@@ -124,15 +124,15 @@ export default function SearchForm() {
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
             style={{ fontSize: '16px' }} // Prevents zoom on iOS
           />
-          <div className="w-full h-full pt-8 pb-3 px-4 pr-12 text-sm font-medium text-gray-900 border-r border-gray-200/50 hover:bg-gray-50/50 transition-colors pointer-events-none">
-            <span className={checkIn ? "text-gray-900" : "text-gray-400"}>
+          <div className="w-full h-full pt-7 pb-2.5 px-5 pr-10 text-sm font-medium text-ink rounded-l-full hover:bg-surface transition-colors pointer-events-none">
+            <span className={checkIn ? "text-ink" : "text-muted"}>
               {formatDateDisplay(checkIn)}
             </span>
           </div>
         </div>
 
         {/* Divider */}
-        <div className="hidden sm:block w-px bg-gray-200/50 self-stretch" />
+        <div className="hidden sm:block w-px bg-line/70 self-stretch my-3" />
 
         {/* Check-out Date - Airbnb style */}
         <div 
@@ -143,7 +143,7 @@ export default function SearchForm() {
             }
           }}
         >
-          <label className="absolute left-4 top-3 text-xs font-medium text-gray-700 pointer-events-none z-10">
+          <label className="absolute left-5 top-2.5 text-xs font-semibold text-ink pointer-events-none z-10">
             Check out
           </label>
           <input
@@ -156,15 +156,15 @@ export default function SearchForm() {
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed"
             style={{ fontSize: '16px' }} // Prevents zoom on iOS
           />
-          <div className="w-full h-full pt-8 pb-3 px-4 pr-12 text-sm font-medium text-gray-900 border-r border-gray-200/50 hover:bg-gray-50/50 transition-colors pointer-events-none">
-            <span className={checkOut ? "text-gray-900" : "text-gray-400"}>
+          <div className="w-full h-full pt-7 pb-2.5 px-5 pr-10 text-sm font-medium text-ink hover:bg-surface transition-colors pointer-events-none">
+            <span className={checkOut ? "text-ink" : "text-muted"}>
               {formatDateDisplay(checkOut)}
             </span>
           </div>
         </div>
 
         {/* Divider */}
-        <div className="hidden sm:block w-px bg-gray-200/50 self-stretch" />
+        <div className="hidden sm:block w-px bg-line/70 self-stretch my-3" />
 
         {/* Guests Picker */}
         <div className="flex-1 relative" ref={guestPickerRef}>
@@ -174,19 +174,19 @@ export default function SearchForm() {
               setShowGuestPicker(!showGuestPicker);
               setShowPetPicker(false);
             }}
-            className="w-full pt-8 pb-3 px-4 text-left text-sm font-medium text-gray-900 hover:bg-gray-50/50 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a19c]/20 border-r border-gray-200/50"
+            className="w-full pt-7 pb-2.5 px-5 text-left text-sm font-medium text-ink hover:bg-surface transition-colors focus:outline-none focus:ring-2 focus:ring-brand/20"
           >
-            <span className="absolute left-4 top-3 text-xs font-medium text-gray-700">Guests</span>
+            <span className="absolute left-5 top-2.5 text-xs font-semibold text-ink">Guests</span>
             <span className="block mt-1">
               {guests} {guests === 1 ? 'guest' : 'guests'}
             </span>
           </button>
           
           {showGuestPicker && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200/50 p-4 z-50">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-2xl shadow-pop border border-line/60 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-medium text-gray-900">Adults</div>
+                  <div className="font-semibold text-ink">Adults</div>
                   <div className="text-xs text-gray-500">Ages 13+</div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -215,7 +215,7 @@ export default function SearchForm() {
               <button
                 type="button"
                 onClick={() => setShowGuestPicker(false)}
-                className="w-full text-left text-sm font-medium text-[#00a19c] hover:underline"
+                className="w-full text-left text-sm font-semibold text-ink underline underline-offset-2 hover:text-brand"
               >
                 Done
               </button>
@@ -224,7 +224,7 @@ export default function SearchForm() {
         </div>
 
         {/* Divider */}
-        <div className="hidden sm:block w-px bg-gray-200/50 self-stretch" />
+        <div className="hidden sm:block w-px bg-line/70 self-stretch my-3" />
 
         {/* Pets Picker */}
         <div className="flex-1 relative" ref={petPickerRef}>
@@ -234,19 +234,19 @@ export default function SearchForm() {
               setShowPetPicker(!showPetPicker);
               setShowGuestPicker(false);
             }}
-            className="w-full pt-8 pb-3 px-4 text-left text-sm font-medium text-gray-900 hover:bg-gray-50/50 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a19c]/20"
+            className="w-full pt-7 pb-2.5 px-5 text-left text-sm font-medium text-ink hover:bg-surface transition-colors focus:outline-none focus:ring-2 focus:ring-brand/20"
           >
-            <span className="absolute left-4 top-3 text-xs font-medium text-gray-700">Pets</span>
+            <span className="absolute left-5 top-2.5 text-xs font-semibold text-ink">Pets</span>
             <span className="block mt-1">
               {pets === 0 ? 'No pets' : `${pets} ${pets === 1 ? 'pet' : 'pets'}`}
             </span>
           </button>
           
           {showPetPicker && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200/50 p-4 z-50">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-2xl shadow-pop border border-line/60 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-medium text-gray-900">Pets</div>
+                  <div className="font-semibold text-ink">Pets</div>
                   <div className="text-xs text-gray-500">Bringing a service animal?</div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -275,7 +275,7 @@ export default function SearchForm() {
               <button
                 type="button"
                 onClick={() => setShowPetPicker(false)}
-                className="w-full text-left text-sm font-medium text-[#00a19c] hover:underline"
+                className="w-full text-left text-sm font-semibold text-ink underline underline-offset-2 hover:text-brand"
               >
                 Done
               </button>
@@ -288,7 +288,7 @@ export default function SearchForm() {
           <button
             type="submit"
             disabled={isSearching || !checkIn || !checkOut}
-            className="w-full sm:w-auto px-6 py-3 bg-[#00a19c] hover:bg-[#008a86] text-white font-medium rounded-xl transition-all duration-200 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-3 bg-brand hover:bg-brand-dark text-white font-semibold rounded-full transition-all duration-200 hover:shadow-card hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
           >
             {isSearching ? (
               <>

@@ -1,5 +1,10 @@
 import { prisma } from "./prisma";
 
+export type HotelWithListings = Awaited<ReturnType<typeof getHotelsWithListings>>[number];
+export type ListingWithImages = HotelWithListings["listings"][number];
+export type ListingDetail = NonNullable<Awaited<ReturnType<typeof getListingDetail>>>;
+export type HotelDetail = NonNullable<Awaited<ReturnType<typeof getHotelDetail>>>;
+
 export async function getHotelsWithListings() {
   // Use raw query to get all hotel data including googleMapsUrl
   const hotelsRaw = await prisma.$queryRaw<Array<{

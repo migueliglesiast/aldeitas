@@ -79,7 +79,7 @@ export default function CalendarForm() {
           ))}
         </select>
       </div>
-      <button disabled={loading} className="rounded bg-[#00a19c] px-4 py-2 text-white hover:bg-[#008a86] disabled:opacity-50">
+      <button disabled={loading} className="rounded-xl bg-brand px-4 py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
         {loading ? "Adding..." : "Add Calendar"}
       </button>
       {message && <div className={`text-sm ${message.includes("error") || message.includes("Failed") ? "text-red-600" : "text-green-600"}`}>{message}</div>}
