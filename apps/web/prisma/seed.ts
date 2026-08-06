@@ -28,6 +28,24 @@ function localRoomImages(hotelName: string, roomTitle: string): { url: string; p
     }));
 }
 
+function isPlaceholderImage(url: string): boolean {
+  return url.startsWith("https://picsum.photos/");
+}
+
+// Replaces a listing's images with the local photos, but only when the current
+// images are seed placeholders — images managed through the app are preserved.
+async function syncLocalImages(listingId: string, localImages: { url: string; position: number }[]) {
+  if (localImages.length === 0) return;
+  const currentImages = await prisma.image.findMany({ where: { listingId } });
+  const alreadyLocal = currentImages.some((img) => img.url === localImages[0].url);
+  if (alreadyLocal) return;
+  if (currentImages.length > 0 && !currentImages.every((img) => isPlaceholderImage(img.url))) return;
+  await prisma.image.deleteMany({ where: { listingId } });
+  await prisma.image.createMany({
+    data: localImages.map((img) => ({ ...img, listingId })),
+  });
+}
+
 async function main() {
   // Seed the nine initial hotels and their room counts in the requested order.
   // 
@@ -115,6 +133,7 @@ async function main() {
         });
         
         if (existingRoom) {
+          await syncLocalImages(existingRoom.id, localImages);
           console.log(`[${spec.name}] Room "${roomTitle}" already exists, skipping`);
           continue;
         }
@@ -130,12 +149,7 @@ async function main() {
                 airbnbId: `${spec.name.replace(/\s+/g, "-").toLowerCase()}-${roomTitle.replace(/\s+/g, "-").toLowerCase()}`,
               },
             });
-            if (localImages.length > 0) {
-              await prisma.image.deleteMany({ where: { listingId: genericRoom.id } });
-              await prisma.image.createMany({
-                data: localImages.map((img) => ({ ...img, listingId: genericRoom.id })),
-              });
-            }
+            await syncLocalImages(genericRoom.id, localImages);
             console.log(`✓ Updated "${genericRoom.title}" to "${roomTitle}" for ${spec.name}`);
           } catch (error) {
             console.error(`Error updating room ${genericRoom.id}:`, error);
