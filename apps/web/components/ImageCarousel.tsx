@@ -28,7 +28,7 @@ export default function ImageCarousel({ images, alt, sizes, className = "", onEr
         alt={alt}
         fill
         sizes={sizes}
-        className="object-cover transition-transform duration-300 group-hover/carousel:scale-[1.03]"
+        className="object-cover transition-transform duration-300 group-hover/carousel:scale-[1.03] group-hover:scale-[1.03]"
         onError={onError}
       />
       {count > 1 && (
@@ -41,7 +41,7 @@ export default function ImageCarousel({ images, alt, sizes, className = "", onEr
               e.stopPropagation();
               setIndex((i) => (i - 1 + count) % count);
             }}
-            className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-ink opacity-0 shadow-pill transition-all hover:scale-105 hover:bg-white group-hover/carousel:opacity-100 focus-visible:opacity-100"
+            className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-ink opacity-0 shadow-pill transition-all hover:scale-105 hover:bg-white group-hover/carousel:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -55,7 +55,7 @@ export default function ImageCarousel({ images, alt, sizes, className = "", onEr
               e.stopPropagation();
               setIndex((i) => (i + 1) % count);
             }}
-            className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-ink opacity-0 shadow-pill transition-all hover:scale-105 hover:bg-white group-hover/carousel:opacity-100 focus-visible:opacity-100"
+            className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-ink opacity-0 shadow-pill transition-all hover:scale-105 hover:bg-white group-hover/carousel:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
