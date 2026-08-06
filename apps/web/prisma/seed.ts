@@ -1,7 +1,32 @@
 // @ts-nocheck - Prisma client types are generated correctly, this is an IDE cache issue
 import { PrismaClient } from "@prisma/client";
+import fs from "fs";
+import path from "path";
 
 const prisma = new PrismaClient();
+
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
+
+function slugify(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, "-");
+}
+
+// Returns local image URLs for a room when photos exist under
+// public/images/hotels/<hotel-slug>/<room-slug>/, otherwise an empty list.
+function localRoomImages(hotelName: string, roomTitle: string): { url: string; position: number }[] {
+  const hotelSlug = slugify(hotelName);
+  const roomSlug = slugify(roomTitle);
+  const dir = path.join(__dirname, "..", "public", "images", "hotels", hotelSlug, roomSlug);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((file) => IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()))
+    .sort()
+    .map((file, position) => ({
+      url: `/images/hotels/${hotelSlug}/${roomSlug}/${file}`,
+      position,
+    }));
+}
 
 async function main() {
   // Seed the nine initial hotels and their room counts in the requested order.
@@ -24,7 +49,12 @@ async function main() {
       roomTitles: ["Forest Studio 1", "Forest Studio 2", "Forest Studio 3", "Forest Studio 4", "Treehouse 1", "Treehouse 2", "Treehouse 3"]
     },
     { name: "Nido Escondido", location: "Tamarindos", rooms: 7, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.192660747881!2d-97.052432423726!3d15.846468284801176!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f9cbcefdbc8f%3A0xded70dbab6709cfe!2sNido%20Escondido!5e0!3m2!1sen!2smx!4v1765134499157!5m2!1sen!2smx"},
-    { name: "Casa Yahua", location: "Tamarindos", rooms: 8, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2628227266855!2d-97.04870772357482!3d15.842777984804467!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f900465b9627%3A0x7a7a7a854fb822d1!2sHotel%20Boutique%20Casa%20Yahual!5e0!3m2!1sen!2smx!4v1765134542210!5m2!1sen!2smx"},
+    {
+      name: "Casa Yahua",
+      location: "Tamarindos",
+      rooms: 6,
+      roomTitles: ["Suite 1", "Suite 2", "Suite 3", "Suite 4", "Suite 5", "Suite 6"],
+      googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2628227266855!2d-97.04870772357482!3d15.842777984804467!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f900465b9627%3A0x7a7a7a854fb822d1!2sHotel%20Boutique%20Casa%20Yahual!5e0!3m2!1sen!2smx!4v1765134542210!5m2!1sen!2smx"},
     { name: "Casa Guadalupe", location: "Punta Zicatela", rooms: 2, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.2876131733597!2d-97.0489054238774!3d15.841473884805495!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f90023abb9dd%3A0xaf2b817c8fc6cc1!2sCasa%20Guadalupe!5e0!3m2!1sen!2smx!4v1765134665925!5m2!1sen!2smx" },
     { name: "Casa Oaxira", location: "Tamarindos", rooms: 2, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3838.257518784235!2d-97.0488088238774!3d15.84305698480412!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85b8f92a11662a85%3A0x288675294967ceb6!2sOaxira!5e0!3m2!1sen!2smx!4v1765134736922!5m2!1sen!2smx"},
     { name: "Coco By-The-Beach", location: "Punta Zicatela", rooms: 1, googleMapsUrl: "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d554.7807715785118!2d-97.04637841799085!3d15.838503854166042!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2smx!4v1765134837690!5m2!1sen!2smx" },
@@ -77,6 +107,7 @@ async function main() {
         const roomTitle = spec.roomTitles[i];
         const nightlyBasePrice = 9000 + Math.floor(Math.random() * 12000); // $90 - $210
         const imgBaseId = 200 + (hIndex * 20) + i + 1;
+        const localImages = localRoomImages(spec.name, roomTitle);
         
         // Check if a room with this exact title already exists
         let existingRoom = await prisma.listing.findFirst({
@@ -99,6 +130,12 @@ async function main() {
                 airbnbId: `${spec.name.replace(/\s+/g, "-").toLowerCase()}-${roomTitle.replace(/\s+/g, "-").toLowerCase()}`,
               },
             });
+            if (localImages.length > 0) {
+              await prisma.image.deleteMany({ where: { listingId: genericRoom.id } });
+              await prisma.image.createMany({
+                data: localImages.map((img) => ({ ...img, listingId: genericRoom.id })),
+              });
+            }
             console.log(`✓ Updated "${genericRoom.title}" to "${roomTitle}" for ${spec.name}`);
           } catch (error) {
             console.error(`Error updating room ${genericRoom.id}:`, error);
@@ -115,11 +152,13 @@ async function main() {
                 nightlyBasePrice,
                 baseCurrency: "USD",
                 images: {
-                  create: [
-                    { url: `https://picsum.photos/id/${imgBaseId}/1600/900`, position: 0 },
-                    { url: `https://picsum.photos/id/${imgBaseId + 1}/1600/900`, position: 1 },
-                    { url: `https://picsum.photos/id/${imgBaseId + 2}/1600/900`, position: 2 },
-                  ],
+                  create: localImages.length > 0
+                    ? localImages
+                    : [
+                        { url: `https://picsum.photos/id/${imgBaseId}/1600/900`, position: 0 },
+                        { url: `https://picsum.photos/id/${imgBaseId + 1}/1600/900`, position: 1 },
+                        { url: `https://picsum.photos/id/${imgBaseId + 2}/1600/900`, position: 2 },
+                      ],
                 },
               },
             });
@@ -230,6 +269,42 @@ async function main() {
       roomTitle: "Treehouse 3",
       icalUrl: "https://www.airbnb.com/calendar/ical/1053572195213481575.ics?s=a85bb8feb2e8dad3a537be26528e25ad",
       calendarName: "La Arbolita Room 7"
+    },
+    {
+      hotelName: "Casa Yahua",
+      roomTitle: "Suite 1",
+      icalUrl: "https://www.airbnb.com/calendar/ical/1307270857946270505.ics?s=998f9ca69996ac95ccd0c137a310620e",
+      calendarName: "Casa Yahua Suite 1"
+    },
+    {
+      hotelName: "Casa Yahua",
+      roomTitle: "Suite 2",
+      icalUrl: "https://www.airbnb.com/calendar/ical/1306054864414140566.ics?s=b9f057ed713558ec5e79bc75558261c0",
+      calendarName: "Casa Yahua Suite 2"
+    },
+    {
+      hotelName: "Casa Yahua",
+      roomTitle: "Suite 3",
+      icalUrl: "https://www.airbnb.com/calendar/ical/1304467516366621064.ics?s=a71796210153386b4366b22b6010dfc4",
+      calendarName: "Casa Yahua Suite 3"
+    },
+    {
+      hotelName: "Casa Yahua",
+      roomTitle: "Suite 4",
+      icalUrl: "https://www.airbnb.com/calendar/ical/1309534416136880413.ics?s=49f2e59ed418773d6641cbc58ca58d7a",
+      calendarName: "Casa Yahua Suite 4"
+    },
+    {
+      hotelName: "Casa Yahua",
+      roomTitle: "Suite 5",
+      icalUrl: "https://www.airbnb.com/calendar/ical/1310797978711207196.ics?s=ff059a96c4dc3958c26422bca82998a9",
+      calendarName: "Casa Yahua Suite 5"
+    },
+    {
+      hotelName: "Casa Yahua",
+      roomTitle: "Suite 6",
+      icalUrl: "https://www.airbnb.com/calendar/ical/1351053600850007269.ics?s=d0fdc578d9f3ba283b2a73a2155e1d78",
+      calendarName: "Casa Yahua Suite 6"
     },
   ];
 

@@ -1,19 +1,21 @@
 # Aldeitas monorepo
 
-npm workspaces monorepo with two applications:
+npm workspaces monorepo with one application:
 
 | Workspace | Package | Stack |
 | --- | --- | --- |
 | `apps/web` | `aldeitas-web` | Next.js 14 (App Router), Prisma + SQLite, Stripe |
-| `apps/yahua-static` | `aldeitas-yahua-static` | Vanilla Node static site generator (Casa Yahua) |
+
+Casa Yahua's suites (photos, iCal availability) are served through `apps/web` like every other
+hotel.
 
 ## Getting started
 
 ```bash
 npm ci                      # installs every workspace
-npm run build               # builds both apps
+npm run build               # builds apps/web
 npm run lint                # lints every workspace
-npm test                    # unit tests (Vitest) in both workspaces
+npm test                    # unit tests (Vitest)
 npm run test:coverage       # unit tests + coverage/lcov.info per app
 npm run e2e                 # Playwright E2E for apps/web
 ```
@@ -23,9 +25,9 @@ Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
 
 ## Testing
 
-- **Unit tests**: Vitest. `apps/web` runs in `jsdom` with Testing Library; `apps/yahua-static`
-  runs in `node`. Coverage uses the V8 provider with `all: true`, so files without tests are
-  reported too. Reports land in `<app>/coverage/lcov.info`.
+- **Unit tests**: Vitest. `apps/web` runs in `jsdom` with Testing Library. Coverage uses the V8
+  provider with `all: true`, so files without tests are reported too. Reports land in
+  `apps/web/coverage/lcov.info`.
 - **E2E**: Playwright (`apps/web/playwright.config.ts`). The web server step resets a dedicated
   SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs `next build && next start`.
   Stripe is intentionally unconfigured so bookings stop at `PENDING` instead of redirecting to Checkout.
@@ -81,16 +83,18 @@ The `next@14` advisories are knowingly accepted: the only published fix is a maj
 `next@16`.
 
 If a SonarQube Cloud account becomes available later, this repository can be imported there without
-code changes — both apps already emit `coverage/lcov.info`.
+code changes — `apps/web` already emits `coverage/lcov.info`.
 
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every PR:
 
-1. `test` — `npm ci`, `npm run lint`, `npm run test:coverage`, uploads both `lcov.info` files.
+1. `test` — `npm ci`, `npm run lint`, `npm run test:coverage`, uploads `apps/web/coverage/lcov.info`.
 2. `e2e` — Playwright against a freshly seeded SQLite database.
 3. `semgrep` — the rulesets above, failing on any finding.
 4. `static-analysis` — type check plus dependency audit (the SonarJS/security ESLint rules run in `test`).
 
-[`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) builds and publishes the
-static site.
+## Deployment
+
+`apps/web` deploys to Vercel through Vercel's Git integration; there is no deploy workflow in this
+repository.
