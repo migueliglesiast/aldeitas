@@ -260,6 +260,7 @@ const HotelCard = memo(function HotelCard({
       }
     }, [isExpanded, mapEmbedUrl, iframeSrc]);
     const candidates = [
+      ...(h.coverImageUrl ? [h.coverImageUrl] : []),
       `/images/hotels/${slug}/cover.jpg`,
       `/images/hotels/${slug}/cover.jpeg`,
       `/images/hotels/${slug}/cover.png`,
@@ -274,7 +275,8 @@ const HotelCard = memo(function HotelCard({
     const rooms = availableRooms !== null ? availableRooms : totalRooms;
     const minPrice = h.listings?.length ? Math.min(...h.listings.map((l) => l.nightlyBasePrice)) : null;
 
-    const galleryImages = getHotelImages(h);
+    const [failedImages, setFailedImages] = useState<string[]>([]);
+    const galleryImages = getHotelImages(h).filter((src) => !failedImages.includes(src));
 
     return (
       <div
@@ -388,6 +390,10 @@ const HotelCard = memo(function HotelCard({
                             sizes="65vw"
                             className="object-cover transition-opacity duration-300"
                             onError={() => {
+                              const failed = galleryImages[carouselIndex] || galleryImages[0];
+                              if (failed) {
+                                setFailedImages((prev) => [...prev, failed]);
+                              }
                               setCarouselIndex(0);
                             }}
                           />
