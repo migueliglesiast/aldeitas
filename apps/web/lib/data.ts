@@ -17,7 +17,7 @@ export async function getHotelsWithListings() {
   `;
   
   // Get listings for each hotel
-  const hotelsWithListings = await Promise.all(
+  return Promise.all(
     hotelsRaw.map(async (hotel) => {
       const listings = await prisma.listing.findMany({
         where: { hotelId: hotel.id },
@@ -30,15 +30,6 @@ export async function getHotelsWithListings() {
       };
     })
   );
-  
-  // Debug logging removed for production - uncomment if needed for debugging
-  // console.log('🔍 SERVER: Hotels fetched from database');
-  // hotelsWithListings.forEach(h => {
-  //   const url = h.googleMapsUrl;
-  //   console.log(`  ${h.name}: ${url ? `HAS URL (${url?.length || 0} chars)` : 'NO URL'}`);
-  // });
-  
-  return hotelsWithListings;
 }
 
 export async function getListingDetail(id: string) {

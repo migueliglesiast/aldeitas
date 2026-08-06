@@ -88,7 +88,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     if (value) {
       setSearchParams({
         checkIn: value,
-        checkOut: (end && value && new Date(end) > new Date(value)) ? end : "",
+        checkOut: end && new Date(end) > new Date(value) ? end : "",
         guests: searchParams?.guests || 1,
         pets: searchParams?.pets || 0,
       });
@@ -203,7 +203,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
               </div>
               {pricing.isDynamic && (
                 <div className="text-xs text-gray-500">
-                  ${(nightlyCents / 100).toFixed(2)}/{nights === 1 ? 'night' : 'night'}
+                  ${(nightlyCents / 100).toFixed(2)}/night
                 </div>
               )}
             </div>
@@ -215,7 +215,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         </div>
         {pricing && pricing.isDynamic && pricing.nightlyCents !== pricing.basePriceCents && (
           <div className="text-xs text-gray-500 pt-1 border-t">
-            Base rate: ${(pricing.basePriceCents / 100).toFixed(2)}/{nights === 1 ? 'night' : 'night'}
+            Base rate: ${(pricing.basePriceCents / 100).toFixed(2)}/night
           </div>
         )}
       </div>

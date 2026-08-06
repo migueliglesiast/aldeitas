@@ -85,25 +85,19 @@ jobs:
       # Fails the build on any finding from the configured rulesets.
       - name: Semgrep scan
         run: >-
-          semgrep ci
+          semgrep scan
           --config p/javascript
           --config p/typescript
           --config p/react
           --config p/nodejs
           --config p/owasp-top-ten
           --error
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-  sonarcloud:
-    name: SonarCloud
+  static-analysis:
+    name: Static analysis
     runs-on: ubuntu-latest
-    needs: [test, semgrep]
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -112,18 +106,16 @@ jobs:
 
       - run: npm ci
 
-      - name: Unit tests with coverage
-        run: npm run test:coverage
+      - name: Type check apps/web
+        run: npx tsc --noEmit
+        working-directory: apps/web
 
-      - name: SonarCloud scan
-        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
+      # Bug/quality/security rules (sonarjs + eslint-plugin-security) run through
+      # the workspace lint scripts; see the `test` job for the same command.
+      - name: Dependency audit (report)
+        run: npm audit || true
 
-      - name: Enforce the Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa # v1
-        timeout-minutes: 10
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
+      # The next@14 advisories are knowingly accepted: the only fix is a major
+      # upgrade to next@16. Everything else must stay below critical.
+      - name: Dependency audit (fails on critical)
+        run: npm audit --audit-level=critical

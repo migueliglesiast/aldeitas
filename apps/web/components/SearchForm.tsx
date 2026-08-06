@@ -18,11 +18,9 @@ export default function SearchForm() {
 
   // Clear search results when both dates are manually cleared
   useEffect(() => {
-    if (!checkIn && !checkOut) {
-      if (searchParams) {
-        setSearchParams(null);
-        setHotelAvailability(null);
-      }
+    if (!checkIn && !checkOut && searchParams) {
+      setSearchParams(null);
+      setHotelAvailability(null);
     }
   }, [checkIn, checkOut, searchParams, setSearchParams, setHotelAvailability]);
 

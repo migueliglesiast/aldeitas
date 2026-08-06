@@ -28,21 +28,26 @@ jobs:
 
       - run: npm ci
 
+      # The Prisma CLI only reads .env, not Next.js' .env.local.
       - name: Prepare environment
         working-directory: apps/web
         run: |
-          echo "DATABASE_URL=file:./dev.db" >> .env.local
+          echo "DATABASE_URL=file:./dev.db" >> .env
           echo "NEXT_BASE_PATH=/${{ github.event.repository.name }}" >> .env.local
           echo "NEXT_ASSET_PREFIX=/${{ github.event.repository.name }}" >> .env.local
 
       - name: Setup Prisma
         working-directory: apps/web
+        env:
+          DATABASE_URL: file:./dev.db
         run: |
           npx prisma db push
           npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
 
       - name: Build
         working-directory: apps/web
+        env:
+          DATABASE_URL: file:./dev.db
         run: npm run build
 
   build-yahua:
@@ -63,6 +68,13 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
         run: npm run build
+
+      # public/ is generated, so the availability JSON must be refreshed on every
+      # deploy. A flaky iCal fetch must not block publishing the site.
+      - name: Sync availability calendars
+        working-directory: apps/yahua-static
+        continue-on-error: true
+        run: npm run sync-calendars
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:

@@ -5,17 +5,38 @@ import { assertSafeUrl, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS } from "./safe-ur
 
 export type AvailabilityBlock = { start: Date; end: Date };
 
-export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBlock[]> {
-  const safeUrl = assertSafeUrl(icalUrl);
-  const data = await axios
-    .get(safeUrl.toString(), {
+const MAX_REDIRECTS = 3;
+
+/**
+ * Fetches a URL following redirects manually so that every hop is revalidated
+ * against the SSRF allowlist before it is requested.
+ */
+async function fetchSafely(rawUrl: string, headers?: Record<string, string>): Promise<string> {
+  let target = assertSafeUrl(rawUrl);
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const response = await axios.get(target.toString(), {
       timeout: REQUEST_TIMEOUT_MS,
       maxContentLength: MAX_RESPONSE_BYTES,
       maxBodyLength: MAX_RESPONSE_BYTES,
       maxRedirects: 0,
       responseType: "text",
-    })
-    .then((r) => r.data as string);
+      headers,
+      validateStatus: (status) => (status >= 200 && status < 300) || (status >= 300 && status < 400),
+    });
+
+    if (response.status < 300) return response.data as string;
+
+    const location = response.headers?.location as string | undefined;
+    if (!location) throw new Error("Redirect without a location header");
+    target = assertSafeUrl(new URL(location, target).toString());
+  }
+
+  throw new Error("Too many redirects");
+}
+
+export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBlock[]> {
+  const data = await fetchSafely(icalUrl);
   const events = ical.parseICS(data);
   const blocks: AvailabilityBlock[] = [];
   for (const key of Object.keys(events)) {
@@ -28,18 +49,10 @@ export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBloc
 }
 
 export async function scrapeListingImages(airbnbUrl: string): Promise<string[]> {
-  const safeUrl = assertSafeUrl(airbnbUrl);
-  const { data } = await axios.get(safeUrl.toString(), {
-    timeout: REQUEST_TIMEOUT_MS,
-    maxContentLength: MAX_RESPONSE_BYTES,
-    maxBodyLength: MAX_RESPONSE_BYTES,
-    maxRedirects: 0,
-    responseType: "text",
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    },
+  const data = await fetchSafely(airbnbUrl, {
+    "user-agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
   });
   const $ = cheerio.load(data);
   const urls = new Set<string>();

@@ -206,7 +206,11 @@ async function ensureConfig(suites) {
   await ensureDir(CONFIG_DIR);
   let current = {};
   if (fs.existsSync(CONFIG_PATH)) {
-    try { current = JSON.parse(await fsp.readFile(CONFIG_PATH, 'utf8')); } catch {}
+    try {
+      current = JSON.parse(await fsp.readFile(CONFIG_PATH, 'utf8'));
+    } catch {
+      current = {};
+    }
   }
   for (const suite of suites) {
     if (!current[suite.slug]) {

@@ -25,14 +25,16 @@ function isPrivateIpv4(hostname) {
   const octets = parts.map(Number);
   if (octets.some(o => !Number.isInteger(o) || o < 0 || o > 255)) return false;
   const [a, b] = octets;
-  if (a === 0 || a === 127) return true;
-  if (a === 10) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 100 && b >= 64 && b <= 127) return true;
-  if (a >= 224) return true;
-  return false;
+  return (
+    a === 0 ||
+    a === 127 ||
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    a >= 224
+  );
 }
 
 function isPrivateIpv6(hostname) {

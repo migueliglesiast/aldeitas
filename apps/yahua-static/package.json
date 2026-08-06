@@ -8,7 +8,8 @@
     "sync-calendars": "node sync-ical.js",
     "start": "npx serve public -l 5173",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint ."
   },
   "keywords": [
     "hotel",

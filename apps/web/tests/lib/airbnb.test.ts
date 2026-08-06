@@ -16,7 +16,7 @@ describe("fetchIcalBlocks", () => {
   });
 
   it("returns start/end pairs for VEVENT entries only", async () => {
-    axiosGet.mockResolvedValue({ data: "ICS" });
+    axiosGet.mockResolvedValue({ status: 200, data: "ICS", headers: {} });
     const start = new Date("2025-01-01");
     const end = new Date("2025-01-03");
     parseICS.mockReturnValue({
@@ -29,6 +29,41 @@ describe("fetchIcalBlocks", () => {
       ICAL_URL,
       expect.objectContaining({ timeout: expect.any(Number), maxRedirects: 0 })
     );
+  });
+
+  it("follows redirects while revalidating every hop", async () => {
+    axiosGet
+      .mockResolvedValueOnce({
+        status: 302,
+        headers: { location: "https://calendar.guesty.com/final.ics" },
+        data: "",
+      })
+      .mockResolvedValueOnce({ status: 200, headers: {}, data: "ICS" });
+    parseICS.mockReturnValue({});
+
+    await expect(fetchIcalBlocks(ICAL_URL)).resolves.toEqual([]);
+    expect(axiosGet).toHaveBeenLastCalledWith(
+      "https://calendar.guesty.com/final.ics",
+      expect.objectContaining({ maxRedirects: 0 })
+    );
+  });
+
+  it("rejects a redirect that leaves the allowlist", async () => {
+    axiosGet.mockResolvedValue({
+      status: 302,
+      headers: { location: "https://169.254.169.254/latest/meta-data" },
+      data: "",
+    });
+
+    await expect(fetchIcalBlocks(ICAL_URL)).rejects.toThrow(/not allowed/);
+  });
+
+  it("rejects a redirect without a location and redirect loops", async () => {
+    axiosGet.mockResolvedValueOnce({ status: 302, headers: {}, data: "" });
+    await expect(fetchIcalBlocks(ICAL_URL)).rejects.toThrow(/location header/);
+
+    axiosGet.mockResolvedValue({ status: 302, headers: { location: ICAL_URL }, data: "" });
+    await expect(fetchIcalBlocks(ICAL_URL)).rejects.toThrow(/Too many redirects/);
   });
 
   it("refuses unsafe URLs before making a request", async () => {
@@ -50,6 +85,8 @@ describe("scrapeListingImages", () => {
       (_, i) => `<img src="https://a0.muscache.com/p${i}.jpg?size=large" />`
     ).join("");
     axiosGet.mockResolvedValue({
+      status: 200,
+      headers: {},
       data: `<html><body>${many}<img data-src="https://a0.muscache.com/data.jpg" /><img src="https://other.com/x.jpg" /></body></html>`,
     });
 

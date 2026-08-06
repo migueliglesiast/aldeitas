@@ -147,7 +147,7 @@ describe("POST /api/book", () => {
     });
   });
 
-  it("ignores calendars that cannot be fetched", async () => {
+  it("fails closed with 503 when a calendar cannot be fetched", async () => {
     prismaMock.listing.findUnique.mockResolvedValue({
       ...LISTING,
       icalUrl: "https://www.airbnb.com/legacy.ics",
@@ -157,7 +157,8 @@ describe("POST /api/book", () => {
 
     const res = await POST(request(VALID_BODY));
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: "Availability cannot be verified" });
   });
 
   it("returns a generic 500 when something unexpected fails", async () => {

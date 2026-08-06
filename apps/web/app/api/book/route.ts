@@ -17,6 +17,14 @@ const bodySchema = z.object({
   phone: z.string().min(6),
 });
 
+function datesUnavailable() {
+  return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+}
+
+function unverifiableAvailability() {
+  return NextResponse.json({ error: "Availability cannot be verified" }, { status: 503 });
+}
+
 export async function POST(req: NextRequest) {
   if (process.env.NEXT_RUNTIME === 'edge' || process.env.NEXT_PHASE === 'phase-export') {
     return NextResponse.json({ error: 'Booking disabled in static export' }, { status: 405 });
@@ -51,9 +59,11 @@ async function handleBooking(req: NextRequest) {
       const conflict = blocks.some((b) =>
         isBefore(startDate, b.end) && isBefore(b.start, endDate)
       );
-      if (conflict) return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+      if (conflict) return datesUnavailable();
     } catch (error) {
+      // Fail closed: an unverifiable calendar must not allow a double booking.
       console.error(`[Book] Error checking legacy calendar for listing ${listingId}:`, error);
+      return unverifiableAvailability();
     }
   }
   
@@ -64,10 +74,11 @@ async function handleBooking(req: NextRequest) {
       const conflict = blocks.some((b) =>
         isBefore(startDate, b.end) && isBefore(b.start, endDate)
       );
-      if (conflict) return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+      if (conflict) return datesUnavailable();
     } catch (error) {
-      // Log error but continue checking other calendars
+      // Fail closed: an unverifiable calendar must not allow a double booking.
       console.error(`[Book] Error checking calendar ${calendarSource.name}:`, error);
+      return unverifiableAvailability();
     }
   }
 
@@ -82,7 +93,7 @@ async function handleBooking(req: NextRequest) {
       ],
     },
   });
-  if (localConflicts > 0) return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+  if (localConflicts > 0) return datesUnavailable();
 
   // dynamic pricing attempt
   const dynamic = await fetchDynamicPricing(listing.airbnbId, start, end);

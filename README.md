@@ -34,31 +34,38 @@ Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
 
 ### Semgrep
 
-CI runs `semgrep ci` with `p/javascript`, `p/typescript`, `p/react`, `p/nodejs` and
+CI runs `semgrep scan` with `p/javascript`, `p/typescript`, `p/react`, `p/nodejs` and
 `p/owasp-top-ten`, and fails on any finding. Run it locally with:
 
 ```bash
-semgrep ci --config p/javascript --config p/typescript --config p/react \
+semgrep scan --config p/javascript --config p/typescript --config p/react \
            --config p/nodejs --config p/owasp-top-ten --error
 ```
 
-### SonarCloud (free tier)
+### Static analysis (no account required)
 
-1. Sign in at <https://sonarcloud.io> with GitHub and import the `antoniolruiz/aldeitas` repository
-   into your SonarCloud organization (free for public repositories).
-2. Choose **With GitHub Actions** as the analysis method — SonarCloud will show a `SONAR_TOKEN`.
-3. In GitHub, add it under **Settings → Secrets and variables → Actions → New repository secret**
-   with the name `SONAR_TOKEN`.
-4. Confirm that `sonar.organization` and `sonar.projectKey` in [`sonar-project.properties`](./sonar-project.properties)
-   match the values SonarCloud shows for the project.
-5. Disable **Automatic Analysis** in *Administration → Analysis Method* so the CI-based analysis is used.
-6. First scan over the whole codebase: in *Administration → New Code*, pick a baseline
-   (e.g. "Previous version" with a version older than the current one, or a specific analysis date)
-   so the **Sonar way** Quality Gate is evaluated over **Overall Code** for this first pass. After the
-   baseline scan is green you can switch New Code back to "Previous version" for incremental analysis.
+Instead of SonarCloud (which needs a SonarQube Cloud account), the quality gate is enforced with
+fully local, free tooling:
 
-The CI job fails when the Quality Gate fails. The target is rating **A** in Reliability, Security and
-Maintainability, and **0 vulnerabilities of medium severity or higher**.
+- **SonarJS rules** through [`eslint-plugin-sonarjs`](https://github.com/SonarSource/eslint-plugin-sonarjs) —
+  the same bug/code-smell rules the SonarQube JS/TS analyzer ships, run by ESLint.
+- **[`eslint-plugin-security`](https://github.com/eslint-community/eslint-plugin-security)** for
+  injection/unsafe-API detection.
+- **`tsc --noEmit`** as a type-level gate for `apps/web`.
+- **`npm audit`** for dependency advisories.
+
+```bash
+npm run lint                      # sonarjs + security + next/core-web-vitals
+npm --workspace apps/web exec tsc -- --noEmit
+npm audit
+```
+
+CI fails on any ESLint error, any type error, any Semgrep finding and any **critical** advisory.
+The `next@14` advisories are knowingly accepted: the only published fix is a major upgrade to
+`next@16`.
+
+If a SonarQube Cloud account becomes available later, this repository can be imported there without
+code changes — both apps already emit `coverage/lcov.info`.
 
 ## Continuous integration
 
@@ -67,7 +74,7 @@ Maintainability, and **0 vulnerabilities of medium severity or higher**.
 1. `test` — `npm ci`, `npm run lint`, `npm run test:coverage`, uploads both `lcov.info` files.
 2. `e2e` — Playwright against a freshly seeded SQLite database.
 3. `semgrep` — the rulesets above, failing on any finding.
-4. `sonarcloud` — regenerates coverage, runs the scanner and enforces the Quality Gate.
+4. `static-analysis` — type check plus dependency audit (the SonarJS/security ESLint rules run in `test`).
 
 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) builds and publishes the
 static site.

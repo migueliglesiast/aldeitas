@@ -23,14 +23,16 @@ function isPrivateIpv4(hostname: string): boolean {
   const octets = parts.map((p) => Number(p));
   if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return false;
   const [a, b] = octets;
-  if (a === 0 || a === 127) return true; // this-network, loopback
-  if (a === 10) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 169 && b === 254) return true; // link-local incl. 169.254.169.254
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-  if (a >= 224) return true; // multicast / reserved
-  return false;
+  return (
+    a === 0 || // this-network
+    a === 127 || // loopback
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) || // link-local incl. 169.254.169.254
+    (a === 100 && b >= 64 && b <= 127) || // CGNAT
+    a >= 224 // multicast / reserved
+  );
 }
 
 function isPrivateIpv6(hostname: string): boolean {
