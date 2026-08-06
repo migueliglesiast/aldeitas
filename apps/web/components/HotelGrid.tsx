@@ -96,15 +96,8 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
     if (expandedHotelId) {
       const expandedHotel = hotels.find(h => h.id === expandedHotelId);
       if (expandedHotel) {
-        const slug = slugify(expandedHotel.name);
-        const candidates = [
-          `/images/hotels/${slug}/cover.jpg`,
-          `/images/hotels/${slug}/cover.jpeg`,
-          `/images/hotels/${slug}/cover.png`,
-          `/images/hotels/${slug}/cover.webp`,
-        ];
-        // Use the first candidate as the blur source
-        setSelectedHotelImage(candidates[0]);
+        // Resolve the cover the same way as the card and gallery
+        setSelectedHotelImage(getHotelImages(expandedHotel)[0]);
       }
     } else {
       setSelectedHotelImage(null);
