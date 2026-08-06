@@ -8,7 +8,7 @@
     "start": "next start",
     "export": "next build",
     "lint": "eslint .",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate --schema ${PRISMA_SCHEMA:-prisma/schema.prisma}",
     "db:push": "prisma db push",
     "db:push:postgres": "prisma db push --schema prisma/schema.postgres.prisma",
     "generate:postgres": "prisma generate --schema prisma/schema.postgres.prisma",
