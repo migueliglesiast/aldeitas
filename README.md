@@ -42,8 +42,8 @@ Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
 - **Accessibility**: axe-core checks (via `jest-axe`) run as part of the unit suite
   (`apps/web/tests/a11y`), asserting the key forms and auth pages render without axe violations.
 - **E2E**: Playwright (`apps/web/playwright.config.ts`) across **chromium, firefox and webkit**
-  (`npm run e2e -- --project=chromium` to run a single browser). The web server step resets a
-  dedicated SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs
+  (to run a single browser, run `npm run e2e -- --project=chromium` from `apps/web`). The web
+  server step resets a dedicated SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs
   `next build && next start`.
   Stripe is intentionally unconfigured so bookings stop at `PENDING` instead of redirecting to Checkout.
 
