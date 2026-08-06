@@ -1,13 +1,14 @@
-// Default schema: SQLite for local development, tests, and e2e
-// (e2e uses DATABASE_URL=file:./e2e.db).
-// Production uses PostgreSQL via prisma/schema.postgres.prisma with a
-// postgres DATABASE_URL — keep both schema files' models in sync.
+// Production schema: PostgreSQL, driven by a postgres DATABASE_URL
+// (e.g. postgresql://user:pass@host:5432/db). Use with --schema, e.g.
+// `npm run db:push:postgres` / `npm run generate:postgres`.
+// SQLite (prisma/schema.prisma) remains the default for dev/test/e2e —
+// keep both schema files' models in sync.
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
