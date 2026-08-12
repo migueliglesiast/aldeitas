@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; }
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.map-flow-gradient {
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0) 20%,
+    rgba(255, 255, 255, 0.05) 35%,
+    rgba(255, 255, 255, 0.12) 45%,
+    rgba(255, 255, 255, 0.25) 55%,
+    rgba(255, 255, 255, 0.45) 65%,
+    rgba(255, 255, 255, 0.65) 75%,
+    rgba(255, 255, 255, 0.82) 85%,
+    rgba(255, 255, 255, 0.95) 95%,
+    rgba(255, 255, 255, 1) 100%
+  );
+  mask-image: linear-gradient(to right, black 0%, black 50%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 0%, black 50%, transparent 100%);
+}
+
+/* Date input styling - completely hidden, overlay handles display */
