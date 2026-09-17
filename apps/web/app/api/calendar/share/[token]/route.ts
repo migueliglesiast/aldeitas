@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
-  const hotelId = await getHotelIdForShareToken(params.token);
+  const { token } = await params;
+  const hotelId = await getHotelIdForShareToken(token);
   if (!hotelId) {
     return NextResponse.json({ error: "Calendar not found" }, { status: 404 });
   }

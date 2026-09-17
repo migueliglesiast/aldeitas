@@ -135,6 +135,28 @@ function buildRowSegments(
   return segments;
 }
 
+/**
+ * Hotel-style stay geometry: bar starts at midday on check-in and ends at
+ * midday on checkout (overflowing half a column into the checkout cell).
+ * Clipped stays at the window edge keep a flush start/end instead.
+ */
+function spanBarGeometry(
+  span: CalendarSpan,
+  nightCount: number,
+  dayColWidth: number,
+  visibleDays: string[]
+) {
+  const half = dayColWidth / 2;
+  const startsAtMidday = span.rangeStartDay === span.startDay;
+  const endsAtMidday = visibleDays.includes(span.checkoutDay);
+  const marginLeft = startsAtMidday ? half : 0;
+  const width =
+    nightCount * dayColWidth -
+    (startsAtMidday ? half : 0) +
+    (endsAtMidday ? half : 0);
+  return { marginLeft, width };
+}
+
 export default function HotelMultiCalendar({
   hotelId,
   readOnly = false,
@@ -737,15 +759,21 @@ export default function HotelMultiCalendar({
                       segment.days.includes(selected.day);
                     const title = spanTitle(span);
                     const { name, countText } = spanGuestLabel(span, phoneShare);
-                    const spanWidthPx = segment.days.length * dayColWidth;
+                    const cellWidthPx = segment.days.length * dayColWidth;
+                    const { marginLeft, width: barWidthPx } = spanBarGeometry(
+                      span,
+                      segment.days.length,
+                      dayColWidth,
+                      data.days
+                    );
                     return (
                       <td
                         key={`${room.id}-${span.id}`}
                         colSpan={segment.days.length}
-                        className="border-b border-r p-px align-middle sm:p-0.5"
+                        className="relative z-[1] overflow-visible border-b border-r p-0 align-middle"
                         style={{
-                          width: spanWidthPx,
-                          maxWidth: spanWidthPx,
+                          width: cellWidthPx,
+                          maxWidth: cellWidthPx,
                         }}
                       >
                         <button
@@ -760,7 +788,7 @@ export default function HotelMultiCalendar({
                             });
                           }}
                           className={[
-                            "flex w-full min-w-0 max-w-full items-center gap-0.5 overflow-hidden rounded-full text-left font-medium shadow-sm transition sm:gap-1",
+                            "relative z-[2] flex min-w-0 max-w-none items-center gap-0.5 overflow-hidden rounded-full text-left font-medium shadow-sm transition sm:gap-1",
                             phoneShare
                               ? "h-8 px-1 text-[9px] leading-tight"
                               : "h-12 px-2 text-[11px]",
@@ -768,6 +796,10 @@ export default function HotelMultiCalendar({
                             isSelected ? "ring-2 ring-[#00a19c] ring-offset-1" : "",
                             "cursor-pointer hover:brightness-95",
                           ].join(" ")}
+                          style={{
+                            width: barWidthPx,
+                            marginLeft,
+                          }}
                           title={title}
                         >
                           <span className="min-w-0 flex-1 truncate">{name}</span>
@@ -787,7 +819,7 @@ export default function HotelMultiCalendar({
                   return (
                     <td
                       key={`${room.id}-${day}`}
-                      className="border-b border-r p-0"
+                      className="relative z-0 border-b border-r p-0"
                       style={{
                         width: dayColWidth,
                         minWidth: dayColWidth,

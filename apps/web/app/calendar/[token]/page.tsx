@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function SharedHotelCalendarPage({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }) {
-  const hotelId = await getHotelIdForShareToken(params.token);
+  const { token } = await params;
+  const hotelId = await getHotelIdForShareToken(token);
   if (!hotelId) notFound();
 
   const hotel = await prisma.hotel.findUnique({
@@ -32,7 +33,7 @@ export default async function SharedHotelCalendarPage({
           Read-only · next 3 months · swipe sideways to see more dates
         </p>
       </div>
-      <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={params.token} />
+      <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={token} />
     </div>
   );
 }
