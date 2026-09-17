@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
+import { linkUserToHotel } from "@/lib/hotel-manager-access";
+import { slugifyHotelName } from "@/lib/hotel-cover";
 import { z } from "zod";
 import { formatZodError } from "@/lib/zod-error";
 
@@ -52,6 +54,20 @@ export async function POST(req: Request) {
 
     const passwordHash = await hashPassword(body.password);
 
+    const existingHotel = await prisma.hotel.findFirst({
+      where: { name: body.hotel_name },
+      select: { id: true },
+    });
+    if (existingHotel) {
+      return NextResponse.json(
+        {
+          error:
+            "This hotel is already registered. Ask an administrator to grant you access instead of signing up again.",
+        },
+        { status: 409 }
+      );
+    }
+
     const user = await prisma.user.create({
       data: {
         username: body.username,
@@ -62,28 +78,23 @@ export async function POST(req: Request) {
         shortDescription: body.short_description ?? null,
         publicAmenities: body.public_ammenities ?? null,
         passwordHash,
-        units: body.units?.length
-          ? {
-              create: body.units.map((u) => ({
-                nameOfUnit: u.name_of_unit,
-                numOfGuests: u.num_of_guests,
-                description: u.description,
-                privateAmenities: u.private_ammenities ?? null,
-                numberOfBeds: u.number_of_beds,
-                numberOfBathrooms: u.number_of_bathrooms,
-                costNight: u.cost_night,
-                icalUrl: u.calendar ?? null,
-              })),
-            }
-          : undefined,
       },
       select: { id: true, username: true, email: true, hotelName: true },
     });
 
     // Create a Hotel for the user and corresponding Listings for units
+    const hotelName = user.hotelName || `${user.username}'s Hotel`;
+    const baseSlug = slugifyHotelName(hotelName);
+    let slug = baseSlug;
+    let suffix = 1;
+    while (await prisma.hotel.findUnique({ where: { slug }, select: { id: true } })) {
+      slug = `${baseSlug}-${suffix++}`;
+    }
+
     const hotel = await prisma.hotel.create({
       data: {
-        name: user.hotelName || `${user.username}'s Hotel`,
+        name: hotelName,
+        slug,
         description: "",
         location: "",
         ownerId: user.id,
@@ -95,13 +106,15 @@ export async function POST(req: Request) {
                 icalUrl: u.calendar ?? null,
                 title: u.name_of_unit,
                 nightlyBasePrice: Math.round((u.cost_night || 0) * 100),
-                baseCurrency: "USD",
+                baseCurrency: "MXN",
               })),
             }
           : undefined,
       },
       select: { id: true },
     });
+
+    await linkUserToHotel(prisma, user.id, hotel.id);
 
     await createSession(user.id);
     return NextResponse.json({ user, hotelId: hotel.id }, { status: 201 });
