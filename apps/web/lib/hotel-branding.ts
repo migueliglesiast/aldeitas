@@ -189,3 +189,12 @@ export function paletteToCssVars(palette: HotelBrandPalette) {
     "--hotel-brand-ring": palette.ring,
   } as CSSProperties;
 }
+
+/** Soft container wash from a brand palette (search room cards, etc.). */
+export function paletteToCardStyle(palette: HotelBrandPalette): CSSProperties {
+  return {
+    ...paletteToCssVars(palette),
+    borderColor: palette.ring,
+    background: `linear-gradient(180deg, #ffffff 0%, #ffffff 62%, ${palette.muted} 100%)`,
+  };
+}

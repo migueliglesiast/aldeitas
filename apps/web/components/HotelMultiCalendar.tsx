@@ -157,6 +157,26 @@ function spanBarGeometry(
   return { marginLeft, width };
 }
 
+/** Spanish 3-letter weekday labels for the shareable calendar (Sun→Sat). */
+const ES_WEEKDAYS = ["DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB"] as const;
+
+function spanishDayParts(day: string) {
+  const date = new Date(`${day}T00:00:00`);
+  return {
+    weekday: ES_WEEKDAYS[date.getDay()],
+    dayNum: date.getDate(),
+  };
+}
+
+/** Local calendar date as YYYY-MM-DD (matches day keys; avoids UTC shift). */
+function localTodayKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function HotelMultiCalendar({
   hotelId,
   readOnly = false,
@@ -177,10 +197,23 @@ export default function HotelMultiCalendar({
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [busy, setBusy] = useState(false);
   const compact = useCompactCalendarLayout();
+  const isShareView = Boolean(shareToken);
   // Share / phone: tighter columns so more nights fit on screen.
   const phoneShare = Boolean(shareToken || readOnly) && compact;
   const roomColWidth = phoneShare ? 76 : compact ? 100 : 180;
-  const dayColWidth = phoneShare ? 32 : compact ? 40 : 56;
+  // Share needs a touch more width for Spanish weekday + day number.
+  const dayColWidth = isShareView
+    ? compact
+      ? 36
+      : 44
+    : phoneShare
+      ? 32
+      : compact
+        ? 40
+        : 56;
+  const dayCellHeight =
+    isShareView || phoneShare ? (compact ? 32 : 40) : 56;
+  const todayKey = useMemo(() => localTodayKey(), []);
 
   const loadCalendar = useCallback(async () => {
     setLoading(true);
@@ -650,7 +683,7 @@ export default function HotelMultiCalendar({
           <thead>
             <tr>
               <th
-                className="sticky left-0 z-20 border-b border-r bg-gray-50 px-1.5 py-1.5 text-left sm:px-3 sm:py-2"
+                className="sticky left-0 z-20 border-b border-r border-gray-200 bg-gray-50 px-1.5 py-1.5 text-left sm:px-3 sm:py-2"
                 style={{
                   width: roomColWidth,
                   minWidth: roomColWidth,
@@ -663,7 +696,7 @@ export default function HotelMultiCalendar({
                 <th
                   key={group.label}
                   colSpan={group.days.length}
-                  className="border-b bg-gray-50 px-0.5 py-1.5 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:py-2 sm:text-xs"
+                  className="border-b border-gray-200 bg-gray-50 px-0.5 py-1.5 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:py-2 sm:text-xs"
                 >
                   {phoneShare
                     ? group.label.replace(/(\w+)\s+(\d{4})/, (_, m, y) => `${m.slice(0, 3)} ${y}`)
@@ -673,28 +706,81 @@ export default function HotelMultiCalendar({
             </tr>
             <tr>
               <th
-                className="sticky left-0 z-20 border-b border-r bg-gray-50 px-1.5 py-1 text-left text-[10px] text-gray-500 sm:px-3 sm:py-2 sm:text-xs"
+                className="sticky left-0 z-20 border-b border-r border-gray-200 bg-gray-50 px-1.5 py-1 text-left text-[10px] text-gray-500 sm:px-3 sm:py-2 sm:text-xs"
                 style={{
                   width: roomColWidth,
                   minWidth: roomColWidth,
                   maxWidth: roomColWidth,
                 }}
               >
-                {phoneShare ? "" : "Base price"}
+                {isShareView || phoneShare ? "" : "Base price"}
               </th>
-              {data.days.map((day) => (
-                <th
-                  key={day}
-                  className="border-b px-0 py-1 text-center font-normal text-gray-500 sm:py-2"
-                  style={{
-                    width: dayColWidth,
-                    minWidth: dayColWidth,
-                    maxWidth: dayColWidth,
-                  }}
-                >
-                  {new Date(`${day}T00:00:00`).getDate()}
-                </th>
-              ))}
+              {data.days.map((day) => {
+                const isToday = day === todayKey;
+                if (isShareView) {
+                  const { weekday, dayNum } = spanishDayParts(day);
+                  return (
+                    <th
+                      key={day}
+                      className={[
+                        "border-b border-r border-gray-200 px-0 py-1.5 text-center sm:py-2",
+                        isToday ? "bg-[#f3faf9]" : "",
+                      ].join(" ")}
+                      style={{
+                        width: dayColWidth,
+                        minWidth: dayColWidth,
+                        maxWidth: dayColWidth,
+                      }}
+                    >
+                      <div className="flex flex-col items-center gap-1 leading-none">
+                        <span
+                          className={[
+                            "text-[8px] font-medium tracking-[0.14em] sm:text-[9px]",
+                            isToday ? "text-[#0f766e]" : "text-gray-400",
+                          ].join(" ")}
+                        >
+                          {weekday}
+                        </span>
+                        <span
+                          className={[
+                            "inline-flex h-5 min-w-5 items-center justify-center tabular-nums sm:h-6 sm:min-w-6",
+                            isToday
+                              ? "rounded-full bg-[#0f766e] px-1 text-[10px] font-semibold text-white sm:text-[11px]"
+                              : "text-[11px] font-semibold text-gray-800 sm:text-xs",
+                          ].join(" ")}
+                        >
+                          {dayNum}
+                        </span>
+                      </div>
+                    </th>
+                  );
+                }
+                return (
+                  <th
+                    key={day}
+                    className={[
+                      "border-b border-r border-gray-200 px-0 py-1 text-center sm:py-2",
+                      isToday ? "bg-[#f3faf9]" : "",
+                    ].join(" ")}
+                    style={{
+                      width: dayColWidth,
+                      minWidth: dayColWidth,
+                      maxWidth: dayColWidth,
+                    }}
+                  >
+                    <span
+                      className={[
+                        "inline-flex h-6 min-w-6 items-center justify-center tabular-nums",
+                        isToday
+                          ? "rounded-full bg-[#0f766e] px-1 text-[11px] font-semibold text-white"
+                          : "font-normal text-gray-500",
+                      ].join(" ")}
+                    >
+                      {new Date(`${day}T00:00:00`).getDate()}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -707,7 +793,7 @@ export default function HotelMultiCalendar({
               return (
               <tr key={room.id}>
                 <td
-                  className="sticky left-0 z-10 border-r bg-gray-50 px-1.5 py-2 align-top sm:px-3 sm:py-3"
+                  className="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-1.5 py-2 align-middle sm:px-3 sm:py-3"
                   style={{
                     width: roomColWidth,
                     minWidth: roomColWidth,
@@ -743,7 +829,7 @@ export default function HotelMultiCalendar({
                         Save
                       </button>
                     </div>
-                  ) : phoneShare ? null : (
+                  ) : isShareView || phoneShare ? null : (
                     <div className="mt-1 text-gray-600">
                       {formatMoneyShort(room.nightlyBasePrice, room.baseCurrency)}
                     </div>
@@ -770,10 +856,11 @@ export default function HotelMultiCalendar({
                       <td
                         key={`${room.id}-${span.id}`}
                         colSpan={segment.days.length}
-                        className="relative z-[1] overflow-visible border-b border-r p-0 align-middle"
+                        className="relative z-[1] overflow-visible border-b border-r border-gray-200 p-0 align-middle"
                         style={{
                           width: cellWidthPx,
                           maxWidth: cellWidthPx,
+                          height: dayCellHeight,
                         }}
                       >
                         <button
@@ -788,17 +875,18 @@ export default function HotelMultiCalendar({
                             });
                           }}
                           className={[
-                            "relative z-[2] flex min-w-0 max-w-none items-center gap-0.5 overflow-hidden rounded-full text-left font-medium shadow-sm transition sm:gap-1",
-                            phoneShare
-                              ? "h-8 px-1 text-[9px] leading-tight"
-                              : "h-12 px-2 text-[11px]",
+                            "relative z-[2] box-border flex min-w-0 max-w-none items-center gap-0.5 overflow-hidden rounded-full text-left font-medium shadow-sm transition sm:gap-1",
+                            phoneShare || isShareView
+                              ? "px-1 text-[9px] leading-tight sm:text-[10px]"
+                              : "px-2 text-[11px]",
                             spanBarClass(span),
-                            isSelected ? "ring-2 ring-[#00a19c] ring-offset-1" : "",
+                            isSelected ? "ring-2 ring-inset ring-[#00a19c]" : "",
                             "cursor-pointer hover:brightness-95",
                           ].join(" ")}
                           style={{
                             width: barWidthPx,
                             marginLeft,
+                            height: Math.max(dayCellHeight - 8, 24),
                           }}
                           title={title}
                         >
@@ -816,14 +904,19 @@ export default function HotelMultiCalendar({
                   const { day, cell } = segment;
                   const isSelected =
                     selected?.roomId === room.id && selected?.day === day;
+                  const isToday = day === todayKey;
                   return (
                     <td
                       key={`${room.id}-${day}`}
-                      className="relative z-0 border-b border-r p-0"
+                      className={[
+                        "relative z-0 border-b border-r border-gray-200 p-0",
+                        isToday ? "bg-[#f3faf9]" : "",
+                      ].join(" ")}
                       style={{
                         width: dayColWidth,
                         minWidth: dayColWidth,
                         maxWidth: dayColWidth,
+                        height: dayCellHeight,
                       }}
                     >
                       <button
@@ -845,28 +938,18 @@ export default function HotelMultiCalendar({
                           });
                         }}
                         className={[
-                          "flex flex-col items-center justify-center border transition",
-                          phoneShare ? "h-8 w-full" : "h-14 w-14",
-                          cellClass(cell),
-                          isSelected ? "ring-2 ring-[#00a19c]" : "",
+                          "box-border flex h-full w-full flex-col items-center justify-center transition",
+                          isToday && cell.status === "available"
+                            ? "bg-[#e8f6f5] text-slate-700 hover:bg-[#d9f0ee]"
+                            : cellClass(cell),
+                          isSelected ? "ring-2 ring-inset ring-[#00a19c]" : "",
                           readOnly ? "cursor-default" : "cursor-pointer",
                         ].join(" ")}
-                        style={
-                          phoneShare
-                            ? { width: dayColWidth, height: 32 }
-                            : undefined
-                        }
                         title={cell.label}
                       >
-                        {!phoneShare || cell.status === "available" ? (
-                          <span
-                            className={
-                              phoneShare ? "text-[7px] leading-none text-gray-500" : "text-[10px]"
-                            }
-                          >
-                            {phoneShare
-                              ? ""
-                              : formatMoneyShort(cell.priceCents, room.baseCurrency)}
+                        {!isShareView && !phoneShare ? (
+                          <span className="text-[10px]">
+                            {formatMoneyShort(cell.priceCents, room.baseCurrency)}
                           </span>
                         ) : null}
                       </button>
@@ -895,7 +978,7 @@ export default function HotelMultiCalendar({
                   : selected.cell.guestName || "Guest"}
                 {selected.cell.guestPhone ? ` · ${selected.cell.guestPhone}` : ""}
                 {selected.cell.guestEmail ? ` · ${selected.cell.guestEmail}` : ""}
-                {selected.span?.payoutCents != null ? (
+                {!isShareView && selected.span?.payoutCents != null ? (
                   <div className="mt-1 text-gray-600">
                     Payout:{" "}
                     {(selected.span.payoutCents / 100).toLocaleString(undefined, {

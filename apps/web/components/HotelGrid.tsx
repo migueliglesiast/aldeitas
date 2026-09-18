@@ -3,6 +3,7 @@ import { useMemo, useState, useRef, useEffect, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useHotel } from "@/lib/hotel-context";
+import SearchRoomCard from "./SearchRoomCard";
 
 type ImageType = { id: string; url: string; position: number };
 type Listing = { id: string; title: string; nightlyBasePrice: number; baseCurrency: string; images: ImageType[] };
@@ -13,6 +14,7 @@ type Hotel = {
   location: string;
   googleMapsUrl?: string | null;
   coverImageUrl?: string | null;
+  logoImageUrl?: string | null;
   listings: Listing[]
 };
 
@@ -57,27 +59,59 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
   const [expandedHotelId, setExpandedHotelId] = useState<string | null>(null);
   const expandedRef = useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
-  const { setSelectedHotelImage, searchParams, hotelAvailability } = useHotel();
+  const { setSelectedHotelImage, searchParams, availableListingIds } = useHotel();
+  const showingRooms = Boolean(searchParams && availableListingIds);
+
+  const availableIdSet = useMemo(
+    () => new Set(availableListingIds ?? []),
+    [availableListingIds]
+  );
+
+  const availableRooms = useMemo(() => {
+    if (!showingRooms) return [];
+    const rooms: Array<
+      Listing & {
+        hotelName: string;
+        hotelLocation: string;
+        hotelCoverImageUrl?: string | null;
+        hotelLogoImageUrl?: string | null;
+      }
+    > = [];
+    for (const h of hotels) {
+      for (const l of h.listings) {
+        if (!availableIdSet.has(l.id)) continue;
+        rooms.push({
+          ...l,
+          hotelName: h.name,
+          hotelLocation: h.location,
+          hotelCoverImageUrl: h.coverImageUrl,
+          hotelLogoImageUrl: h.logoImageUrl,
+        });
+      }
+    }
+    if (!query) return rooms;
+    const q = query.toLowerCase();
+    return rooms.filter((r) =>
+      `${r.title} ${r.hotelName} ${r.hotelLocation}`.toLowerCase().includes(q)
+    );
+  }, [hotels, showingRooms, availableIdSet, query]);
 
   const filtered = useMemo(() => {
     let result = hotels;
 
-    // Filter by search query if present
     if (query) {
       const q = query.toLowerCase();
       result = result.filter((h) => `${h.name} ${h.location}`.toLowerCase().includes(q));
     }
 
-    // Filter by availability if search params exist
-    if (searchParams && hotelAvailability) {
-      result = result.filter((h) => {
-        const availableCount = hotelAvailability[h.id] || 0;
-        return availableCount > 0; // Only show hotels with at least one available room
-      });
+    if (searchParams && availableListingIds) {
+      result = result.filter((h) =>
+        h.listings.some((listing) => availableIdSet.has(listing.id))
+      );
     }
 
     return result;
-  }, [hotels, query, searchParams, hotelAvailability]);
+  }, [hotels, query, searchParams, availableListingIds, availableIdSet]);
 
   // Keep hotels in original order to prevent remounting - use CSS order instead
   const organizedHotels = useMemo(() => {
@@ -102,7 +136,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
     } else {
       setSelectedHotelImage(null);
     }
-  }, [expandedHotelId, hotels]);
+  }, [expandedHotelId, hotels, setSelectedHotelImage]);
 
   // Scroll to expanded hotel with smooth animation after a brief delay
   useEffect(() => {
@@ -132,24 +166,58 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by name or location"
-          aria-label="Filter hotels by name or location"
+          placeholder={
+            showingRooms
+              ? "Filter by room, hotel, or location"
+              : "Filter by name or location"
+          }
+          aria-label={
+            showingRooms
+              ? "Filter rooms by name, hotel, or location"
+              : "Filter hotels by name or location"
+          }
           className="w-full max-w-xs rounded-full border border-line px-4 py-2 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
         />
-        <button
-          type="button"
-          onClick={() => setShowMap((v) => !v)}
-          aria-pressed={showMap}
-          className="inline-flex items-center gap-2 self-start rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03] sm:self-auto"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
-          {showMap ? "Hide map" : "Show map"}
-        </button>
+        {!showingRooms ? (
+          <button
+            type="button"
+            onClick={() => setShowMap((v) => !v)}
+            aria-pressed={showMap}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03] sm:self-auto"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            {showMap ? "Hide map" : "Show map"}
+          </button>
+        ) : (
+          <p className="text-sm text-muted">
+            {availableRooms.length} room{availableRooms.length === 1 ? "" : "s"} available
+          </p>
+        )}
       </div>
 
-      {showMap ? (
+      {showingRooms ? (
+        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+          {availableRooms.map((room) => (
+            <SearchRoomCard
+              key={room.id}
+              id={room.id}
+              title={room.title}
+              nightlyBasePrice={room.nightlyBasePrice}
+              images={room.images}
+              hotelName={room.hotelName}
+              hotelCoverImageUrl={room.hotelCoverImageUrl}
+              hotelLogoImageUrl={room.hotelLogoImageUrl}
+            />
+          ))}
+          {availableRooms.length === 0 && (
+            <div className="col-span-full py-8 text-center text-muted">
+              No rooms available for these dates. Try adjusting your search.
+            </div>
+          )}
+        </div>
+      ) : showMap ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="space-y-3">
             {mapHotels.map((h) => (
@@ -206,7 +274,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
               isExpanded={expandedHotelId === h.id}
               isAnimating={isAnimating}
               expandedRef={expandedRef}
-              availableRooms={searchParams && hotelAvailability ? (hotelAvailability[h.id] || 0) : null}
+              availableRooms={null}
               setExpandedHotelId={setExpandedHotelId}
               setSelectedHotelImage={setSelectedHotelImage}
             />

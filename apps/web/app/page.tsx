@@ -35,6 +35,7 @@ export default async function HomePage() {
     location: h.location,
     googleMapsUrl: h.googleMapsUrl ?? null,
     coverImageUrl: h.coverImageUrl ?? null,
+    logoImageUrl: h.logoImageUrl ?? null,
     createdAt: h.createdAt,
     updatedAt: h.updatedAt,
     listings: h.listings,

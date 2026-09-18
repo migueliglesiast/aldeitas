@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getPortalOrigin, isPortalHost, normalizeHost } from "@/lib/storefront-host";
+import { getPortalOrigin, isPortalHost, normalizeHost } from "./lib/storefront-host";
 
 export function middleware(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));

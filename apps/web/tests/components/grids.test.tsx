@@ -24,12 +24,12 @@ const LISTINGS = [
 ];
 
 function Search({ checkIn = "2030-01-01", checkOut = "2030-01-03" }) {
-  const { setSearchParams, setHotelAvailability } = useHotel();
+  const { setSearchParams, setAvailableListingIds } = useHotel();
   return (
     <button
       onClick={() => {
         setSearchParams({ checkIn, checkOut, guests: 1, pets: 0 });
-        setHotelAvailability({ h1: 1 });
+        setAvailableListingIds(["l1"]);
       }}
     >
       search
@@ -170,14 +170,17 @@ describe("HotelGrid", () => {
     expect(screen.getAllByAltText("Aldeitas logo").length).toBeGreaterThan(0);
   });
 
-  it("shows only hotels with availability once a search runs", async () => {
+  it("shows available rooms instead of hotels once a search runs", async () => {
     renderHotels();
 
     await userEvent.click(screen.getByRole("button", { name: "search" }));
 
-    expect(screen.getByText("Hotel Uno")).toBeInTheDocument();
+    expect(screen.getByText("Suite Mar")).toBeInTheDocument();
+    expect(screen.getAllByText("Hotel Uno").length).toBeGreaterThan(0);
     expect(screen.queryByText("Hotel Dos")).toBeNull();
-    expect(screen.getByText(/room.? available/)).toBeInTheDocument();
+    expect(screen.queryByText("Suite Sol")).toBeNull();
+    expect(screen.getByText(/1 room available/)).toBeInTheDocument();
+    expect(screen.getByText("$100")).toBeInTheDocument();
   });
 
   it("filters hotels by name or location and shows an empty state", async () => {

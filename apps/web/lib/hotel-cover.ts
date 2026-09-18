@@ -56,3 +56,26 @@ export function getHotelCoverCandidates(hotel: HotelCoverSource): string[] {
 export function getHotelCoverImageUrl(hotel: HotelCoverSource): string | null {
   return getHotelCoverCandidates(hotel)[0] ?? null;
 }
+
+/** Prefer DB logo, then static `/images/hotels/<slug>/logo.*`, then cover as mark. */
+export function getHotelLogoCandidates(hotel: HotelCoverSource): string[] {
+  const slug = slugifyHotelName(hotel.name);
+  const urls: string[] = [];
+
+  if (hotel.logoImageUrl) urls.push(hotel.logoImageUrl);
+
+  for (const ext of ["png", "jpg", "jpeg", "webp", "svg"] as const) {
+    const path = `/images/hotels/${slug}/logo.${ext}`;
+    if (!urls.includes(path)) urls.push(path);
+  }
+
+  if (hotel.coverImageUrl && !urls.includes(hotel.coverImageUrl)) {
+    urls.push(hotel.coverImageUrl);
+  }
+
+  for (const path of staticHotelCoverPaths(slug)) {
+    if (!urls.includes(path)) urls.push(path);
+  }
+
+  return urls;
+}

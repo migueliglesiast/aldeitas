@@ -70,7 +70,7 @@ describe("POST /api/search/availability", () => {
 
     const res = await searchAvailability(post(RANGE));
 
-    await expect(res.json()).resolves.toEqual({ h1: 1 });
+    await expect(res.json()).resolves.toEqual({ listingIds: ["free"] });
   });
 
   it("treats blocked and unreachable calendars as unavailable", async () => {
@@ -99,7 +99,7 @@ describe("POST /api/search/availability", () => {
 
     const res = await searchAvailability(post(RANGE));
 
-    await expect(res.json()).resolves.toEqual({});
+    await expect(res.json()).resolves.toEqual({ listingIds: [] });
   });
 
   it("returns a generic 500 on malformed input or failures", async () => {

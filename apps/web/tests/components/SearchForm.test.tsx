@@ -50,7 +50,10 @@ describe("SearchForm", () => {
   });
 
   it("posts the date range and stores the availability response", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ h1: 2 }) });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ listingIds: ["l1", "l2"] }),
+    });
     vi.stubGlobal("fetch", fetchMock);
     renderForm();
     const [checkIn, checkOut] = dateInputs();

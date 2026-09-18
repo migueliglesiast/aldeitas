@@ -2,8 +2,21 @@
 import { useState, useEffect, useRef } from "react";
 import { useHotel } from "@/lib/hotel-context";
 
+function localDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return localDateKey(date);
+}
+
 export default function SearchForm() {
-  const { searchParams, setSearchParams, setHotelAvailability } = useHotel();
+  const { searchParams, setSearchParams, setAvailableListingIds } = useHotel();
   const [checkIn, setCheckIn] = useState<string>(() => searchParams?.checkIn || "");
   const [checkOut, setCheckOut] = useState<string>(() => searchParams?.checkOut || "");
   const [guests, setGuests] = useState<number>(() => searchParams?.guests || 1);
@@ -20,9 +33,9 @@ export default function SearchForm() {
   useEffect(() => {
     if (!checkIn && !checkOut && searchParams) {
       setSearchParams(null);
-      setHotelAvailability(null);
+      setAvailableListingIds(null);
     }
-  }, [checkIn, checkOut, searchParams, setSearchParams, setHotelAvailability]);
+  }, [checkIn, checkOut, searchParams, setSearchParams, setAvailableListingIds]);
 
   // Close pickers when clicking outside
   useEffect(() => {
@@ -44,13 +57,12 @@ export default function SearchForm() {
     };
   }, [showGuestPicker, showPetPicker]);
 
-  const minDate = new Date().toISOString().split('T')[0];
-  
+  // Local calendar date — avoid UTC `toISOString()` which can skip "today" in MX.
+  const minDate = localDateKey();
+
   const getMinCheckoutDate = () => {
     if (!checkIn) return minDate;
-    const checkInDate = new Date(checkIn);
-    checkInDate.setDate(checkInDate.getDate() + 1);
-    return checkInDate.toISOString().split('T')[0];
+    return addDaysKey(checkIn, 1);
   };
 
   const formatDateDisplay = (dateString: string) => {
@@ -92,11 +104,11 @@ export default function SearchForm() {
         throw new Error("Failed to check availability");
       }
 
-      const availability = await response.json();
-      setHotelAvailability(availability);
+      const data = await response.json();
+      setAvailableListingIds(Array.isArray(data.listingIds) ? data.listingIds : []);
     } catch (error) {
       console.error("Error searching availability:", error);
-      setHotelAvailability({});
+      setAvailableListingIds([]);
     } finally {
       setIsSearching(false);
     }

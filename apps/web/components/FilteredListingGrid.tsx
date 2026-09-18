@@ -20,7 +20,7 @@ type FilteredListingGridProps = {
 };
 
 export default function FilteredListingGrid({ listings, hotelName }: FilteredListingGridProps) {
-  const { searchParams, hotelAvailability } = useHotel();
+  const { searchParams } = useHotel();
   const [listingAvailability, setListingAvailability] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
 
