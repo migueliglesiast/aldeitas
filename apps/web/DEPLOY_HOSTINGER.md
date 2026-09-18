@@ -4,7 +4,8 @@
 **Database:** [Neon](https://neon.tech) PostgreSQL (external — Hostinger does not host Postgres for this app)
 
 **Repo:** `migueliglesiast/aldeitas`  
-**Root directory:** `grupo_hotelero_pxm`
+**Root directory:** `apps/web`  
+(Legacy folder `grupo_hotelero_pxm` is empty — do **not** use it as the Hostinger root.)
 
 ---
 
@@ -26,7 +27,7 @@
 
 **You need:** Hostinger **Business Web Hosting** or any **Cloud** plan (Node.js apps are not on basic shared hosting).
 
-**Confirm before buying:** In hPanel, check that you can set **Root directory** to `grupo_hotelero_pxm` (monorepo). If not, see [Monorepo workaround](#monorepo-workaround) below.
+**Confirm before buying:** In hPanel, check that you can set **Root directory** to `apps/web` (monorepo). If not, see [Monorepo workaround](#monorepo-workaround) below.
 
 ---
 
@@ -57,7 +58,7 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 
 | Setting | Value |
 |---------|--------|
-| **Root directory** | `grupo_hotelero_pxm` |
+| **Root directory** | `apps/web` |
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
@@ -76,7 +77,7 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 |----------------------|----------------|
 | Framework | **Next.js** (no "Otro") |
 | Versión de Node.js | **20.x** |
-| Directorio raíz / Root | `grupo_hotelero_pxm` |
+| Directorio raíz / Root | `apps/web` |
 | Rama | `feature/improving_admin_ux` |
 | Comando de compilación | `npm run build` |
 
@@ -198,11 +199,11 @@ Must use your **production HTTPS domain**.
 
 ## Monorepo workaround
 
-If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
+If Hostinger cannot set root directory to `apps/web`:
 
-**Option A — Deploy branch:** GitHub Action builds `grupo_hotelero_pxm` and pushes to a `hostinger-deploy` branch with app at repo root (ask to add workflow).
+**Option A — Deploy branch:** GitHub Action builds `apps/web` and pushes to a `hostinger-deploy` branch with app at repo root (ask to add workflow).
 
-**Option B — Hostinger VPS:** SSH deploy with full control (`cd grupo_hotelero_pxm && npm run build:deploy && npm run start`).
+**Option B — Hostinger VPS:** SSH deploy with full control (`cd apps/web && npm run build:deploy && npm run start`).
 
 **Option C — Move app** to repo root (larger refactor).
 
@@ -211,6 +212,7 @@ If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
 ## Go-live checklist
 
 - [ ] Business or Cloud plan with Node.js apps
+- [ ] **Root directory = `apps/web`** (not `grupo_hotelero_pxm`)
 - [ ] Neon `DATABASE_URL` + `DIRECT_URL` in hPanel
 - [ ] `NEXT_PUBLIC_SITE_URL` = production HTTPS → redeploy
 - [ ] Mercado Pago production keys
@@ -226,7 +228,7 @@ If Hostinger cannot set root directory to `grupo_hotelero_pxm`:
 
 | Problem | Fix |
 |---------|-----|
-| `package.json not found` | Set root directory to `grupo_hotelero_pxm` |
+| `package.json not found` | Set root directory to **`apps/web`** (legacy `grupo_hotelero_pxm` is empty) |
 | **503 Service Unavailable** | App crashed or wrong port — check deployment logs, click **Restart**, fix `DATABASE_URL` (`postgresql://` not `resql://`) |
 | **Images not loading (rooms/hotels)** | Room photos in `/uploads/` are not in git — re-import via Admin → Airbnb on production, or run `npx tsx scripts/populate-arbolita-images.ts` against Neon. `next.config.mjs` uses `images.unoptimized: true` for Hostinger. |
 | Build fails on Prisma | Set `DATABASE_URL` + `DIRECT_URL` at runtime; run `npx prisma db push` locally once |

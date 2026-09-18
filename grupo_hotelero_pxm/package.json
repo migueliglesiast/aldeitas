@@ -1,0 +1,9 @@
+{
+  "name": "grupo-hotelero-pxm-legacy-root",
+  "private": true,
+  "description": "Legacy Hostinger root. The Next.js app now lives in apps/web.",
+  "scripts": {
+    "build": "node -e \"console.error('\\nERROR: Hostinger Root Directory must be apps/web (not grupo_hotelero_pxm).\\nUpdate hPanel → Ajustes → Directorio raíz → apps/web, then Redeploy.\\n'); process.exit(1)\"",
+    "start": "npm run build"
+  }
+}

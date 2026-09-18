@@ -45,7 +45,7 @@ console.log(
 
 if (!fs.existsSync(buildIdPath)) {
   console.error(
-    "[aldeitas] FATAL: missing .next build at %s — confirm root directory is grupo_hotelero_pxm and build succeeded",
+    "[aldeitas] FATAL: missing .next build at %s — confirm Hostinger root directory is apps/web and build succeeded",
     buildIdPath
   );
   process.exit(1);

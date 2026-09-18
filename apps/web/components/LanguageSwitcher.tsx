@@ -40,17 +40,17 @@ export default function LanguageSwitcher() {
   return (
     <div className="flex items-center gap-2">
       <FlagButton
-        locale="en"
-        active={locale === "en"}
-        label={t("switchToEnglish")}
-        flag="🇺🇸"
-        onSelect={setLocale}
-      />
-      <FlagButton
         locale="es"
         active={locale === "es"}
         label={t("switchToSpanish")}
         flag="🇲🇽"
+        onSelect={setLocale}
+      />
+      <FlagButton
+        locale="en"
+        active={locale === "en"}
+        label={t("switchToEnglish")}
+        flag="🇺🇸"
         onSelect={setLocale}
       />
     </div>
