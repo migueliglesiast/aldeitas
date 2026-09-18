@@ -45,7 +45,7 @@ console.log(
 
 if (!fs.existsSync(buildIdPath)) {
   fatal(
-    `missing .next build at ${buildIdPath} — confirm root directory is grupo_hotelero_pxm and build succeeded`
+    `missing .next build at ${buildIdPath} — confirm root directory is apps/web and build succeeded`
   );
 }
 

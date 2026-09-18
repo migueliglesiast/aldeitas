@@ -1,7 +1,9 @@
 // Production schema: PostgreSQL.
 // Keep models in sync with schema.prisma (sqlite for local/test/e2e).
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Hostinger Linux + local macOS during generate
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {

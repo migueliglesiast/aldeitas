@@ -1,3 +1,8 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const siteHost = (() => {
   try {
@@ -19,6 +24,8 @@ for (const host of process.env.STOREFRONT_ALLOWED_ORIGINS?.split(",") ?? []) {
 const nextConfig = {
   // Required for Hostinger Node apps (lower memory via standalone server.js).
   output: "standalone",
+  // Monorepo: lockfile lives at repo root; keep tracing rooted there.
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   // Keep IMAP/mail packages outside the RSC bundler.
   serverExternalPackages: ["imapflow", "mailparser", "cloudinary"],
   // Unblock Hostinger deploys while Next 16 route/params typings are caught up.
