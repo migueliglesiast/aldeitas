@@ -1,13 +1,43 @@
 #!/usr/bin/env node
 /**
  * Hostinger start: prefer standalone server (lower memory), fall back to app.js.
+ * Monorepo builds nest the server at .next/standalone/apps/web/server.js.
  */
 const fs = require("node:fs");
 const path = require("node:path");
 
 const appRoot = path.join(__dirname, "..");
-const standaloneServer = path.join(appRoot, ".next", "standalone", "server.js");
 const buildIdPath = path.join(appRoot, ".next", "BUILD_ID");
+
+function resolveStandaloneServer() {
+  const candidates = [
+    path.join(appRoot, ".next", "standalone", "apps", "web", "server.js"),
+    path.join(appRoot, ".next", "standalone", "server.js"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  // Last resort: any server.js directly under .next/standalone/**/server.js (depth 2–3).
+  const standaloneRoot = path.join(appRoot, ".next", "standalone");
+  if (!fs.existsSync(standaloneRoot)) return null;
+
+  try {
+    const entries = fs.readdirSync(standaloneRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === "node_modules") continue;
+      const nested = path.join(standaloneRoot, entry.name, "server.js");
+      if (fs.existsSync(nested)) return nested;
+      const nestedApp = path.join(standaloneRoot, entry.name, "web", "server.js");
+      if (fs.existsSync(nestedApp)) return nestedApp;
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
 
 function resolvePort() {
   const args = process.argv.slice(2);
@@ -29,13 +59,18 @@ process.on("unhandledRejection", (error) => logError("unhandledRejection", error
 
 resolvePort();
 
+const standaloneServer = resolveStandaloneServer();
+
 console.log(
   "[aldeitas] boot cwd=%s node=%s port=%s standalone=%s",
   appRoot,
   process.version,
   process.env.PORT || "3000",
-  fs.existsSync(standaloneServer)
+  Boolean(standaloneServer)
 );
+if (standaloneServer) {
+  console.log("[aldeitas] standalone path=%s", standaloneServer);
+}
 console.log(
   "[aldeitas] env DATABASE_URL=%s DIRECT_URL=%s NODE_ENV=%s",
   Boolean(process.env.DATABASE_URL),
@@ -51,7 +86,7 @@ if (!fs.existsSync(buildIdPath)) {
   process.exit(1);
 }
 
-if (fs.existsSync(standaloneServer)) {
+if (standaloneServer) {
   console.log(
     "[aldeitas] starting standalone server on port %s",
     process.env.PORT || "3000"
