@@ -62,14 +62,11 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | **Node.js version** | `20` |
 | **Install command** | `npm ci` (or `npm install`) |
 | **Build command** | `npm run build` |
-| **Output directory** | `.next` (if Framework is **Other**) |
-| **Start command** | `npm run start -- -p $PORT` (**required** — do not use `next start` with standalone) |
-| **Start** (package.json) | `node scripts/start-hostinger.js` → standalone `server.js` |
-| **Entry file** (if Framework = **Other**) | `server.js` |
+| **Output directory** | `.next` |
 
-**Nota:** Si el framework es **Otro (Other)**, pon **Archivo de entrada** = `app.js` (arranque en un solo proceso). Con **Next.js**, usa el start command de arriba.
+**Important:** Keep Framework = **Next.js**. Hostinger then runs `next start` against `.next`. Do **not** enable `output: "standalone"` for this preset (it causes **503**).
 
-`npm run build` runs `prisma generate && next build && node scripts/copy-standalone-assets.js` (standalone output for Hostinger). Sync schema once locally with `npx prisma db push` before first deploy.
+`npm run build` generates the Prisma client (Postgres on Hostinger) and runs `next build`.
 
 ### Panel en español — qué sí debes ver en Ajustes y reimplementación
 
@@ -80,6 +77,7 @@ Schema is already seeded if you ran `npm run seed` locally against this Neon pro
 | Directorio raíz / Root | `apps/web` |
 | Rama | `feature/improving_admin_ux` |
 | Comando de compilación | `npm run build` |
+| Directorio de salida | `.next` |
 
 Después de cambiar variables de entorno: **Reimplementar** (no basta con guardar).
 
@@ -89,10 +87,10 @@ Build logs ending at the route table is **normal** — that is only the build ph
 
 The Node process is **not starting** or **crashes immediately**. Check in this order:
 
-1. **Start command** must be exactly `npm run start -- -p $PORT`. With `output: "standalone"`, **`next start` will not work** — Hostinger must run our script (`scripts/start-hostinger.js` or root `server.js`). If Framework is **Other**, set entry file to `server.js`.
-2. **Framework** = **Next.js** (recommended). If **Other**, set entry file to `app.js`.
-3. **Variables de entorno** → `DATABASE_URL` must start with `postgresql://` (not `resql://`). Set both `DATABASE_URL` and `DIRECT_URL`.
-4. **Runtime logs** → look for `[aldeitas] starting standalone server` or `Ready`. Build log ending at the route table is normal — check runtime logs separately.
+1. **Framework** = **Next.js**. Start is handled by Hostinger (`next start`). Do not use standalone output with this preset.
+2. **Framework** = **Next.js** (recommended). If **Other**, set entry file to `app.js` or `server.js` and a matching start command.
+3. **Variables de entorno** → `DATABASE_URL` must start with `postgresql://` (not `resql://`). Set both `DATABASE_URL` and `DIRECT_URL` (`DIRECT_URL` should be the **non-pooler** Neon URL).
+4. **Runtime logs** → look for `Ready` from Next.js. Build log ending at the route table is normal — check runtime logs separately.
 5. **Test liveness** after deploy: `https://yourdomain.com/api/live` should return JSON `{ "ok": true }` — no database needed.
 6. **En ejecución** → **Reiniciar** (si aparece al hacer clic en el estado)
 7. **Administrador de archivos** → `domains/aldeitas.io/nodejs/` → look for `stderr.log`
