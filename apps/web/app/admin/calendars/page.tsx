@@ -40,7 +40,3 @@ export default async function CalendarsAdminPage() {
     </div>
   );
 }
-
-
-
-export const dynamic = "force-dynamic";
