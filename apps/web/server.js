@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Hostinger entry shim — some panels look for server.js at the app root.
- * Delegates to scripts/start-hostinger.js (standalone Next.js).
+ * Hostinger entry shim — panels that look for server.js boot the same
+ * custom server as app.js (PORT + 0.0.0.0). Do not use standalone here.
  */
-require("./scripts/start-hostinger.js");
+require("./app.js");
