@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/prisma-generate-for-env.js && next build",
-    "build:deploy": "npm run build && node scripts/bundle-runtime-deps.js",
+    "build:deploy": "node scripts/prisma-generate-for-env.js && next build --webpack && node scripts/bundle-runtime-deps.js",
     "build:standalone": "HOSTINGER_STANDALONE=1 node scripts/prisma-generate-for-env.js && HOSTINGER_STANDALONE=1 next build && node scripts/copy-standalone-assets.js",
     "start": "node app.js",
     "start:hostinger": "node app.js",
