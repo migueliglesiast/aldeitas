@@ -48,8 +48,10 @@ export default async function HomePage() {
           The same rooms for cheaper
         </h1>
         <p className="text-muted">
-          The big booking sites keep 15–17% of every night. We keep 5% — the rest stays
-          with your hosts and the coast they live on.
+          The big booking sites keep{" "}
+          <span className="font-bold text-[#F97316]">15%–17%</span> of every night. We only
+          keep <span className="font-bold text-[#0092A1]">5%</span> so the money stays with
+          you and the places you love.
         </p>
       </div>
 
