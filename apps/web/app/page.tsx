@@ -48,10 +48,11 @@ export default async function HomePage() {
           The same rooms for cheaper
         </h1>
         <p className="text-muted">
-          The big booking sites keep{" "}
-          <span className="font-bold text-[#F97316]">15%–17%</span> of every night. We only
-          keep <span className="font-bold text-[#0092A1]">5%</span> so the money stays with
-          you and the places you love.
+          The{" "}
+          <span className="font-bold text-[#F97316]">big booking sites keep 15%–17%</span>{" "}
+          of every night.{" "}
+          <span className="font-bold text-[#0092A1]">We only keep 5%</span> so the money
+          stays with you and the places you love.
         </p>
       </div>
 
