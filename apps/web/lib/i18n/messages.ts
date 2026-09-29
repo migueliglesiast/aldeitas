@@ -4,7 +4,7 @@ export const LOCALE_STORAGE_KEY = "aldeitas-locale";
 
 export const messages = {
   en: {
-    tagline: "Long term stays in unique places",
+    tagline: "same rooms, for cheaper",
     back: "← Back",
     close: "Close",
     signIn: "Sign in",
@@ -80,7 +80,7 @@ export const messages = {
     nextMonths: "Next months",
   },
   es: {
-    tagline: "Estancias largas en lugares únicos",
+    tagline: "los mismos cuartos, más baratos",
     back: "← Volver",
     close: "Cerrar",
     signIn: "Iniciar sesión",
