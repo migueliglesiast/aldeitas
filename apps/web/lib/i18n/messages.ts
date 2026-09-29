@@ -101,7 +101,7 @@ export const messages = {
     heroLead: "Las",
     heroPlatforms: "grandes plataformas se quedan con 15%–17%",
     heroMiddle: "de cada noche.",
-    heroOurCut: "Nosotros solo nos quedamos con 5%",
+    heroOurCut: "Nosotros sólo nos quedamos con 5%",
     heroTail: "para que el dinero se quede contigo y en los lugares que amas.",
     filterHotels: "Filtrar por nombre o ubicación",
     filterHotelsAria: "Filtrar hoteles por nombre o ubicación",
