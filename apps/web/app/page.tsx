@@ -44,7 +44,7 @@ export default async function HomePage() {
   return (
     <div className="space-y-8">
       <div className="space-y-2 pt-2 text-center">
-        <h1 className="font-poster text-4xl uppercase tracking-wide text-ink md:text-5xl">
+        <h1 className="font-poster text-4xl font-black tracking-tight text-ink md:text-5xl">
           The same rooms for cheaper
         </h1>
         <p className="text-muted">
