@@ -6,10 +6,10 @@ import PortalHeader from "../components/PortalHeader";
 import PortalFooter from "../components/PortalFooter";
 import { HotelProvider } from "../lib/hotel-context";
 import { LocaleProvider } from "../lib/i18n/locale-context";
-import { Inter, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
+import { Fraunces, Inter, Plus_Jakarta_Sans } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const playfair = Playfair_Display({
+const fraunces = Fraunces({
   subsets: ["latin"],
   weight: ["900"],
   variable: "--font-poster",
@@ -31,7 +31,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${jakarta.variable} ${playfair.variable} min-h-screen bg-white font-sans text-ink antialiased`}>
+      <body className={`${inter.variable} ${jakarta.variable} ${fraunces.variable} min-h-screen bg-white font-sans text-ink antialiased`}>
         <LocaleProvider>
           <HotelProvider>
             <ParallaxBackground />
