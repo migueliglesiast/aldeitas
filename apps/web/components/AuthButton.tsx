@@ -41,10 +41,7 @@ export default function AuthButton() {
 
   if (!user) {
     return (
-      <div className="flex gap-2">
-        <Link href="/sign-in" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">{t("signIn")}</Link>
-        <Link href="/sign-up" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black">{t("signUp")}</Link>
-      </div>
+      <Link href="/sign-in" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black">{t("hostPortal")}</Link>
     );
   }
 
