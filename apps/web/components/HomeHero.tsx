@@ -13,9 +13,11 @@ export function HomeHero() {
       </h1>
       <p className="text-balance text-base leading-relaxed text-muted md:text-lg">
         {t("heroLead")}{" "}
-        <span className="font-bold text-[#F97316]">{t("heroPlatforms")}</span>{" "}
+        <span className="font-poster font-black text-[#F97316]">
+          {t("heroPlatforms")}
+        </span>{" "}
         {t("heroMiddle")}{" "}
-        <span className="whitespace-nowrap font-bold text-[#0092A1]">{t("heroOurCut")}</span>{" "}
+        <span className="whitespace-nowrap font-poster font-black text-[#0092A1]">{t("heroOurCut")}</span>{" "}
         {t("heroTail")}
       </p>
     </div>
