@@ -6,9 +6,10 @@ import PortalHeader from "../components/PortalHeader";
 import PortalFooter from "../components/PortalFooter";
 import { HotelProvider } from "../lib/hotel-context";
 import { LocaleProvider } from "../lib/i18n/locale-context";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { Anton, Inter, Plus_Jakarta_Sans } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const anton = Anton({ subsets: ["latin"], weight: ["400"], variable: "--font-poster" });
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["600", "700", "800"],
@@ -26,7 +27,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${jakarta.variable} min-h-screen bg-white font-sans text-ink antialiased`}>
+      <body className={`${inter.variable} ${jakarta.variable} ${anton.variable} min-h-screen bg-white font-sans text-ink antialiased`}>
         <LocaleProvider>
           <HotelProvider>
             <ParallaxBackground />

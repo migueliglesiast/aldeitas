@@ -21,6 +21,7 @@ export default {
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         display: ["var(--font-display)", "var(--font-sans)", "sans-serif"],
+        poster: ["var(--font-poster)", "var(--font-display)", "sans-serif"],
       },
       boxShadow: {
         card: "0 6px 16px rgba(0, 0, 0, 0.12)",
