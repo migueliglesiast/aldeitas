@@ -24,7 +24,16 @@ type LocaleContextValue = {
   dateLocale: string;
 };
 
-const LocaleContext = createContext<LocaleContextValue | null>(null);
+const DEFAULT_LOCALE: Locale = "en";
+
+const defaultValue: LocaleContextValue = {
+  locale: DEFAULT_LOCALE,
+  setLocale: () => {},
+  t: (key, vars) => translate(DEFAULT_LOCALE, key, vars),
+  dateLocale: getDateLocale(DEFAULT_LOCALE),
+};
+
+const LocaleContext = createContext<LocaleContextValue>(defaultValue);
 
 function readStoredLocale(): Locale {
   if (typeof window === "undefined") return "es";
@@ -65,9 +74,5 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 }
 
 export function useLocale() {
-  const context = useContext(LocaleContext);
-  if (!context) {
-    throw new Error("useLocale must be used within LocaleProvider");
-  }
-  return context;
+  return useContext(LocaleContext);
 }
