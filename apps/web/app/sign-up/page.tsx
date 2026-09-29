@@ -50,8 +50,48 @@ export default function SignUpPage() {
     setUnits((arr) => arr.filter((_, i) => i !== index));
   }
 
+  const slideKeys = [
+    "welcome",
+    "rooms",
+    ...units.map((_, i) => `unit-${i}`),
+    "details",
+    "finish",
+  ];
+
+  /** Mirrors the server schema in /api/auth/sign-up so a step cannot be skipped blank. */
+  function validateStep(index: number): string | null {
+    const key = slideKeys.at(index);
+    if (!key) return null;
+
+    if (key === "welcome") {
+      if (form.username.trim().length < 3) return "Username must be at least 3 characters.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Enter a valid email address.";
+      if (form.password.length < 6) return "Password must be at least 6 characters.";
+      if (!form.hotel_name.trim()) return "Enter the name of your hotel.";
+      return null;
+    }
+
+    const unitMatch = /^unit-(\d+)$/.exec(key);
+    if (unitMatch) {
+      const unit = units.at(Number(unitMatch[1]));
+      if (!unit) return null;
+      if (!unit.name_of_unit.trim()) return "Give this room a name.";
+      if (!unit.description.trim()) return "Add a short description for this room.";
+    }
+
+    return null;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    for (let i = 0; i < slideKeys.length; i++) {
+      const message = validateStep(i);
+      if (message) {
+        setStep(i);
+        setError(message);
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/auth/sign-up", {
@@ -149,13 +189,27 @@ export default function SignUpPage() {
     },
   ];
 
-  function next() { setStep((s) => Math.min(slides.length - 1, s + 1)); }
-  function prev() { setStep((s) => Math.max(0, s - 1)); }
+  function next() {
+    const message = validateStep(step);
+    if (message) {
+      setError(message);
+      return;
+    }
+    setError(null);
+    setStep((s) => Math.min(slides.length - 1, s + 1));
+  }
+  function prev() {
+    setError(null);
+    setStep((s) => Math.max(0, s - 1));
+  }
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="relative overflow-hidden rounded border p-5">
         {slides[step]?.render}
+        {error && slides[step]?.key !== "finish" && (
+          <div className="mt-3 text-sm text-red-600">{error}</div>
+        )}
         <div className="mt-6 flex items-center justify-between">
           <button type="button" onClick={prev} className="rounded border px-3 py-2 hover:bg-gray-50">Back</button>
           <div className="text-sm text-gray-500">Step {step + 1} of {slides.length}</div>

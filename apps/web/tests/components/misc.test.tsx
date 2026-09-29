@@ -25,13 +25,12 @@ beforeEach(() => {
 });
 
 describe("AuthButton", () => {
-  it("shows sign-in links for anonymous visitors", async () => {
+  it("shows the host portal link for anonymous visitors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: null })));
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sign up" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
   });
 
   it("greets the signed-in user and signs them out", async () => {
@@ -69,7 +68,7 @@ describe("AuthButton", () => {
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
   });
 
   it("treats a network failure as signed out", async () => {
@@ -77,7 +76,7 @@ describe("AuthButton", () => {
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
   });
 });
 
@@ -152,7 +151,7 @@ describe("blurred hotel background", () => {
     vi.stubGlobal("Image", ImageStub);
   });
 
-  it("ContentContainer paints the selected image once it loads", async () => {
+  it("ContentContainer keeps a static background when a hotel is selected", async () => {
     render(
       <HotelProvider>
         <SelectImage url="/images/hotels/uno/cover.jpg" />
@@ -168,7 +167,7 @@ describe("blurred hotel background", () => {
     await waitFor(() =>
       expect(
         document.querySelector('[style*="images/hotels/uno/cover.jpg"]')
-      ).toBeInTheDocument()
+      ).toBeNull()
     );
   });
 

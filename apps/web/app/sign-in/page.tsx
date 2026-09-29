@@ -10,6 +10,10 @@ export default function SignInPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!emailOrUsername.trim() || !password) {
+      setError("Enter your email or username and your password.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/auth/sign-in", {

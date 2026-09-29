@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { getHotelsWithListings, type HotelWithListings } from "@/lib/data";
 import HotelGrid from "@/components/HotelGrid";
 import SearchForm from "@/components/SearchForm";
+import { HomeHero, HomeSignUpPrompt } from "@/components/HomeHero";
 
 // Make homepage dynamic to ensure it works at runtime
 export const dynamic = 'force-dynamic';
@@ -43,14 +43,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2 pt-2 text-center">
-        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink md:text-4xl">
-          Find your next long stay
-        </h1>
-        <p className="text-muted">
-          Boutique homes and hotels on the Oaxacan coast
-        </p>
-      </div>
+      <HomeHero />
 
       {/* Sticky search bar */}
       <div className="sticky top-[64px] z-40 -mx-4 px-4 py-2 md:-mx-6 md:px-6">
@@ -60,9 +53,7 @@ export default async function HomePage() {
       </div>
 
       <HotelGrid hotels={serializedHotels} />
-      <div className="text-center text-sm text-muted">
-        New here? <Link className="font-semibold text-ink underline underline-offset-2 hover:text-brand" href="/sign-up">Create your account</Link>
-      </div>
+      <HomeSignUpPrompt />
     </div>
   );
 }
