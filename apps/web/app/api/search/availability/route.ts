@@ -37,10 +37,6 @@ export async function POST(req: NextRequest) {
 
     for (const hotel of hotels) {
       for (const listing of hotel.listings) {
-        const hasCalendarSources =
-          listing.calendarSources.length > 0 || Boolean(listing.icalUrl);
-
-        if (!hasCalendarSources) continue;
         if (listing.bookings.length > 0) continue;
 
         let available = true;
