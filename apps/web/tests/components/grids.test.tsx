@@ -151,17 +151,15 @@ describe("HotelGrid", () => {
     expect(screen.getByText("0 rooms")).toBeInTheDocument();
   });
 
-  it("falls back through cover image extensions and then to the logo", async () => {
+  it("falls back through cover extensions, then a room photo, then the logo", async () => {
     renderHotels();
     const cover = screen.getByAltText("Hotel Uno") as HTMLImageElement;
     expect(cover.src).toContain("/images/hotels/hotel-uno/cover.jpg");
 
-    for (const ext of ["jpeg", "png", "webp"]) {
+    for (const src of ["cover.jpeg", "cover.png", "cover.webp", "/a.jpg"]) {
       fireEvent.error(screen.getByAltText("Hotel Uno"));
       await waitFor(() =>
-        expect((screen.getByAltText("Hotel Uno") as HTMLImageElement).src).toContain(
-          `cover.${ext}`
-        )
+        expect((screen.getByAltText("Hotel Uno") as HTMLImageElement).src).toContain(src)
       );
     }
 

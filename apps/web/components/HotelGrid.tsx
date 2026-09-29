@@ -28,19 +28,29 @@ function slugify(name: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function getHotelImages(hotel: Hotel): string[] {
-  const slug = slugify(hotel.name);
-  const images: string[] = [];
-
-  // Priority 1: Use coverImageUrl from database (can be Google Drive URL)
-  if (hotel.coverImageUrl) {
-    images.push(hotel.coverImageUrl);
+/** First room photo, used when a hotel has no cover of its own. */
+function firstRoomImage(hotel: Hotel): string | null {
+  for (const listing of hotel.listings ?? []) {
+    const image = [...(listing.images ?? [])].sort((a, b) => a.position - b.position)[0];
+    if (image?.url) return image.url;
   }
+  return null;
+}
 
-  // Priority 2: Fallback to local public folder
-  images.push(`/images/hotels/${slug}/cover.jpg`);
+function getHotelCoverCandidates(hotel: Hotel): string[] {
+  const slug = slugify(hotel.name);
+  const candidates = [
+    ...(hotel.coverImageUrl ? [hotel.coverImageUrl] : []),
+    `/images/hotels/${slug}/cover.jpg`,
+    `/images/hotels/${slug}/cover.jpeg`,
+    `/images/hotels/${slug}/cover.png`,
+    `/images/hotels/${slug}/cover.webp`,
+  ];
 
-  return images;
+  const roomImage = firstRoomImage(hotel);
+  if (roomImage && !candidates.includes(roomImage)) candidates.push(roomImage);
+
+  return candidates;
 }
 
 type HotelCardProps = {
@@ -131,7 +141,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
       const expandedHotel = hotels.find(h => h.id === expandedHotelId);
       if (expandedHotel) {
         // Resolve the cover the same way as the card and gallery
-        setSelectedHotelImage(getHotelImages(expandedHotel)[0]);
+        setSelectedHotelImage(getHotelCoverCandidates(expandedHotel)[0]);
       }
     } else {
       setSelectedHotelImage(null);
@@ -320,13 +330,7 @@ const HotelCard = memo(function HotelCard({
         setIframeSrc(mapEmbedUrl);
       }
     }, [isExpanded, mapEmbedUrl, iframeSrc]);
-    const candidates = [
-      ...(h.coverImageUrl ? [h.coverImageUrl] : []),
-      `/images/hotels/${slug}/cover.jpg`,
-      `/images/hotels/${slug}/cover.jpeg`,
-      `/images/hotels/${slug}/cover.png`,
-      `/images/hotels/${slug}/cover.webp`,
-    ];
+    const candidates = getHotelCoverCandidates(h);
     const usingCover = coverIndex < candidates.length;
     const coverSrc = usingCover ? candidates[coverIndex] : undefined;
     const displaySrc = usingCover ? coverSrc : undefined;
@@ -337,7 +341,7 @@ const HotelCard = memo(function HotelCard({
     const minPrice = h.listings?.length ? Math.min(...h.listings.map((l) => l.nightlyBasePrice)) : null;
 
     const [failedImages, setFailedImages] = useState<string[]>([]);
-    const galleryImages = getHotelImages(h).filter((src) => !failedImages.includes(src));
+    const galleryImages = getHotelCoverCandidates(h).filter((src) => !failedImages.includes(src));
 
     return (
       <div

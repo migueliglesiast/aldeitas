@@ -13,6 +13,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+async function fillSignIn() {
+  await userEvent.type(screen.getByPlaceholderText("Email or username"), "owner");
+  await userEvent.type(screen.getByPlaceholderText("Password"), "secret1");
+}
+
+async function fillSignUpAccount() {
+  await userEvent.type(screen.getByPlaceholderText("Username"), "owner");
+  await userEvent.type(screen.getByPlaceholderText("Email"), "owner@example.com");
+  await userEvent.type(screen.getByPlaceholderText("Password"), "secret1");
+  await userEvent.type(screen.getByPlaceholderText("Name of hotel"), "Aldeita");
+}
+
 describe("sign-in page", () => {
   it("redirects home after a successful sign in", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
@@ -39,9 +51,23 @@ describe("sign-in page", () => {
     );
 
     render(<SignInPage />);
+    await fillSignIn();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Invalid credentials")).toBeInTheDocument();
+  });
+
+  it("refuses to submit blank credentials", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SignInPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText("Enter your email or username and your password.")
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the response text for non-JSON errors", async () => {
@@ -57,6 +83,7 @@ describe("sign-in page", () => {
     );
 
     render(<SignInPage />);
+    await fillSignIn();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Failed to sign in")).toBeInTheDocument();
@@ -70,10 +97,7 @@ describe("sign-up wizard", () => {
 
     render(<SignUpPage />);
 
-    await userEvent.type(screen.getByPlaceholderText("Username"), "owner");
-    await userEvent.type(screen.getByPlaceholderText("Email"), "owner@example.com");
-    await userEvent.type(screen.getByPlaceholderText("Password"), "secret1");
-    await userEvent.type(screen.getByPlaceholderText("Name of hotel"), "Aldeita");
+    await fillSignUpAccount();
     expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -109,6 +133,7 @@ describe("sign-up wizard", () => {
 
   it("navigates backwards and clamps at the first slide", async () => {
     render(<SignUpPage />);
+    await fillSignUpAccount();
 
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
@@ -125,11 +150,23 @@ describe("sign-up wizard", () => {
     );
 
     render(<SignUpPage />);
+    await fillSignUpAccount();
     for (let i = 0; i < 3; i++) {
       await userEvent.click(screen.getByRole("button", { name: "Next" }));
     }
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
 
     expect(await screen.findByText("User exists")).toBeInTheDocument();
+  });
+
+  it("keeps a blank account step from advancing", async () => {
+    render(<SignUpPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(
+      await screen.findByText("Username must be at least 3 characters.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
   });
 });

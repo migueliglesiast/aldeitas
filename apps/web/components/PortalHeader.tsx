@@ -5,6 +5,9 @@ import Image from "next/image";
 import AuthButton from "@/components/AuthButton";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/locale-context";
+import { Poppins } from "next/font/google";
+
+const titleFont = Poppins({ subsets: ["latin"], weight: ["600"] });
 
 export default function PortalHeader() {
   const { t } = useLocale();
@@ -22,7 +25,7 @@ export default function PortalHeader() {
             className="h-9 w-9 object-contain md:h-10 md:w-10"
           />
           <span className="hidden flex-col leading-tight sm:flex">
-            <span className="font-display text-2xl font-extrabold tracking-tight text-brand">
+            <span className={`${titleFont.className} text-2xl font-semibold tracking-tight text-[#0092A1]`}>
               Aldeitas
             </span>
             <span className="text-xs font-medium text-muted">{t("tagline")}</span>
