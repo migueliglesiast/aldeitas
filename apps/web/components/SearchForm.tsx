@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useHotel } from "@/lib/hotel-context";
 import { useLocale } from "@/lib/i18n/locale-context";
+import DateRangePicker from "@/components/DateRangePicker";
 
 function localDateKey(date = new Date()) {
   const y = date.getFullYear();
@@ -25,9 +26,11 @@ export default function SearchForm() {
   const [pets, setPets] = useState<number>(() => searchParams?.pets || 0);
   const [showGuestPicker, setShowGuestPicker] = useState(false);
   const [showPetPicker, setShowPetPicker] = useState(false);
+  const [datePicker, setDatePicker] = useState<"checkIn" | "checkOut" | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const guestPickerRef = useRef<HTMLDivElement>(null);
   const petPickerRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
   const checkInInputRef = useRef<HTMLInputElement>(null);
   const checkOutInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,29 +51,37 @@ export default function SearchForm() {
       if (petPickerRef.current && !petPickerRef.current.contains(event.target as Node)) {
         setShowPetPicker(false);
       }
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setDatePicker(null);
+      }
     };
 
-    if (showGuestPicker || showPetPicker) {
+    if (showGuestPicker || showPetPicker || datePicker) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showGuestPicker, showPetPicker]);
+  }, [showGuestPicker, showPetPicker, datePicker]);
 
   // Local calendar date — avoid UTC `toISOString()` which can skip "today" in MX.
   const minDate = localDateKey();
 
-  const openDatePicker = (input: HTMLInputElement | null) => {
-    if (!input || input.disabled) return;
-    try {
-      input.showPicker?.();
-    } catch {
-      input.focus();
+  const openDatePicker = (type: "checkIn" | "checkOut") => {
+    setShowGuestPicker(false);
+    setShowPetPicker(false);
+    setDatePicker((current) => (current === type ? null : type));
+  };
+
+  const handleCalendarSelect = (value: string) => {
+    if (datePicker === "checkIn") {
+      handleDateChange("checkIn", value);
+      setDatePicker("checkOut");
       return;
     }
-    input.focus();
+    handleDateChange("checkOut", value);
+    setDatePicker(null);
   };
 
   const getMinCheckoutDate = () => {
@@ -129,11 +140,14 @@ export default function SearchForm() {
 
   return (
     <form onSubmit={handleSearch} className="w-full">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-card rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible">
+      <div
+        ref={datePickerRef}
+        className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-card rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible"
+      >
         {/* Check-in Date - Airbnb style */}
         <div 
           className="flex-1 relative cursor-pointer group"
-          onClick={() => openDatePicker(checkInInputRef.current)}
+          onClick={() => openDatePicker("checkIn")}
         >
           <label className="absolute left-5 top-2.5 text-xs font-semibold text-ink pointer-events-none z-10">
             {t("checkIn")}
@@ -145,7 +159,7 @@ export default function SearchForm() {
             value={checkIn}
             onChange={(e) => handleDateChange('checkIn', e.target.value)}
             min={minDate}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none z-20"
             style={{ fontSize: '16px' }} // Prevents zoom on iOS
           />
           <div className="w-full h-full pt-7 pb-2.5 px-5 pr-10 text-sm font-medium text-ink rounded-l-full hover:bg-surface transition-colors pointer-events-none">
@@ -153,6 +167,16 @@ export default function SearchForm() {
               {formatDateDisplay(checkIn)}
             </span>
           </div>
+          {datePicker === "checkIn" && (
+            <DateRangePicker
+              mode="checkIn"
+              checkIn={checkIn}
+              checkOut={checkOut}
+              minDate={minDate}
+              locale={dateLocale}
+              onSelect={handleCalendarSelect}
+            />
+          )}
         </div>
 
         {/* Divider */}
@@ -162,7 +186,7 @@ export default function SearchForm() {
         <div 
           className={`flex-1 relative group ${!checkIn ? 'opacity-50' : 'cursor-pointer'}`}
           onClick={() => {
-            if (checkIn) openDatePicker(checkOutInputRef.current);
+            if (checkIn) openDatePicker("checkOut");
           }}
         >
           <label className="absolute left-5 top-2.5 text-xs font-semibold text-ink pointer-events-none z-10">
@@ -176,7 +200,7 @@ export default function SearchForm() {
             onChange={(e) => handleDateChange('checkOut', e.target.value)}
             min={getMinCheckoutDate()}
             disabled={!checkIn}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed"
+            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none z-20"
             style={{ fontSize: '16px' }} // Prevents zoom on iOS
           />
           <div className="w-full h-full pt-7 pb-2.5 px-5 pr-10 text-sm font-medium text-ink hover:bg-surface transition-colors pointer-events-none">
@@ -184,6 +208,16 @@ export default function SearchForm() {
               {formatDateDisplay(checkOut)}
             </span>
           </div>
+          {datePicker === "checkOut" && (
+            <DateRangePicker
+              mode="checkOut"
+              checkIn={checkIn}
+              checkOut={checkOut}
+              minDate={getMinCheckoutDate()}
+              locale={dateLocale}
+              onSelect={handleCalendarSelect}
+            />
+          )}
         </div>
 
         {/* Divider */}
