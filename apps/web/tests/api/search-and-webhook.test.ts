@@ -49,7 +49,7 @@ describe("POST /api/search/availability", () => {
     expect(res.status).toBe(400);
   });
 
-  it("counts only listings with a calendar and no conflicts", async () => {
+  it("returns listings without conflicts, including those without a calendar", async () => {
     prismaMock.hotel.findMany.mockResolvedValue([
       {
         id: "h1",
@@ -70,7 +70,9 @@ describe("POST /api/search/availability", () => {
 
     const res = await searchAvailability(post(RANGE));
 
-    await expect(res.json()).resolves.toEqual({ listingIds: ["free"] });
+    await expect(res.json()).resolves.toEqual({
+      listingIds: ["free", "no-calendar", "x"],
+    });
   });
 
   it("treats blocked and unreachable calendars as unavailable", async () => {

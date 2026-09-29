@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useLocale } from "@/lib/i18n/locale-context";
 
 type User = { id: string; username: string; email: string; verified?: boolean } | null;
 
 export default function AuthButton() {
+  const { t } = useLocale();
   const [user, setUser] = useState<User>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,10 +41,7 @@ export default function AuthButton() {
 
   if (!user) {
     return (
-      <div className="flex gap-2">
-        <Link href="/sign-in" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">Sign in</Link>
-        <Link href="/sign-up" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black">Sign up</Link>
-      </div>
+      <Link href="/sign-in" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black">{t("hostPortal")}</Link>
     );
   }
 
@@ -53,8 +52,8 @@ export default function AuthButton() {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-gray-600">Hi, {user.username}</span>
-      <button onClick={onSignOut} className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">Sign out</button>
+      <span className="text-sm text-gray-600">{t("hiUser", { name: user.username })}</span>
+      <button onClick={onSignOut} className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">{t("signOut")}</button>
     </div>
   );
 }

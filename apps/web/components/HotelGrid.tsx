@@ -3,6 +3,7 @@ import { useMemo, useState, useRef, useEffect, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
 import SearchRoomCard from "./SearchRoomCard";
 
 type ImageType = { id: string; url: string; position: number };
@@ -28,19 +29,29 @@ function slugify(name: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function getHotelImages(hotel: Hotel): string[] {
-  const slug = slugify(hotel.name);
-  const images: string[] = [];
-
-  // Priority 1: Use coverImageUrl from database (can be Google Drive URL)
-  if (hotel.coverImageUrl) {
-    images.push(hotel.coverImageUrl);
+/** First room photo, used when a hotel has no cover of its own. */
+function firstRoomImage(hotel: Hotel): string | null {
+  for (const listing of hotel.listings ?? []) {
+    const image = [...(listing.images ?? [])].sort((a, b) => a.position - b.position)[0];
+    if (image?.url) return image.url;
   }
+  return null;
+}
 
-  // Priority 2: Fallback to local public folder
-  images.push(`/images/hotels/${slug}/cover.jpg`);
+function getHotelCoverCandidates(hotel: Hotel): string[] {
+  const slug = slugify(hotel.name);
+  const candidates = [
+    ...(hotel.coverImageUrl ? [hotel.coverImageUrl] : []),
+    `/images/hotels/${slug}/cover.jpg`,
+    `/images/hotels/${slug}/cover.jpeg`,
+    `/images/hotels/${slug}/cover.png`,
+    `/images/hotels/${slug}/cover.webp`,
+  ];
 
-  return images;
+  const roomImage = firstRoomImage(hotel);
+  if (roomImage && !candidates.includes(roomImage)) candidates.push(roomImage);
+
+  return candidates;
 }
 
 type HotelCardProps = {
@@ -60,6 +71,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
   const expandedRef = useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const { setSelectedHotelImage, searchParams, availableListingIds } = useHotel();
+  const { t } = useLocale();
   const showingRooms = Boolean(searchParams && availableListingIds);
 
   const availableIdSet = useMemo(
@@ -131,7 +143,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
       const expandedHotel = hotels.find(h => h.id === expandedHotelId);
       if (expandedHotel) {
         // Resolve the cover the same way as the card and gallery
-        setSelectedHotelImage(getHotelImages(expandedHotel)[0]);
+        setSelectedHotelImage(getHotelCoverCandidates(expandedHotel)[0]);
       }
     } else {
       setSelectedHotelImage(null);
@@ -166,16 +178,8 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={
-            showingRooms
-              ? "Filter by room, hotel, or location"
-              : "Filter by name or location"
-          }
-          aria-label={
-            showingRooms
-              ? "Filter rooms by name, hotel, or location"
-              : "Filter hotels by name or location"
-          }
+          placeholder={showingRooms ? t("filterRooms") : t("filterHotels")}
+          aria-label={showingRooms ? t("filterRoomsAria") : t("filterHotelsAria")}
           className="w-full max-w-xs rounded-full border border-line px-4 py-2 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
         />
         {!showingRooms ? (
@@ -188,11 +192,12 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
-            {showMap ? "Hide map" : "Show map"}
+            {showMap ? t("hideMap") : t("showMap")}
           </button>
         ) : (
           <p className="text-sm text-muted">
-            {availableRooms.length} room{availableRooms.length === 1 ? "" : "s"} available
+            {availableRooms.length} {availableRooms.length === 1 ? t("room") : t("rooms")}{" "}
+            {availableRooms.length === 1 ? t("availableOne") : t("availableMany")}
           </p>
         )}
       </div>
@@ -213,7 +218,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
           ))}
           {availableRooms.length === 0 && (
             <div className="col-span-full py-8 text-center text-muted">
-              No rooms available for these dates. Try adjusting your search.
+              {t("noRoomsForTheseDates")}
             </div>
           )}
         </div>
@@ -299,6 +304,7 @@ const HotelCard = memo(function HotelCard({
   setExpandedHotelId,
   setSelectedHotelImage,
 }: HotelCardProps) {
+    const { t } = useLocale();
     const [coverIndex, setCoverIndex] = useState(0);
     const [carouselIndex, setCarouselIndex] = useState(0);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -320,13 +326,7 @@ const HotelCard = memo(function HotelCard({
         setIframeSrc(mapEmbedUrl);
       }
     }, [isExpanded, mapEmbedUrl, iframeSrc]);
-    const candidates = [
-      ...(h.coverImageUrl ? [h.coverImageUrl] : []),
-      `/images/hotels/${slug}/cover.jpg`,
-      `/images/hotels/${slug}/cover.jpeg`,
-      `/images/hotels/${slug}/cover.png`,
-      `/images/hotels/${slug}/cover.webp`,
-    ];
+    const candidates = getHotelCoverCandidates(h);
     const usingCover = coverIndex < candidates.length;
     const coverSrc = usingCover ? candidates[coverIndex] : undefined;
     const displaySrc = usingCover ? coverSrc : undefined;
@@ -337,7 +337,7 @@ const HotelCard = memo(function HotelCard({
     const minPrice = h.listings?.length ? Math.min(...h.listings.map((l) => l.nightlyBasePrice)) : null;
 
     const [failedImages, setFailedImages] = useState<string[]>([]);
-    const galleryImages = getHotelImages(h).filter((src) => !failedImages.includes(src));
+    const galleryImages = getHotelCoverCandidates(h).filter((src) => !failedImages.includes(src));
 
     return (
       <div
@@ -393,7 +393,9 @@ const HotelCard = memo(function HotelCard({
                 <p className="truncate font-semibold text-ink">{h.name}</p>
                 {minPrice !== null && (
                   <p className="shrink-0 text-sm text-ink">
-                    <span className="font-semibold">from ${(minPrice / 100).toFixed(0)}</span>
+                    <span className="font-semibold">
+                      {t("fromPrice", { price: `$${(minPrice / 100).toFixed(0)}` })}
+                    </span>
                   </p>
                 )}
               </div>
@@ -401,18 +403,20 @@ const HotelCard = memo(function HotelCard({
                 <p>{h.location}</p>
                 {availableRooms !== null ? (
                   <p>
-                    <span className="font-bold text-brand">{rooms}</span> room{rooms === 1 ? "" : "s"} available
+                    <span className="font-bold text-brand">{rooms}</span>{" "}
+                    {rooms === 1 ? t("room") : t("rooms")}{" "}
+                    {rooms === 1 ? t("availableOne") : t("availableMany")}
                   </p>
                 ) : (
                   <p>
-                    {rooms} room{rooms === 1 ? "" : "s"}
+                    {rooms} {rooms === 1 ? t("room") : t("rooms")}
                   </p>
                 )}
               </div>
             </div>
           </button>
         ) : (
-          <div className="rounded-3xl border border-line/70 bg-white/80 p-6 space-y-4 shadow-card animate-fade-in-scale backdrop-blur-md">
+          <div className="rounded-3xl border border-line/70 bg-card/90 p-6 space-y-4 shadow-card animate-fade-in-scale backdrop-blur-md">
             {/* Title at top left */}
             <div className="flex items-center justify-between">
               <h2 className="font-display text-2xl md:text-3xl font-bold text-ink">{h.name}</h2>
@@ -423,7 +427,7 @@ const HotelCard = memo(function HotelCard({
                   setSelectedHotelImage(null);
                 }}
                 className="text-muted hover:text-ink text-3xl leading-none transition-all duration-200 hover:scale-110 w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface"
-                aria-label="Close"
+                aria-label={t("close")}
               >
                 ×
               </button>
@@ -463,7 +467,7 @@ const HotelCard = memo(function HotelCard({
                     </>
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-surface text-muted rounded-2xl">
-                      No images available
+                      {t("noImages")}
                     </div>
                   )}
                 </div>
@@ -494,7 +498,7 @@ const HotelCard = memo(function HotelCard({
                       />
                     ) : (
                       <div className="w-full h-full bg-surface flex items-center justify-center text-muted text-sm">
-                        Map URL not available
+                        {t("mapUnavailable")}
                       </div>
                     )}
                   </div>
@@ -512,7 +516,7 @@ const HotelCard = memo(function HotelCard({
                       setCarouselIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
                     }}
                     className="absolute bottom-6 left-1/2 -translate-x-[60px] bg-white/90 hover:bg-white text-ink rounded-full w-11 h-11 flex items-center justify-center z-30 transition-all duration-300 hover:scale-110 shadow-pill"
-                    aria-label="Previous image"
+                    aria-label={t("previousImage")}
                   >
                     <span className="text-2xl font-light">‹</span>
                   </button>
@@ -530,7 +534,7 @@ const HotelCard = memo(function HotelCard({
                         className={`w-2 h-2 rounded-full transition-all ${
                           idx === carouselIndex ? "bg-white w-6" : "bg-white/60 hover:bg-white/80"
                         }`}
-                        aria-label={`Go to image ${idx + 1}`}
+                        aria-label={t("goToImage", { n: idx + 1 })}
                       />
                     ))}
                   </div>
@@ -543,7 +547,7 @@ const HotelCard = memo(function HotelCard({
                       setCarouselIndex((prev) => (prev + 1) % galleryImages.length);
                     }}
                     className="absolute bottom-6 left-1/2 translate-x-[60px] bg-white/90 hover:bg-white text-ink rounded-full w-11 h-11 flex items-center justify-center z-30 transition-all duration-300 hover:scale-110 shadow-pill"
-                    aria-label="Next image"
+                    aria-label={t("nextImage")}
                   >
                     <span className="text-2xl font-light">›</span>
                   </button>
@@ -557,7 +561,7 @@ const HotelCard = memo(function HotelCard({
                 href={`/hotel/${h.id}`}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3 text-white font-semibold hover:bg-brand-dark transition-all duration-200 hover:scale-[1.02] hover:shadow-card"
               >
-                See Rooms and Availability
+                {t("seeRooms")}
                 <span className="text-lg">→</span>
               </Link>
             </div>

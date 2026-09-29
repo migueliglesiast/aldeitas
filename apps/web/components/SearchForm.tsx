@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
+import DateRangePicker from "@/components/DateRangePicker";
 
 function localDateKey(date = new Date()) {
   const y = date.getFullYear();
@@ -17,15 +19,18 @@ function addDaysKey(dateKey: string, days: number) {
 
 export default function SearchForm() {
   const { searchParams, setSearchParams, setAvailableListingIds } = useHotel();
+  const { t, dateLocale } = useLocale();
   const [checkIn, setCheckIn] = useState<string>(() => searchParams?.checkIn || "");
   const [checkOut, setCheckOut] = useState<string>(() => searchParams?.checkOut || "");
   const [guests, setGuests] = useState<number>(() => searchParams?.guests || 1);
   const [pets, setPets] = useState<number>(() => searchParams?.pets || 0);
   const [showGuestPicker, setShowGuestPicker] = useState(false);
   const [showPetPicker, setShowPetPicker] = useState(false);
+  const [datePicker, setDatePicker] = useState<"checkIn" | "checkOut" | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const guestPickerRef = useRef<HTMLDivElement>(null);
   const petPickerRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
   const checkInInputRef = useRef<HTMLInputElement>(null);
   const checkOutInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,19 +51,38 @@ export default function SearchForm() {
       if (petPickerRef.current && !petPickerRef.current.contains(event.target as Node)) {
         setShowPetPicker(false);
       }
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setDatePicker(null);
+      }
     };
 
-    if (showGuestPicker || showPetPicker) {
+    if (showGuestPicker || showPetPicker || datePicker) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showGuestPicker, showPetPicker]);
+  }, [showGuestPicker, showPetPicker, datePicker]);
 
   // Local calendar date — avoid UTC `toISOString()` which can skip "today" in MX.
   const minDate = localDateKey();
+
+  const openDatePicker = (type: "checkIn" | "checkOut") => {
+    setShowGuestPicker(false);
+    setShowPetPicker(false);
+    setDatePicker((current) => (current === type ? null : type));
+  };
+
+  const handleCalendarSelect = (value: string) => {
+    if (datePicker === "checkIn") {
+      handleDateChange("checkIn", value);
+      setDatePicker("checkOut");
+      return;
+    }
+    handleDateChange("checkOut", value);
+    setDatePicker(null);
+  };
 
   const getMinCheckoutDate = () => {
     if (!checkIn) return minDate;
@@ -66,9 +90,9 @@ export default function SearchForm() {
   };
 
   const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return "Add date";
+    if (!dateString) return t("addDate");
     const date = new Date(dateString + 'T00:00:00'); // Add time to avoid timezone issues
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
   const handleDateChange = (type: 'checkIn' | 'checkOut', value: string) => {
@@ -116,25 +140,26 @@ export default function SearchForm() {
 
   return (
     <form onSubmit={handleSearch} className="w-full">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-white rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible">
+      <div
+        ref={datePickerRef}
+        className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-card rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible"
+      >
         {/* Check-in Date - Airbnb style */}
         <div 
           className="flex-1 relative cursor-pointer group"
-          onClick={() => {
-            checkInInputRef.current?.showPicker?.() || checkInInputRef.current?.focus();
-          }}
+          onClick={() => openDatePicker("checkIn")}
         >
           <label className="absolute left-5 top-2.5 text-xs font-semibold text-ink pointer-events-none z-10">
-            Check in
+            {t("checkIn")}
           </label>
           <input
             ref={checkInInputRef}
             type="date"
-            aria-label="Check in"
+            aria-label={t("checkIn")}
             value={checkIn}
             onChange={(e) => handleDateChange('checkIn', e.target.value)}
             min={minDate}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none z-20"
             style={{ fontSize: '16px' }} // Prevents zoom on iOS
           />
           <div className="w-full h-full pt-7 pb-2.5 px-5 pr-10 text-sm font-medium text-ink rounded-l-full hover:bg-surface transition-colors pointer-events-none">
@@ -142,6 +167,16 @@ export default function SearchForm() {
               {formatDateDisplay(checkIn)}
             </span>
           </div>
+          {datePicker === "checkIn" && (
+            <DateRangePicker
+              mode="checkIn"
+              checkIn={checkIn}
+              checkOut={checkOut}
+              minDate={minDate}
+              locale={dateLocale}
+              onSelect={handleCalendarSelect}
+            />
+          )}
         </div>
 
         {/* Divider */}
@@ -151,23 +186,21 @@ export default function SearchForm() {
         <div 
           className={`flex-1 relative group ${!checkIn ? 'opacity-50' : 'cursor-pointer'}`}
           onClick={() => {
-            if (checkIn && !checkOutInputRef.current?.disabled) {
-              checkOutInputRef.current?.showPicker?.() || checkOutInputRef.current?.focus();
-            }
+            if (checkIn) openDatePicker("checkOut");
           }}
         >
           <label className="absolute left-5 top-2.5 text-xs font-semibold text-ink pointer-events-none z-10">
-            Check out
+            {t("checkOut")}
           </label>
           <input
             ref={checkOutInputRef}
             type="date"
-            aria-label="Check out"
+            aria-label={t("checkOut")}
             value={checkOut}
             onChange={(e) => handleDateChange('checkOut', e.target.value)}
             min={getMinCheckoutDate()}
             disabled={!checkIn}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed"
+            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none z-20"
             style={{ fontSize: '16px' }} // Prevents zoom on iOS
           />
           <div className="w-full h-full pt-7 pb-2.5 px-5 pr-10 text-sm font-medium text-ink hover:bg-surface transition-colors pointer-events-none">
@@ -175,6 +208,16 @@ export default function SearchForm() {
               {formatDateDisplay(checkOut)}
             </span>
           </div>
+          {datePicker === "checkOut" && (
+            <DateRangePicker
+              mode="checkOut"
+              checkIn={checkIn}
+              checkOut={checkOut}
+              minDate={getMinCheckoutDate()}
+              locale={dateLocale}
+              onSelect={handleCalendarSelect}
+            />
+          )}
         </div>
 
         {/* Divider */}
@@ -190,18 +233,18 @@ export default function SearchForm() {
             }}
             className="w-full pt-7 pb-2.5 px-5 text-left text-sm font-medium text-ink hover:bg-surface transition-colors focus:outline-none focus:ring-2 focus:ring-brand/20"
           >
-            <span className="absolute left-5 top-2.5 text-xs font-semibold text-ink">Guests</span>
+            <span className="absolute left-5 top-2.5 text-xs font-semibold text-ink">{t("guests")}</span>
             <span className="block mt-1">
-              {guests} {guests === 1 ? 'guest' : 'guests'}
+              {guests} {guests === 1 ? t("guest") : t("guestsPlural")}
             </span>
           </button>
           
           {showGuestPicker && (
-            <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-2xl shadow-pop border border-line/60 p-4 z-50">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-card rounded-2xl shadow-pop border border-line/60 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-semibold text-ink">Adults</div>
-                  <div className="text-xs text-gray-500">Ages 13+</div>
+                  <div className="font-semibold text-ink">{t("adults")}</div>
+                  <div className="text-xs text-gray-500">{t("ages13Plus")}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -231,7 +274,7 @@ export default function SearchForm() {
                 onClick={() => setShowGuestPicker(false)}
                 className="w-full text-left text-sm font-semibold text-ink underline underline-offset-2 hover:text-brand"
               >
-                Done
+                {t("done")}
               </button>
             </div>
           )}
@@ -250,18 +293,18 @@ export default function SearchForm() {
             }}
             className="w-full pt-7 pb-2.5 px-5 text-left text-sm font-medium text-ink hover:bg-surface transition-colors focus:outline-none focus:ring-2 focus:ring-brand/20"
           >
-            <span className="absolute left-5 top-2.5 text-xs font-semibold text-ink">Pets</span>
+            <span className="absolute left-5 top-2.5 text-xs font-semibold text-ink">{t("pets")}</span>
             <span className="block mt-1">
-              {pets === 0 ? 'No pets' : `${pets} ${pets === 1 ? 'pet' : 'pets'}`}
+              {pets === 0 ? t("noPets") : `${pets} ${pets === 1 ? t("pet") : t("petsPlural")}`}
             </span>
           </button>
           
           {showPetPicker && (
-            <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-2xl shadow-pop border border-line/60 p-4 z-50">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-card rounded-2xl shadow-pop border border-line/60 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-semibold text-ink">Pets</div>
-                  <div className="text-xs text-gray-500">Bringing a service animal?</div>
+                  <div className="font-semibold text-ink">{t("pets")}</div>
+                  <div className="text-xs text-gray-500">{t("serviceAnimal")}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -291,7 +334,7 @@ export default function SearchForm() {
                 onClick={() => setShowPetPicker(false)}
                 className="w-full text-left text-sm font-semibold text-ink underline underline-offset-2 hover:text-brand"
               >
-                Done
+                {t("done")}
               </button>
             </div>
           )}
@@ -310,14 +353,14 @@ export default function SearchForm() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span className="hidden sm:inline">Searching...</span>
+                <span className="hidden sm:inline">{t("searching")}</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span className="hidden sm:inline">Search</span>
+                <span className="hidden sm:inline">{t("search")}</span>
               </>
             )}
           </button>
