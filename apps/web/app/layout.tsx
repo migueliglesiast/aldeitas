@@ -11,7 +11,7 @@ import { Fraunces, Inter, Plus_Jakarta_Sans } from "next/font/google";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const fraunces = Fraunces({
   subsets: ["latin"],
-  weight: ["900"],
+  weight: ["400", "900"],
   variable: "--font-poster",
 });
 const jakarta = Plus_Jakarta_Sans({
