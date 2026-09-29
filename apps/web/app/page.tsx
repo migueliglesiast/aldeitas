@@ -45,10 +45,11 @@ export default async function HomePage() {
     <div className="space-y-8">
       <div className="space-y-2 pt-2 text-center">
         <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink md:text-4xl">
-          Find your next long stay
+          The same rooms for cheaper
         </h1>
         <p className="text-muted">
-          Boutique homes and hotels on the Oaxacan coast
+          The big booking sites keep 15–17% of every night. We keep 5% — the rest stays
+          with your hosts and the coast they live on.
         </p>
       </div>
 
