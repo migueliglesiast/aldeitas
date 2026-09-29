@@ -43,15 +43,15 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2 pt-2 text-center">
-        <h1 className="font-poster text-4xl font-black tracking-tight text-ink md:text-5xl">
+      <div className="mx-auto max-w-3xl space-y-3 px-2 pt-4 text-center">
+        <h1 className="font-poster text-[2rem] font-black leading-tight tracking-tight text-ink sm:text-4xl md:text-5xl">
           The same rooms for cheaper
         </h1>
-        <p className="text-muted">
+        <p className="text-balance text-base leading-relaxed text-muted md:text-lg">
           The{" "}
           <span className="font-bold text-[#F97316]">big booking sites keep 15%–17%</span>{" "}
           of every night.{" "}
-          <span className="font-bold text-[#0092A1]">We only keep 5%</span> so the money
+          <span className="whitespace-nowrap font-bold text-[#0092A1]">We only keep 5%</span> so the money
           stays with you and the places you love.
         </p>
       </div>
