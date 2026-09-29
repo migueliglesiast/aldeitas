@@ -7,7 +7,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 export default function PortalHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-line/60 bg-white/90 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image

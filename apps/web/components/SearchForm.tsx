@@ -129,7 +129,7 @@ export default function SearchForm() {
 
   return (
     <form onSubmit={handleSearch} className="w-full">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-white rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-card rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible">
         {/* Check-in Date - Airbnb style */}
         <div 
           className="flex-1 relative cursor-pointer group"
@@ -206,7 +206,7 @@ export default function SearchForm() {
           </button>
           
           {showGuestPicker && (
-            <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-2xl shadow-pop border border-line/60 p-4 z-50">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-card rounded-2xl shadow-pop border border-line/60 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="font-semibold text-ink">{t("adults")}</div>
@@ -266,7 +266,7 @@ export default function SearchForm() {
           </button>
           
           {showPetPicker && (
-            <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-2xl shadow-pop border border-line/60 p-4 z-50">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-card rounded-2xl shadow-pop border border-line/60 p-4 z-50">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="font-semibold text-ink">{t("pets")}</div>

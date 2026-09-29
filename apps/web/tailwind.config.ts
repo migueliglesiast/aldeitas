@@ -13,10 +13,12 @@ export default {
           dark: "#E31C5F",
           light: "#FF5A75",
         },
-        ink: "#222222",
-        muted: "#717171",
-        line: "#DDDDDD",
-        surface: "#F7F7F7",
+        ink: "#3D3B38",
+        muted: "#78736B",
+        line: "#E7E0D6",
+        surface: "#F4EFE7",
+        paper: "#FBF8F3",
+        card: "#FFFDFA",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
@@ -24,9 +26,9 @@ export default {
         poster: ["var(--font-poster)", "var(--font-display)", "sans-serif"],
       },
       boxShadow: {
-        card: "0 6px 16px rgba(0, 0, 0, 0.12)",
-        pill: "0 3px 12px rgba(0, 0, 0, 0.10)",
-        pop: "0 8px 28px rgba(0, 0, 0, 0.18)",
+        card: "0 6px 18px rgba(61, 51, 38, 0.10)",
+        pill: "0 3px 12px rgba(61, 51, 38, 0.08)",
+        pop: "0 10px 30px rgba(61, 51, 38, 0.14)",
       },
       keyframes: {
         shimmer: {

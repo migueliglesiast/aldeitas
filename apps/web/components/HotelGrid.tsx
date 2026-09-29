@@ -416,7 +416,7 @@ const HotelCard = memo(function HotelCard({
             </div>
           </button>
         ) : (
-          <div className="rounded-3xl border border-line/70 bg-white/80 p-6 space-y-4 shadow-card animate-fade-in-scale backdrop-blur-md">
+          <div className="rounded-3xl border border-line/70 bg-card/90 p-6 space-y-4 shadow-card animate-fade-in-scale backdrop-blur-md">
             {/* Title at top left */}
             <div className="flex items-center justify-between">
               <h2 className="font-display text-2xl md:text-3xl font-bold text-ink">{h.name}</h2>

@@ -152,7 +152,7 @@ describe("blurred hotel background", () => {
     vi.stubGlobal("Image", ImageStub);
   });
 
-  it("ContentContainer paints the selected image once it loads", async () => {
+  it("ContentContainer keeps a static background when a hotel is selected", async () => {
     render(
       <HotelProvider>
         <SelectImage url="/images/hotels/uno/cover.jpg" />
@@ -168,7 +168,7 @@ describe("blurred hotel background", () => {
     await waitFor(() =>
       expect(
         document.querySelector('[style*="images/hotels/uno/cover.jpg"]')
-      ).toBeInTheDocument()
+      ).toBeNull()
     );
   });
 
