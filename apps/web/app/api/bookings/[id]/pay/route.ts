@@ -20,8 +20,9 @@ const bodySchema = z
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   if (!isMercadoPagoConfigured()) {
     return NextResponse.json({ error: "Mercado Pago is not configured" }, { status: 400 });
   }
@@ -35,7 +36,7 @@ export async function POST(
   const paymentMethodId = parsed.data.paymentMethodId || parsed.data.payment_method_id!;
 
   const booking = await prisma.booking.findUnique({
-    where: { id: params.id },
+    where: { id: id },
   });
 
   if (!booking) {

@@ -53,6 +53,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
   delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.PAYMENT_PROVIDER;
+  delete process.env.CONEKTA_PRIVATE_KEY;
+  process.env.MERCADOPAGO_ACCESS_TOKEN = "TEST-token";
   fetchDynamicPricing.mockResolvedValue(null);
   prismaMock.booking.count.mockResolvedValue(0);
   prismaMock.booking.create.mockResolvedValue({ id: "b1" });
@@ -60,6 +63,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.MERCADOPAGO_ACCESS_TOKEN;
 });
 
 describe("POST /api/book", () => {
@@ -111,7 +115,20 @@ describe("POST /api/book", () => {
     await expect(res.json()).resolves.toEqual({ error: "Invalid date range" });
   });
 
-  it("creates a PENDING booking when payment is not configured", async () => {
+  it("refuses to create a booking when no payment provider is configured", async () => {
+    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
+    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
+
+    const res = await POST(request(VALID_BODY));
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "Online payment is not available right now",
+    });
+    expect(prismaMock.booking.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a PENDING Mercado Pago booking and returns its payment page", async () => {
     prismaMock.listing.findUnique.mockResolvedValue(LISTING);
 
     const res = await POST(request(VALID_BODY));
@@ -119,7 +136,7 @@ describe("POST /api/book", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
       bookingId: "b1",
-      message: "Booking created (payment not configured)",
+      paymentUrl: "/booking/b1/pay",
     });
     expect(prismaMock.booking.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -127,11 +144,31 @@ describe("POST /api/book", () => {
         status: "PENDING",
         totalPriceCents: 20000,
         currency: "USD",
+        paymentProvider: "mercadopago",
+        pendingExpiresAt: expect.any(Date),
+      }),
+    });
+    expect(sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("only counts paid or confirmed bookings as local conflicts", async () => {
+    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
+
+    await POST(request(VALID_BODY));
+
+    expect(prismaMock.booking.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        listingId: "l1",
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "PENDING", authorizedAt: { not: null } },
+        ],
       }),
     });
   });
 
   it("uses dynamic pricing and returns a Stripe checkout url", async () => {
+    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
     process.env.STRIPE_SECRET_KEY = "sk_test_x";
     prismaMock.listing.findUnique.mockResolvedValue(LISTING);
     fetchDynamicPricing.mockResolvedValue({ nightlyCents: 5000, currency: "MXN" });
@@ -163,6 +200,7 @@ describe("POST /api/book", () => {
   });
 
   it("sends the booking metadata and redirect URLs to Stripe checkout", async () => {
+    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
     process.env.STRIPE_SECRET_KEY = "sk_test_x";
     process.env.NEXT_PUBLIC_SITE_URL = "https://aldeitas.example";
     prismaMock.listing.findUnique.mockResolvedValue(LISTING);
@@ -195,6 +233,7 @@ describe("POST /api/book", () => {
   });
 
   it("returns a generic 500 when Stripe checkout creation fails", async () => {
+    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
     process.env.STRIPE_SECRET_KEY = "sk_test_x";
     prismaMock.listing.findUnique.mockResolvedValue(LISTING);
     sessionsCreate.mockRejectedValue(new Error("stripe down"));

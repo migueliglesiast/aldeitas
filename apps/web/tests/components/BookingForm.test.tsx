@@ -92,6 +92,23 @@ describe("BookingForm", () => {
     await waitFor(() => expect(location.href).toBe("https://checkout.stripe.com/s/1"));
   });
 
+  it("redirects to the Mercado Pago payment page when the booking returns a payment url", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.startsWith("/api/book")
+        ? { ok: true, json: async () => ({ bookingId: "b1", paymentUrl: "/booking/b1/pay" }) }
+        : { ok: true, json: async () => PRICING }
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const location = { href: "" };
+    vi.stubGlobal("location", location as unknown as Location);
+
+    renderForm();
+    await fillForm();
+    await userEvent.click(screen.getByRole("button", { name: "Reserve" }));
+
+    await waitFor(() => expect(location.href).toBe("/booking/b1/pay"));
+  });
+
   it("confirms a booking created without payment", async () => {
     const fetchMock = vi.fn(async (url: string) =>
       url.startsWith("/api/book")

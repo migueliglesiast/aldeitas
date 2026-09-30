@@ -63,13 +63,14 @@ function publicBookingStatus(booking: {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const provider = req.nextUrl.searchParams.get("provider") as PaymentProviderId | null;
   const orderId = req.nextUrl.searchParams.get("order_id");
 
   let booking = await prisma.booking.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: {
       listing: {
         select: { id: true, title: true },
@@ -96,7 +97,7 @@ export async function GET(
     }
 
     booking = await prisma.booking.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         listing: {
           select: { id: true, title: true },
@@ -115,7 +116,7 @@ export async function GET(
     reconcileMessage = result.action === "pending" ? result.message : null;
 
     booking = await prisma.booking.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         listing: {
           select: { id: true, title: true },

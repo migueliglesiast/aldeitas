@@ -1,7 +1,12 @@
 import { Suspense } from "react";
 import BookingStatusClient from "./BookingStatusClient";
 
-export default function BookingStatusPage({ params }: { params: { id: string } }) {
+export default async function BookingStatusPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   return (
     <Suspense
       fallback={
@@ -10,7 +15,7 @@ export default function BookingStatusPage({ params }: { params: { id: string } }
         </div>
       }
     >
-      <BookingStatusClient bookingId={params.id} />
+      <BookingStatusClient bookingId={id} />
     </Suspense>
   );
 }

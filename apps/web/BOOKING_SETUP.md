@@ -59,7 +59,8 @@ npm run migrate-currency-to-mxn
 Mercado Pago can notify your app when order status changes:
 
 - URL: `https://your-domain.com/api/mercadopago/webhook`
-- Topic: **Orders**
+- Event: **Order (Mercado Pago)**
+- After saving, copy the generated secret into `MERCADOPAGO_WEBHOOK_SECRET` so the app rejects notifications without a valid `x-signature`
 
 For local dev, webhooks are optional — authorization happens when the guest submits the card form on your site.
 

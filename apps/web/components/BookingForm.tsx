@@ -146,8 +146,9 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         data = { error: txt || "Booking failed" };
       }
       if (!response.ok) throw new Error(data.error || "Booking failed");
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      const redirectUrl = data.paymentUrl || data.checkoutUrl;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
       } else {
         setMessage("Booking created.");
       }
