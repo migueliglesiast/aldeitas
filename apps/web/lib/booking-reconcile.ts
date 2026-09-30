@@ -227,7 +227,10 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
     ageMs >= getBookingMaxPendingMs() ||
     (booking.pendingExpiresAt ? Date.now() >= booking.pendingExpiresAt.getTime() : false);
 
-  if (holdLikelySynced && minWaitPassed) {
+  const hasExternalCalendars =
+    Boolean(booking.listing.icalUrl) || booking.listing.calendarSources.length > 0;
+
+  if ((holdLikelySynced || !hasExternalCalendars) && minWaitPassed) {
     return confirmBooking(booking);
   }
 
