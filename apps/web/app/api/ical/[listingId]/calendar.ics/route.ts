@@ -3,9 +3,10 @@ import { buildListingIcalResponse } from "@/lib/ical-export";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { listingId: string } }
+  { params }: { params: Promise<{ listingId: string }> }
 ) {
-  const response = await buildListingIcalResponse(params.listingId);
+  const { listingId } = await params;
+  const response = await buildListingIcalResponse(listingId);
   if (!response) return new Response("Not found", { status: 404 });
   return response;
 }

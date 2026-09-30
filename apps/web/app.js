@@ -59,6 +59,23 @@ try {
   fatal("cannot require('next') — run npm install in app root", error);
 }
 
+function scheduleBookingReconcile() {
+  const secret = process.env.BOOKING_RECONCILE_SECRET;
+  const minutes = Number(process.env.BOOKING_RECONCILE_INTERVAL_MINUTES || 5);
+  if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
+
+  const url = `http://127.0.0.1:${port}/api/bookings/reconcile`;
+  const run = () =>
+    fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
+      .then((res) => {
+        if (!res.ok) console.error("[aldeitas] booking reconcile returned %s", res.status);
+      })
+      .catch((error) => logError("booking reconcile", error));
+
+  setInterval(run, minutes * 60 * 1000).unref();
+  console.log("[aldeitas] booking reconcile every %s min", minutes);
+}
+
 const app = next({ dev: false, dir: appDir, hostname, port });
 const handle = app.getRequestHandler();
 
@@ -71,6 +88,7 @@ app
       })
       .listen(port, hostname, () => {
         console.log("[aldeitas] Ready on http://%s:%s", hostname, port);
+        scheduleBookingReconcile();
       })
       .on("error", (error) => fatal("listen error", error));
   })

@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks, fetchDynamicPricing } from "@/lib/airbnb";
 import Stripe from "stripe";
 import { isBefore } from "date-fns";
+import { countBlockingLocalConflicts } from "@/lib/booking-blocks";
+import { getBookingMaxPendingMs } from "@/lib/booking-config";
+import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
+import { createProviderCheckout } from "@/lib/payment-providers";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-06-20",
@@ -19,6 +23,17 @@ const bodySchema = z.object({
 
 function datesUnavailable() {
   return NextResponse.json({ error: "Dates unavailable" }, { status: 409 });
+}
+
+function paymentUnavailable() {
+  return NextResponse.json(
+    { error: "Online payment is not available right now" },
+    { status: 503 }
+  );
+}
+
+function siteUrl(req: NextRequest) {
+  return (process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin).replace(/\/$/, "");
 }
 
 function unverifiableAvailability() {
@@ -41,6 +56,9 @@ async function handleBooking(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   const { listingId, start, end, email, phone } = parsed.data;
+
+  const paymentProvider = getDefaultPaymentProvider();
+  if (!paymentProvider && !process.env.STRIPE_SECRET_KEY) return paymentUnavailable();
 
   const listing = await prisma.listing.findUnique({ 
     where: { id: listingId },
@@ -82,17 +100,7 @@ async function handleBooking(req: NextRequest) {
     }
   }
 
-  // check conflicts against local bookings (PENDING or CONFIRMED)
-  const localConflicts = await prisma.booking.count({
-    where: {
-      listingId,
-      status: { in: ["PENDING", "CONFIRMED"] },
-      NOT: [
-        { endDate: { lte: new Date(start) } },
-        { startDate: { gte: new Date(end) } },
-      ],
-    },
-  });
+  const localConflicts = await countBlockingLocalConflicts(listingId, startDate, endDate);
   if (localConflicts > 0) return datesUnavailable();
 
   // dynamic pricing attempt
@@ -105,25 +113,45 @@ async function handleBooking(req: NextRequest) {
   const currency = dynamic?.currency ?? listing.baseCurrency;
   const totalCents = Math.round(nightlyCents * nights);
 
-  // create internal booking record (pending)
   const booking = await prisma.booking.create({
     data: {
       listingId,
       guestEmail: email,
       guestPhone: phone,
-      startDate: new Date(start),
-      endDate: new Date(end),
+      startDate,
+      endDate,
       totalPriceCents: totalCents,
       currency,
       status: "PENDING",
+      paymentProvider: paymentProvider ?? "stripe",
+      pendingExpiresAt: new Date(Date.now() + getBookingMaxPendingMs()),
     },
   });
 
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return NextResponse.json({
+  const base = siteUrl(req);
+
+  if (paymentProvider) {
+    const checkout = await createProviderCheckout({
+      provider: paymentProvider,
       bookingId: booking.id,
-      message: "Booking created (payment not configured)",
+      amountCents: totalCents,
+      currency,
+      description: `${listing.title} (${start} → ${end})`,
+      customerEmail: email,
+      customerPhone: phone,
+      successUrl: `${base}/booking/${booking.id}?provider=${paymentProvider}`,
+      failureUrl: `${base}/listing/${listingId}?canceled=1`,
     });
+
+    if (checkout.provider === "conekta") {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { paymentOrderId: checkout.orderId },
+      });
+      return NextResponse.json({ bookingId: booking.id, checkoutUrl: checkout.checkoutUrl });
+    }
+
+    return NextResponse.json({ bookingId: booking.id, paymentUrl: checkout.paymentPageUrl });
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -138,12 +166,10 @@ async function handleBooking(req: NextRequest) {
         quantity: 1,
       },
     ],
-    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/listing/${listingId}?success=1`,
-    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/listing/${listingId}?canceled=1`,
+    success_url: `${base}/listing/${listingId}?success=1`,
+    cancel_url: `${base}/listing/${listingId}?canceled=1`,
     metadata: { bookingId: booking.id },
   });
 
   return NextResponse.json({ checkoutUrl: session.url });
 }
-
-

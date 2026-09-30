@@ -1,7 +1,12 @@
 import MercadoPagoPayClient from "./MercadoPagoPayClient";
 import { getMercadoPagoPublicKey } from "@/lib/payment-providers/config";
 
-export default function BookingPayPage({ params }: { params: { id: string } }) {
+export default async function BookingPayPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   const publicKey = getMercadoPagoPublicKey();
 
   if (!publicKey) {
@@ -12,5 +17,5 @@ export default function BookingPayPage({ params }: { params: { id: string } }) {
     );
   }
 
-  return <MercadoPagoPayClient bookingId={params.id} publicKey={publicKey} />;
+  return <MercadoPagoPayClient bookingId={id} publicKey={publicKey} />;
 }
