@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
+import { blockingBookingStatusWhere } from "@/lib/booking-blocks";
 
 type CalendarSourceDebug = {
   name: string;
@@ -39,7 +40,7 @@ export async function GET(
         calendarSources: true,
         bookings: {
           where: {
-            status: { in: ["PENDING", "CONFIRMED"] },
+            ...blockingBookingStatusWhere,
           },
         },
       },

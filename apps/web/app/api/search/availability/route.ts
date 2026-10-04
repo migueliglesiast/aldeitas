@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import { isBefore } from "date-fns";
+import { blockingBookingStatusWhere } from "@/lib/booking-blocks";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
             calendarSources: true,
             bookings: {
               where: {
-                status: { in: ["PENDING", "CONFIRMED"] },
+                ...blockingBookingStatusWhere,
                 NOT: [{ endDate: { lte: startDate } }, { startDate: { gte: endDate } }],
               },
             },

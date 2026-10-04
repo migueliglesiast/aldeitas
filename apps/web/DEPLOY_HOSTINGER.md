@@ -118,6 +118,7 @@ Add env vars in hPanel **before** the first deploy (or import from a local copy 
 | `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY` | Production public key |
 | `PAYMENT_PROVIDER` | `mercadopago` |
 | `BOOKING_RECONCILE_SECRET` | Long random string |
+| `MERCADOPAGO_WEBHOOK_SECRET` | Secret shown after saving the webhook in Mercado Pago → Your integrations → Webhooks |
 | `BOOKING_MIN_CONFIRM_MINUTES` | `15` |
 | `BOOKING_MAX_PENDING_MINUTES` | `120` |
 | `NODE_ENV` | `production` |
@@ -142,15 +143,13 @@ Do **not** set `MERCADOPAGO_TEST_PAYER_EMAIL` in production.
 
 ---
 
-## 4. Booking reconcile cron (required)
+## 4. Booking reconcile (required)
 
-Hostinger managed Node.js does not run cron for you. Use [cron-job.org](https://cron-job.org) (free):
+When `BOOKING_RECONCILE_SECRET` is set, `app.js` calls `POST /api/bookings/reconcile` in-process every `BOOKING_RECONCILE_INTERVAL_MINUTES` (default 5), which captures or releases authorized Mercado Pago holds and expires abandoned checkouts. No external cron is needed; [cron-job.org](https://cron-job.org) remains an optional backup:
 
 ```http
 POST https://yourdomain.com/api/bookings/reconcile?secret=YOUR_BOOKING_RECONCILE_SECRET
 ```
-
-Schedule: every **5–10 minutes**.
 
 ### Airbnb price sync cron (recommended)
 
@@ -221,9 +220,9 @@ If Hostinger cannot set root directory to `apps/web`:
 - [ ] Neon `DATABASE_URL` + `DIRECT_URL` in hPanel
 - [ ] `NEXT_PUBLIC_SITE_URL` = production HTTPS → redeploy
 - [ ] Mercado Pago production keys
-- [ ] `BOOKING_RECONCILE_SECRET` + cron-job.org every 5–10 min
+- [ ] `BOOKING_RECONCILE_SECRET` (app.js runs reconcile every 5 min)
 - [ ] Airbnb price sync cron every 1–2 hours (`/api/cron/sync-airbnb-prices`)
-- [ ] MP webhook configured
+- [ ] MP webhook → `https://yourdomain.com/api/mercadopago/webhook`, event **Order (Mercado Pago)**, secret in `MERCADOPAGO_WEBHOOK_SECRET`
 - [ ] Test booking end-to-end
 - [ ] Airbnb `.ics` per room
 
@@ -240,7 +239,7 @@ If Hostinger cannot set root directory to `apps/web`:
 | Build fails: TypeScript / tailwind | Ensure install includes devDependencies (`.npmrc` sets `production=false`) |
 | App runs but DB empty | Run `npm run seed` locally against Neon `DIRECT_URL` once |
 | MP payments fail | Production keys; `NEXT_PUBLIC_SITE_URL` matches live domain |
-| Bookings stuck Processing | Cron not hitting reconcile URL |
+| Bookings stuck Processing | `BOOKING_RECONCILE_SECRET` missing (runtime log lacks `booking reconcile every N min`) |
 | `E57P01` locally | Neon idle disconnect — use Docker Postgres for local dev |
 
 See also [BOOKING_SETUP.md](./BOOKING_SETUP.md).
