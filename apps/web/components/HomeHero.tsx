@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useLocale } from "@/lib/i18n/locale-context";
 
 export function HomeHero() {
@@ -38,22 +37,6 @@ export function HomeHero() {
       <p className="mx-auto max-w-xl text-pretty pt-2 text-base leading-7 text-heading/80">
         {t("heroTail")}
       </p>
-    </div>
-  );
-}
-
-export function HomeSignUpPrompt() {
-  const { t } = useLocale();
-
-  return (
-    <div className="text-center text-sm text-muted">
-      {t("newHere")}{" "}
-      <Link
-        className="font-semibold text-ink underline underline-offset-2 hover:text-brand"
-        href="/sign-up"
-      >
-        {t("createAccount")}
-      </Link>
     </div>
   );
 }

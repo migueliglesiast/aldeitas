@@ -8,6 +8,7 @@ import { HotelProvider } from "../lib/hotel-context";
 import { LocaleProvider } from "../lib/i18n/locale-context";
 import { StorefrontProvider } from "../lib/storefront-context";
 import { getStorefrontFromHeaders } from "../lib/storefront";
+import { SITE_URL } from "../lib/site";
 import StorefrontFooter from "../components/storefront/StorefrontFooter";
 import StorefrontTheme from "../components/storefront/StorefrontTheme";
 import type { Metadata } from "next";
@@ -34,12 +35,25 @@ export async function generateMetadata(): Promise<Metadata> {
       icons: { icon: storefront.logoImageUrl ?? "/images/aldeitas_logo.png" },
     };
   }
+  const title = "Aldeitas · Hoteles boutique en Puerto Escondido";
+  const description =
+    "Hoteles y casas boutique en Puerto Escondido, reservados directo con 5% de comisión en lugar de hasta 17%.";
   return {
-    title: "Aldeitas",
-    description: "Browse, compare, and reserve boutique stays.",
+    metadataBase: new URL(SITE_URL),
+    title: { default: title, template: "%s · Aldeitas" },
+    description,
     icons: {
       icon: "/images/aldeitas_logo.png",
     },
+    openGraph: {
+      type: "website",
+      siteName: "Aldeitas",
+      locale: "es_MX",
+      title,
+      description,
+      images: [{ url: "/images/laotraaldeita.jpeg", width: 1200, height: 800 }],
+    },
+    twitter: { card: "summary_large_image" },
   };
 }
 
