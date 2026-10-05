@@ -9,11 +9,12 @@ export default {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#FF385C",
-          dark: "#E31C5F",
-          light: "#FF5A75",
+          DEFAULT: "#0092A1",
+          dark: "#007A87",
+          light: "#33A8B4",
         },
         ink: "#3D3B38",
+        heading: "#4F4C48",
         muted: "#78736B",
         line: "#E7E0D6",
         surface: "#F4EFE7",
