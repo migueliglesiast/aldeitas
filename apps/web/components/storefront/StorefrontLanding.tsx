@@ -91,11 +91,11 @@ export default function StorefrontLanding({ hotel, listings }: Props) {
           <h1 className="mt-5 text-balance font-poster text-[2rem] font-black leading-[1.08] tracking-tight text-brand sm:text-4xl md:text-5xl">
             {hotel.name}
           </h1>
-          <p className="mt-1 font-poster text-xl font-black tracking-tight text-muted md:text-2xl">
+          <p className="mt-1 font-poster text-base font-black tracking-tight text-muted sm:text-xl md:text-2xl">
             Puerto Escondido
           </p>
-          <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-muted md:text-base">
-            <PinIcon className="h-4 w-4 text-brand" />
+          <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-medium text-muted sm:mt-3 sm:text-sm md:text-base">
+            <PinIcon className="h-3.5 w-3.5 text-brand sm:h-4 sm:w-4" />
             <span>{hotel.location}</span>
             <span aria-hidden>·</span>
             <a href="#rooms" className="underline-offset-2 hover:text-ink hover:underline">
