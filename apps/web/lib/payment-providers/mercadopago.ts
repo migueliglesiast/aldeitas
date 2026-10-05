@@ -194,16 +194,26 @@ export async function captureMercadoPagoOrder(orderId: string) {
   });
 }
 
-export async function releaseMercadoPagoOrder(orderId: string) {
-  const order = await getMercadoPagoOrder(orderId);
-  if (!isMercadoPagoOrderAuthorized(order)) return;
+const RELEASE_FINAL_STATUSES = new Set(["canceled", "refunded", "processed", "failed", "expired"]);
+const RELEASE_ATTEMPTS = 3;
 
-  try {
-    await mercadoPagoRequest(`/v1/orders/${orderId}/cancel`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-  } catch (error) {
-    console.error("[mercadopago] Failed to release authorized order:", error);
+export async function releaseMercadoPagoOrder(orderId: string) {
+  for (let attempt = 1; attempt <= RELEASE_ATTEMPTS; attempt++) {
+    try {
+      const order = await getMercadoPagoOrder(orderId);
+      if (order.status && RELEASE_FINAL_STATUSES.has(order.status)) return;
+
+      await mercadoPagoRequest(`/v1/orders/${orderId}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      return;
+    } catch (error) {
+      if (attempt === RELEASE_ATTEMPTS) {
+        console.error("[mercadopago] Failed to release authorized order:", error);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
   }
 }

@@ -3,7 +3,27 @@
  * explicit allowlist of booking-platform domains are accepted.
  */
 
-export const ALLOWED_HOSTS = ["airbnb.com", "guesty.com", "booking.com"] as const;
+export const ALLOWED_HOSTS = [
+  "airbnb.com",
+  // Airbnb country sites also serve calendar exports (e.g. www.airbnb.es).
+  "airbnb.mx",
+  "airbnb.com.mx",
+  "airbnb.es",
+  "airbnb.cl",
+  "airbnb.com.ar",
+  "airbnb.com.br",
+  "airbnb.com.co",
+  "airbnb.com.pe",
+  "airbnb.ca",
+  "airbnb.co.uk",
+  "airbnb.fr",
+  "airbnb.de",
+  "airbnb.it",
+  "airbnb.pt",
+  "airbnb.com.au",
+  "guesty.com",
+  "booking.com",
+] as const;
 
 /**
  * Extra calendar providers, as a comma separated list of domains

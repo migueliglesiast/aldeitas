@@ -1,5 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
+const GCM_TAG_BYTES = 16;
+
 function getKey() {
   const secret =
     process.env.GMAIL_SYNC_SECRET ||
@@ -23,8 +25,14 @@ export function decryptSecret(payload: string): string {
   if (version !== "v1" || !ivB64 || !tagB64 || !dataB64) {
     throw new Error("Invalid encrypted secret format");
   }
-  const decipher = createDecipheriv("aes-256-gcm", getKey(), Buffer.from(ivB64, "base64"));
-  decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+  const tag = Buffer.from(tagB64, "base64");
+  if (tag.length !== GCM_TAG_BYTES) {
+    throw new Error("Invalid encrypted secret format");
+  }
+  const decipher = createDecipheriv("aes-256-gcm", getKey(), Buffer.from(ivB64, "base64"), {
+    authTagLength: GCM_TAG_BYTES,
+  });
+  decipher.setAuthTag(tag);
   const decrypted = Buffer.concat([
     decipher.update(Buffer.from(dataB64, "base64")),
     decipher.final(),

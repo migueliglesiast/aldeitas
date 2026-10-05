@@ -9,7 +9,7 @@
  * The install runs in a scratch directory outside the monorepo: inside it npm
  * would resolve the workspace root and write to the root node_modules instead.
  */
-const { execSync } = require("node:child_process");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -17,9 +17,14 @@ const path = require("node:path");
 const appDir = path.join(__dirname, "..");
 const appModules = path.join(appDir, "node_modules");
 
-function run(command, cwd) {
-  console.log("[runtime-deps] %s (cwd=%s)", command, cwd);
-  execSync(command, { cwd, stdio: "inherit" });
+// Absolute paths only: never resolve executables through PATH.
+const npmCli =
+  process.env.npm_execpath ||
+  path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "npm", "bin", "npm-cli.js");
+
+function runNode(args, cwd) {
+  console.log("[runtime-deps] node %s (cwd=%s)", args.join(" "), cwd);
+  execFileSync(process.execPath, args, { cwd, stdio: "inherit" });
 }
 
 if (fs.existsSync(path.join(appModules, "next"))) {
@@ -30,14 +35,14 @@ if (fs.existsSync(path.join(appModules, "next"))) {
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "aldeitas-runtime-deps-"));
 try {
   fs.copyFileSync(path.join(appDir, "package.json"), path.join(scratch, "package.json"));
-  run("npm install --omit=dev --no-audit --no-fund --no-package-lock --ignore-scripts", scratch);
+  runNode([npmCli, "install", "--omit=dev", "--no-audit", "--no-fund", "--no-package-lock", "--ignore-scripts"], scratch);
   fs.mkdirSync(appModules, { recursive: true });
   fs.cpSync(path.join(scratch, "node_modules"), appModules, { recursive: true, force: true });
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
 }
 
-run("node scripts/prisma-generate-for-env.js", appDir);
+runNode([path.join(__dirname, "prisma-generate-for-env.js")], appDir);
 
 for (const required of ["next", ".prisma/client", "@prisma/client"]) {
   const target = path.join(appModules, required);

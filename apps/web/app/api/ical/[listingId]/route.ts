@@ -11,13 +11,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ lis
     where: { listingId, status: "CONFIRMED" },
   });
 
-  const cal = ical({ name: `${listing.title} – Casa Yahua` });
+  const cal = ical({ name: `${listing.title} – Aldeitas` });
   for (const b of bookings) {
     cal.createEvent({
       start: b.startDate,
       end: b.endDate,
       summary: `Reserved – ${listing.title}`,
-      description: `Booking ${b.id} – ${b.guestEmail}`,
+      description: "Aldeitas reservation",
     });
   }
 

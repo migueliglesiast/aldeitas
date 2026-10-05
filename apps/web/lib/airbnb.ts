@@ -1,6 +1,11 @@
 import axios from "axios";
-import ical from "node-ical";
+import ical, { type VEvent } from "node-ical";
 import * as cheerio from "cheerio";
+import { assertSafeUrl, MAX_RESPONSE_BYTES } from "./safe-url";
+
+const ICAL_FETCH_TIMEOUT_MS = Number(process.env.ICAL_FETCH_TIMEOUT_MS || 8000);
+const PAGE_FETCH_TIMEOUT_MS = 15_000;
+const MAX_REDIRECTS = 3;
 
 export type AvailabilityBlock = {
   start: Date;
@@ -10,22 +15,61 @@ export type AvailabilityBlock = {
   uid?: string;
 };
 
+/**
+ * GETs a URL, following redirects manually so every hop is revalidated
+ * against the SSRF allowlist. The whole request is bounded by timeoutMs.
+ */
+async function fetchSafely(
+  rawUrl: string,
+  timeoutMs: number,
+  headers?: Record<string, string>
+): Promise<string> {
+  let target = assertSafeUrl(rawUrl);
+  const signal = AbortSignal.timeout(timeoutMs);
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const response = await axios.get(target.toString(), {
+      timeout: timeoutMs,
+      signal,
+      maxContentLength: MAX_RESPONSE_BYTES,
+      maxBodyLength: MAX_RESPONSE_BYTES,
+      maxRedirects: 0,
+      responseType: "text",
+      headers,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+
+    if (response.status < 300) return response.data as string;
+
+    const location = response.headers?.location as string | undefined;
+    if (!location) throw new Error("Redirect without a location header");
+    const next = assertSafeUrl(new URL(location, target).toString());
+    if (next.host !== target.host) {
+      // Never replay per-host headers on another host.
+      headers = undefined;
+    }
+    target = next;
+  }
+
+  throw new Error("Too many redirects");
+}
+
+const optionalText = (value: unknown) => (typeof value === "string" ? value : undefined);
+
 export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBlock[]> {
-  const data = await axios.get(icalUrl).then((r) => r.data as string);
+  const data = await fetchSafely(icalUrl, ICAL_FETCH_TIMEOUT_MS);
   const events = ical.parseICS(data);
   const blocks: AvailabilityBlock[] = [];
-  for (const key of Object.keys(events)) {
-    const ev = events[key];
-    if (ev.type === "VEVENT") {
-      blocks.push({
-        start: ev.start as Date,
-        end: ev.end as Date,
-        summary: typeof ev.summary === "string" ? ev.summary : undefined,
-        description:
-          typeof ev.description === "string" ? ev.description : undefined,
-        uid: typeof ev.uid === "string" ? ev.uid : undefined,
-      });
-    }
+  for (const component of Object.values(events)) {
+    if (component?.type !== "VEVENT") continue;
+    const ev = component as VEvent;
+    blocks.push({
+      start: ev.start as Date,
+      end: ev.end as Date,
+      summary: optionalText(ev.summary),
+      description: optionalText(ev.description),
+      uid: optionalText(ev.uid),
+    });
   }
   return blocks;
 }
@@ -125,11 +169,7 @@ function htmlToPlainText(html: string) {
 
 export async function fetchListingPageHtml(airbnbUrl: string): Promise<string> {
   const normalizedUrl = normalizeAirbnbListingUrl(airbnbUrl);
-  const { data } = await axios.get(normalizedUrl, {
-    headers: AIRBNB_FETCH_HEADERS,
-    maxRedirects: 5,
-  });
-  return data as string;
+  return fetchSafely(normalizedUrl, PAGE_FETCH_TIMEOUT_MS, AIRBNB_FETCH_HEADERS);
 }
 
 export function scrapeListingDescription(html: string): string | null {

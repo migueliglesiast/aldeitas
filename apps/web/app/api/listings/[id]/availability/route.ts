@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { fetchIcalBlocks } from "@/lib/airbnb";
 import { blockingBookingStatusWhere } from "@/lib/booking-blocks";
+import { fetchListingExternalBlocks } from "@/lib/external-calendars";
 
 type CalendarSourceDebug = {
   name: string;
@@ -16,14 +16,35 @@ type DebugInfo = {
   listingTitle: string;
   calendarSources: number;
   localBookings: number;
+  manualBlocks: number;
   legacyIcalUrl: string | null;
   fetchedDates: {
     fromLocalBookings: number;
+    fromManualBlocks: number;
     fromLegacyIcal: number;
     fromCalendarSources: CalendarSourceDebug[];
   };
   errors: string[];
 };
+
+function addNights(
+  bookedDates: Set<string>,
+  startValue: Date | string,
+  endValue: Date | string
+) {
+  let added = 0;
+  const current = new Date(startValue);
+  const end = new Date(endValue);
+  while (current < end) {
+    const dateStr = current.toISOString().split("T")[0];
+    if (!bookedDates.has(dateStr)) {
+      bookedDates.add(dateStr);
+      added++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return added;
+}
 
 export async function GET(
   req: NextRequest,
@@ -43,6 +64,7 @@ export async function GET(
             ...blockingBookingStatusWhere,
           },
         },
+        manualBlocks: true,
       },
     });
 
@@ -56,98 +78,71 @@ export async function GET(
       listingTitle: listing.title,
       calendarSources: listing.calendarSources.length,
       localBookings: listing.bookings.length,
+      manualBlocks: listing.manualBlocks.length,
       legacyIcalUrl: listing.icalUrl || null,
       fetchedDates: {
         fromLocalBookings: 0,
+        fromManualBlocks: 0,
         fromLegacyIcal: 0,
         fromCalendarSources: [],
       },
-      errors: [] as string[],
+      errors: [],
     };
 
-    // Add dates from local bookings
     for (const booking of listing.bookings) {
-      const start = new Date(booking.startDate);
-      const end = new Date(booking.endDate);
-      
-      const current = new Date(start);
-      while (current < end) {
-        const dateStr = current.toISOString().split('T')[0];
-        bookedDates.add(dateStr);
-        current.setDate(current.getDate() + 1);
-      }
+      debugInfo.fetchedDates.fromLocalBookings += addNights(
+        bookedDates,
+        booking.startDate,
+        booking.endDate
+      );
     }
-    debugInfo.fetchedDates.fromLocalBookings = bookedDates.size;
 
-    // Add dates from legacy icalUrl if it exists
-    if (listing.icalUrl) {
-      try {
-        console.log(`[Availability] Fetching legacy iCal: ${listing.icalUrl}`);
-        const blocks = await fetchIcalBlocks(listing.icalUrl);
-        console.log(`[Availability] Found ${blocks.length} blocks from legacy iCal`);
-        
-        let datesAdded = 0;
-        for (const block of blocks) {
-          const start = new Date(block.start);
-          const end = new Date(block.end);
-          const current = new Date(start);
-          while (current < end) {
-            const dateStr = current.toISOString().split('T')[0];
-            if (!bookedDates.has(dateStr)) {
-              bookedDates.add(dateStr);
-              datesAdded++;
-            }
-            current.setDate(current.getDate() + 1);
-          }
+    for (const block of listing.manualBlocks) {
+      debugInfo.fetchedDates.fromManualBlocks += addNights(
+        bookedDates,
+        block.startDate,
+        block.endDate
+      );
+    }
+
+    const external = await fetchListingExternalBlocks(listing, "[Availability]");
+    for (const source of external.sources) {
+      if (!source.ok) {
+        debugInfo.errors.push(`Error fetching calendar "${source.name}": ${source.error}`);
+        if (source.name !== "legacy") {
+          debugInfo.fetchedDates.fromCalendarSources.push({
+            name: source.name,
+            url: source.icalUrl,
+            error: source.error,
+          });
         }
+        continue;
+      }
+
+      let datesAdded = 0;
+      for (const block of source.blocks) {
+        datesAdded += addNights(bookedDates, block.start, block.end);
+      }
+      if (source.name === "legacy") {
         debugInfo.fetchedDates.fromLegacyIcal = datesAdded;
-      } catch (error) {
-        const errorMsg = `Error fetching legacy iCal ${listing.icalUrl}: ${
-          error instanceof Error ? error.message : "unknown error"
-        }`;
-        console.error(`[Availability] ${errorMsg}`);
-        debugInfo.errors.push(errorMsg);
-      }
-    }
-
-    // Add dates from all calendar sources
-    for (const calendarSource of listing.calendarSources) {
-      try {
-        console.log(`[Availability] Fetching calendar "${calendarSource.name}": ${calendarSource.icalUrl}`);
-        const blocks = await fetchIcalBlocks(calendarSource.icalUrl);
-        console.log(`[Availability] Found ${blocks.length} blocks from "${calendarSource.name}"`);
-        
-        let datesAdded = 0;
-        for (const block of blocks) {
-          const start = new Date(block.start);
-          const end = new Date(block.end);
-          const current = new Date(start);
-          while (current < end) {
-            const dateStr = current.toISOString().split('T')[0];
-            if (!bookedDates.has(dateStr)) {
-              bookedDates.add(dateStr);
-              datesAdded++;
-            }
-            current.setDate(current.getDate() + 1);
-          }
-        }
+      } else {
         debugInfo.fetchedDates.fromCalendarSources.push({
-          name: calendarSource.name,
-          url: calendarSource.icalUrl,
-          blocksFound: blocks.length,
+          name: source.name,
+          url: source.icalUrl,
+          blocksFound: source.blocks.length,
           datesAdded,
         });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown error";
-        const errorMsg = `Error fetching calendar "${calendarSource.name}": ${message}`;
-        console.error(`[Availability] ${errorMsg}`);
-        debugInfo.errors.push(errorMsg);
-        debugInfo.fetchedDates.fromCalendarSources.push({
-          name: calendarSource.name,
-          url: calendarSource.icalUrl,
-          error: message,
-        });
       }
+    }
+
+    if (!external.complete) {
+      return NextResponse.json(
+        {
+          error: "Availability cannot be verified",
+          ...(debug ? { debug: debugInfo } : {}),
+        },
+        { status: 503 }
+      );
     }
 
     const response: {
@@ -169,4 +164,3 @@ export async function GET(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

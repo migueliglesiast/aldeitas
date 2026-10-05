@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { manualBlockWhere } from "@/lib/manual-blocks";
 
 /**
  * Bookings that should block dates on the site and in the outbound iCal feed:
@@ -47,6 +48,20 @@ export async function hasBlockingLocalConflict(
   excludeBookingId?: string
 ) {
   return (await countBlockingLocalConflicts(listingId, startDate, endDate, excludeBookingId)) > 0;
+}
+
+/** True when an Aldeitas booking or a host's manual block overlaps the stay. */
+export async function hasLocalDateConflict(
+  listingId: string,
+  startDate: Date,
+  endDate: Date,
+  excludeBookingId?: string
+) {
+  const [bookings, manualBlocks] = await Promise.all([
+    countBlockingLocalConflicts(listingId, startDate, endDate, excludeBookingId),
+    prisma.manualBlock.count({ where: manualBlockWhere(listingId, startDate, endDate) }),
+  ]);
+  return bookings + manualBlocks > 0;
 }
 
 export async function cancelUnpaidPendingBooking(bookingId: string) {

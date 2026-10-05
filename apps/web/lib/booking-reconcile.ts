@@ -1,16 +1,21 @@
 import { isBefore } from "date-fns";
 import type { Booking, Listing } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { fetchIcalBlocks, type AvailabilityBlock } from "@/lib/airbnb";
+import type { AvailabilityBlock } from "@/lib/airbnb";
 import {
   captureAuthorizedBookingPayment,
   releaseAuthorizedBookingPayment,
 } from "@/lib/payment-providers";
 import {
+  getBookingCalendarOutageGraceMs,
   getBookingMaxPendingMs,
   getBookingMinConfirmMs,
 } from "@/lib/booking-config";
-import { hasBlockingLocalConflict } from "@/lib/booking-blocks";
+import { hasLocalDateConflict } from "@/lib/booking-blocks";
+import {
+  fetchListingExternalBlocks,
+  hasExternalCalendars,
+} from "@/lib/external-calendars";
 import {
   sendBookingCanceledEmail,
   sendBookingConfirmedEmail,
@@ -78,27 +83,6 @@ export function findNewOverlappingBlocks(
     }
     return !snapshotKeys.has(blockKey(block));
   });
-}
-
-export async function fetchExternalBlocksForListing(
-  listing: Listing & { calendarSources: { icalUrl: string; name: string }[] }
-) {
-  const blocks: AvailabilityBlock[] = [];
-  const sources = [
-    ...(listing.icalUrl ? [{ name: "legacy", icalUrl: listing.icalUrl }] : []),
-    ...listing.calendarSources,
-  ];
-
-  for (const source of sources) {
-    try {
-      const sourceBlocks = await fetchIcalBlocks(source.icalUrl);
-      blocks.push(...sourceBlocks);
-    } catch (error) {
-      console.error(`[reconcile] Failed to fetch calendar ${source.name}:`, error);
-    }
-  }
-
-  return blocks;
 }
 
 async function captureAuthorizedPayment(booking: Booking) {
@@ -183,7 +167,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
   }
 
   if (
-    await hasBlockingLocalConflict(
+    await hasLocalDateConflict(
       booking.listingId,
       booking.startDate,
       booking.endDate,
@@ -200,8 +184,8 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
     ? (JSON.parse(booking.externalBlocksSnapshot) as SerializedBlock[])
     : [];
 
-  const externalBlocks = await fetchExternalBlocksForListing(booking.listing);
-  const newBlocks = findNewOverlappingBlocks(snapshot, externalBlocks, booking);
+  const external = await fetchListingExternalBlocks(booking.listing, "[reconcile]", "verify");
+  const newBlocks = findNewOverlappingBlocks(snapshot, external.blocks, booking);
   const conflictingBlocks = newBlocks.filter(
     (block) => !blockMatchesBooking(block, booking)
   );
@@ -227,10 +211,22 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
     ageMs >= getBookingMaxPendingMs() ||
     (booking.pendingExpiresAt ? Date.now() >= booking.pendingExpiresAt.getTime() : false);
 
-  const hasExternalCalendars =
-    Boolean(booking.listing.icalUrl) || booking.listing.calendarSources.length > 0;
+  if (!external.complete) {
+    if (ageMs >= getBookingMaxPendingMs() + getBookingCalendarOutageGraceMs()) {
+      return cancelBooking(
+        booking,
+        "We couldn't confirm your dates with the property's calendar, so your card was not charged. We are sorry for the inconvenience."
+      );
+    }
+    return {
+      action: "pending",
+      bookingId,
+      message:
+        "We're confirming your dates right now. We'll email you as soon as the processing is complete.",
+    };
+  }
 
-  if ((holdLikelySynced || !hasExternalCalendars) && minWaitPassed) {
+  if ((holdLikelySynced || !hasExternalCalendars(booking.listing)) && minWaitPassed) {
     return confirmBooking(booking);
   }
 
@@ -263,11 +259,4 @@ export async function reconcilePendingBookings() {
   }
 
   return results;
-}
-
-export async function snapshotExternalBlocksForListing(
-  listing: Listing & { calendarSources: { icalUrl: string; name: string }[] }
-) {
-  const blocks = await fetchExternalBlocksForListing(listing);
-  return serializeBlocks(blocks);
 }

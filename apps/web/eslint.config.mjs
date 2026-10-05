@@ -30,6 +30,8 @@ const config = [
       "sonarjs/no-empty-collection": "warn",
       "sonarjs/pseudo-random": "warn",
       "sonarjs/slow-regex": "warn",
+      // Airbnb email/calendar parsers match many locale variants per pattern.
+      "sonarjs/regex-complexity": "warn",
       "react-hooks/set-state-in-effect": "warn",
     },
   },

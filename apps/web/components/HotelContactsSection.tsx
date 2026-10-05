@@ -36,7 +36,7 @@ export default function HotelContactsSection({ hotelId, initialContacts }: Props
     setContacts([
       ...contacts,
       {
-        id: `temp-${Date.now()}`,
+        id: `temp-${crypto.randomUUID()}`,
         type,
         name: "",
         phone: "",

@@ -21,7 +21,7 @@ export async function buildListingIcalResponse(listingId: string) {
     new Date("2099-12-31")
   );
 
-  const cal = ical({ name: `${listing.title} – Casa Yahua` });
+  const cal = ical({ name: `${listing.title} – Aldeitas` });
   for (const booking of bookings) {
     cal.createEvent({
       start: booking.startDate,
@@ -30,7 +30,10 @@ export async function buildListingIcalResponse(listingId: string) {
         booking.status === "CONFIRMED"
           ? `Reserved – ${listing.title}`
           : `Hold – ${listing.title}`,
-      description: `Booking ${booking.id} – ${booking.guestEmail}`,
+      description:
+        booking.status === "CONFIRMED"
+          ? "Aldeitas reservation"
+          : "Aldeitas reservation (payment processing)",
     });
   }
 
@@ -39,7 +42,7 @@ export async function buildListingIcalResponse(listingId: string) {
       start: block.startDate,
       end: block.endDate,
       summary: `Blocked – ${listing.title}`,
-      description: block.note || "Manual block",
+      description: "Blocked by host",
     });
   }
 

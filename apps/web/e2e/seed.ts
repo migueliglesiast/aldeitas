@@ -21,6 +21,7 @@ async function main() {
   const hotel = await prisma.hotel.create({
     data: {
       name: E2E_HOTEL,
+      slug: "e2e-hotel",
       description: "Seeded hotel used by the Playwright suite",
       location: "Puerto Escondido",
     },

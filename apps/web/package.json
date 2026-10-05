@@ -26,7 +26,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
-    "e2e:setup": "prisma db push --force-reset --skip-generate && ts-node --compiler-options '{\"module\":\"CommonJS\"}' e2e/seed.ts && next build"
+    "e2e:setup": "prisma db push --force-reset --skip-generate && ts-node --compiler-options '{\"module\":\"CommonJS\"}' e2e/seed.ts && next build --webpack"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
