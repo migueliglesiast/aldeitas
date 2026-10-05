@@ -22,9 +22,11 @@ vi.mock("stripe", () => ({
 
 const { POST: searchAvailability } = await import("@/app/api/search/availability/route");
 const { POST: stripeWebhook } = await import("@/app/api/stripe/webhook/route");
+const { clearCalendarCache } = await import("@/lib/external-calendars");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearCalendarCache();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -100,7 +102,7 @@ describe("POST /api/search/availability", () => {
     ]);
     fetchIcalBlocks
       .mockResolvedValueOnce([{ start: new Date("2025-01-02"), end: new Date("2025-01-04") }])
-      .mockRejectedValueOnce(new Error("unreachable"));
+      .mockRejectedValue(new Error("unreachable"));
 
     const res = await searchAvailability(post(RANGE));
 

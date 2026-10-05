@@ -61,7 +61,8 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Test email sent to ${to}${result.messageId ? ` (messageId: ${result.messageId})` : ""}`);
+  const messageIdNote = result.messageId ? ` (messageId: ${result.messageId})` : "";
+  console.log(`Test email sent to ${to}${messageIdNote}`);
 }
 
 main().catch((error) => {

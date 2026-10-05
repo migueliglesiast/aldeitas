@@ -54,7 +54,8 @@ export default function BookingStatusClient({ bookingId }: { bookingId: string }
     if (provider) query.set("provider", provider);
     if (orderId) query.set("order_id", orderId);
     const suffix = query.toString();
-    return `/api/bookings/${bookingId}${suffix ? `?${suffix}` : ""}`;
+    const search = suffix ? "?" + suffix : "";
+    return `/api/bookings/${bookingId}${search}`;
   }, [bookingId, provider, orderId]);
 
   useEffect(() => {

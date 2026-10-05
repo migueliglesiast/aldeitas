@@ -27,9 +27,11 @@ const { GET: getIcal, generateStaticParams } = await import("@/app/api/ical/[lis
 const { GET: staticAvailability } = await import("@/app/api/availability/route");
 const { POST: postImages } = await import("@/app/api/images/route");
 const { POST: postCalendar, GET: listCalendars } = await import("@/app/api/calendars/route");
+const { clearCalendarCache } = await import("@/lib/external-calendars");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearCalendarCache();
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "log").mockImplementation(() => {});
 });

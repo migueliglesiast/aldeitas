@@ -23,6 +23,7 @@ const HOTEL_NAME = "La Arbolita";
 const SQLITE_PATH =
   process.env.LOCAL_SQLITE_PATH ||
   join(process.cwd(), "prisma", "dev.db");
+const SQLITE3_BIN = process.env.SQLITE3_BIN || "/usr/bin/sqlite3";
 const dryRun = process.argv.includes("--dry-run");
 
 type SqlRow = Record<string, unknown>;
@@ -31,7 +32,7 @@ function querySqlite<T extends SqlRow>(sql: string): T[] {
   if (!existsSync(SQLITE_PATH)) {
     throw new Error(`Local SQLite database not found: ${SQLITE_PATH}`);
   }
-  const output = execFileSync("sqlite3", ["-json", SQLITE_PATH, sql], {
+  const output = execFileSync(SQLITE3_BIN, ["-json", SQLITE_PATH, sql], {
     encoding: "utf8",
   }).trim();
   if (!output) return [];

@@ -148,7 +148,7 @@ export function parseIcalGuestDetails(summary?: string, description?: string) {
   if (!isGenericReserved) {
     const summaryLine = (summary || "").trim();
     const withoutCount = summaryLine
-      .replace(/\s*[\-(]?\s*\d+\s*(?:guests?|huéspedes?|huespedes?|adults?|personas?)\s*[\)]?\s*$/i, "")
+      .replace(/\s*[-(]?\s*\d+\s*(?:guests?|hu[eé]spedes?|adults?|personas?)\s*\)?\s*$/i, "")
       .replace(/^reserved\s*[-:–]\s*/i, "")
       .trim();
     if (

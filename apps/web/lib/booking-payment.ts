@@ -57,7 +57,8 @@ async function finalizeAuthorizedBooking(
         booking.listing,
         booking.startDate,
         booking.endDate,
-        "[booking-payment]"
+        "[booking-payment]",
+        "verify"
       );
 
   if (!external || external.status !== "available") {

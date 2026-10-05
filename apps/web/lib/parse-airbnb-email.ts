@@ -472,12 +472,12 @@ export function parseAirbnbBookingEmail(input: {
 
   const guestName = cleanName(
     firstMatch(text, [
-      /(?:reservation confirmed|confirmaci[oó]n de reserva|reserva confirmada)\s*[-–:]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,4})\s+(?:llega|arrives)/i,
-      /new booking confirmed!\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+arrives/i,
-      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,4})\s+llega(?:\s+el)?\b/i,
-      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,4})\s+arrives\b/i,
-      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-]+){0,3})\s+is\s+coming/i,
-      /(?:guest|hu[eé]sped|traveler|traveller|nombre)\s*[:\-–]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'''\-\s]{1,80})/i,
+      /(?:reservation confirmed|confirmaci[oó]n de reserva|reserva confirmada)\s*[-–:]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+(?:llega|arrives)/i,
+      /new booking confirmed!\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,3})\s+arrives/i,
+      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+llega(?:\s+el)?\b/i,
+      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+arrives\b/i,
+      /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,3})\s+is\s+coming/i,
+      /(?:guest|hu[eé]sped|traveler|traveller|nombre)\s*[:\-–]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-\s]{1,80})/i,
     ])
   );
 
@@ -494,9 +494,9 @@ export function parseAirbnbBookingEmail(input: {
   // Subject / headline: "… arrives Aug 3" (do not use "confirm check-in details").
   const subjectOrHeadlineCheckIn = parseFlexibleDate(
     firstMatch(text, [
-      /(?:reservation confirmed|reserva confirmada)[^\n]*\barrives\s+([A-Za-z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
-      /new booking confirmed![^\n]*\barrives\s+([A-Za-z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
-      /\barrives\s+([A-Za-z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
+      /(?:reservation confirmed|reserva confirmada)[^\n]*\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
+      /new booking confirmed![^\n]*\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
+      /\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
       /(?:reservation confirmed|reserva confirmada)[^\n]*\bllega(?:\s+el)?\s+([^\n.]{4,40})/i,
       /\bllega(?:\s+el)?\s+([^\n.]{4,40})/i,
     ]),
@@ -565,7 +565,7 @@ export function parseAirbnbBookingEmail(input: {
 
   const listingHint = firstMatch(text, [
     // Airbnb often puts the listing title on its own line above "Entire home/apt"
-    /^([A-Za-z0-9ÁÉÍÓÚÑáéíóúñ][^\n]{8,120})\s*\n\s*Entire (?:home|place|apt|villa|bungalow)/im,
+    /^([A-Z0-9ÁÉÍÓÚÑ][^\n]{8,120})\s*\n\s*Entire (?:home|place|apt|villa|bungalow)/im,
     /(?:listing|propiedad|alojamiento|anuncio|room)\s*[:\-–]\s*([^\n]{3,140})/i,
     /(?:confirmed for|confirmad[oa] para|reserva(?:da)? en)\s+([^\n]{3,140})/i,
     /(?:staying at|se alojar[aá] en|en tu anuncio)\s+([^\n]{3,140})/i,

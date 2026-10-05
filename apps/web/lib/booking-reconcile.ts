@@ -7,6 +7,7 @@ import {
   releaseAuthorizedBookingPayment,
 } from "@/lib/payment-providers";
 import {
+  getBookingCalendarOutageGraceMs,
   getBookingMaxPendingMs,
   getBookingMinConfirmMs,
 } from "@/lib/booking-config";
@@ -183,7 +184,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
     ? (JSON.parse(booking.externalBlocksSnapshot) as SerializedBlock[])
     : [];
 
-  const external = await fetchListingExternalBlocks(booking.listing, "[reconcile]");
+  const external = await fetchListingExternalBlocks(booking.listing, "[reconcile]", "verify");
   const newBlocks = findNewOverlappingBlocks(snapshot, external.blocks, booking);
   const conflictingBlocks = newBlocks.filter(
     (block) => !blockMatchesBooking(block, booking)
@@ -211,7 +212,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
     (booking.pendingExpiresAt ? Date.now() >= booking.pendingExpiresAt.getTime() : false);
 
   if (!external.complete) {
-    if (timedOut) {
+    if (ageMs >= getBookingMaxPendingMs() + getBookingCalendarOutageGraceMs()) {
       return cancelBooking(
         booking,
         "We couldn't confirm your dates with the property's calendar, so your card was not charged. We are sorry for the inconvenience."
