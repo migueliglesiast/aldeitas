@@ -4,7 +4,7 @@ npm workspaces monorepo with one application:
 
 | Workspace | Package | Stack |
 | --- | --- | --- |
-| `apps/web` | `aldeitas-web` | Next.js 16 (App Router) + React 19, Prisma, Stripe |
+| `apps/web` | `aldeitas-web` | Next.js 16 (App Router) + React 19, Prisma, Mercado Pago |
 
 Casa Yahua's suites (photos, iCal availability) are served through `apps/web` like every other
 hotel. The former `apps/yahua-static` static-site generator has been removed; its content now
@@ -30,14 +30,15 @@ npm run e2e                 # Playwright E2E for apps/web
 ```
 
 `apps/web` needs a `.env` with at least `DATABASE_URL` (e.g. `file:./dev.db`).
-Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
+Payments: `MERCADOPAGO_ACCESS_TOKEN` (or `CONEKTA_PRIVATE_KEY`); `/api/book` returns 503 without one.
+Optional: `NEXT_PUBLIC_SITE_URL`.
 
 ## Testing
 
 - **Unit tests**: Vitest. `apps/web` runs in `jsdom` with Testing Library. Coverage uses the V8
   provider with `all: true`, so files without tests are reported too. Reports land in
   `apps/web/coverage/lcov.info`. Coverage thresholds are enforced in
-  `apps/web/vitest.config.mts` (statements/lines 95%, branches 89%, functions 85%) —
+  `apps/web/vitest.config.mts` as a ratchet at the current floor (statements/lines 24%, branches 83%, functions 58%) —
   `npm run test:coverage` fails when coverage drops below them.
 - **Accessibility**: axe-core checks (via `jest-axe`) run as part of the unit suite
   (`apps/web/tests/a11y`), asserting the key forms and auth pages render without axe violations.
@@ -45,7 +46,8 @@ Optional: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`.
   (to run a single browser, run `npm run e2e -- --project=chromium` from `apps/web`). The web
   server step resets a dedicated SQLite database (`file:./e2e.db`), seeds it via `apps/web/e2e/seed.ts` and runs
   `next build && next start`.
-  Stripe is intentionally unconfigured so bookings stop at `PENDING` instead of redirecting to Checkout.
+  A dummy Mercado Pago token is set, so bookings are created as `PENDING` and the guest lands on
+  the local `/booking/<id>/pay` page; no request reaches Mercado Pago.
 
 ## Outbound request allowlist
 
