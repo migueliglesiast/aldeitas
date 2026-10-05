@@ -49,18 +49,30 @@ beforeEach(() => {
 describe("home page", () => {
   it("orders the curated hotels first and keeps the rest at the end", async () => {
     dataMock.getHotelsWithListings.mockResolvedValue([
-      { id: "other", name: "Zzz", listings: [] },
-      { id: "casa", name: "Casa Yahua", listings: [] },
-      { id: "mixteca", name: "Aldeita Mixteca", listings: [] },
+      { id: "other", name: "Zzz", listings: [{ id: "l1" }] },
+      { id: "casa", name: "Casa Yahua", listings: [{ id: "l2" }] },
+      { id: "mixteca", name: "Aldeita Mixteca", listings: [{ id: "l3" }] },
     ]);
 
     render(await HomePage());
 
     expect(screen.getByTestId("hotel-grid")).toHaveTextContent("mixteca,casa,other");
-    expect(screen.getByRole("link", { name: "Create your account" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "List your place" })).toHaveAttribute(
       "href",
       "/sign-up"
     );
+  });
+
+  it("hides hotels without rooms and counts what is listed", async () => {
+    dataMock.getHotelsWithListings.mockResolvedValue([
+      { id: "empty", name: "Admin Test Hotel", listings: [] },
+      { id: "casa", name: "Casa Yahua", listings: [{ id: "l1" }, { id: "l2" }] },
+    ]);
+
+    render(await HomePage());
+
+    expect(screen.getByTestId("hotel-grid")).toHaveTextContent(/^casa$/);
+    expect(screen.getByText("1 hotels · 2 rooms")).toBeInTheDocument();
   });
 });
 

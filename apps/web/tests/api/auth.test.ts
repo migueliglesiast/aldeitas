@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const prismaMock = {
   user: { findFirst: vi.fn(), create: vi.fn() },
-  hotel: { create: vi.fn() },
+  hotel: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
+  hotelManager: { upsert: vi.fn() },
 };
 const authMock = {
   hashPassword: vi.fn(async (p: string) => `hashed:${p}`),
@@ -118,6 +119,8 @@ describe("POST /api/auth/sign-up", () => {
       email: "owner@example.com",
       hotelName: "Aldeita",
     });
+    prismaMock.hotel.findFirst.mockResolvedValue(null);
+    prismaMock.hotel.findUnique.mockResolvedValue(null);
     prismaMock.hotel.create.mockResolvedValue({ id: "h1" });
 
     const res = await signUp(
@@ -152,7 +155,20 @@ describe("POST /api/auth/sign-up", () => {
         }),
       })
     );
+    expect(prismaMock.hotelManager.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: { userId: "u1", hotelId: "h1" } })
+    );
     expect(authMock.createSession).toHaveBeenCalledWith("u1");
+  });
+
+  it("returns 409 when the hotel is already registered", async () => {
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.hotel.findFirst.mockResolvedValue({ id: "h-existing" });
+
+    const res = await signUp(jsonRequest(validBody));
+
+    expect(res.status).toBe(409);
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
   it("returns 500 on unexpected failures", async () => {
