@@ -77,6 +77,9 @@ type BuildOptions = {
   includeGuestDetails?: boolean;
   readOnly?: boolean;
   months?: number;
+  /** Days of history to show before today (so checkouts today stay visible). */
+  leadDays?: number;
+  timeZone?: string;
 };
 
 function nightRangeEnd(startKey: string) {
@@ -306,7 +309,10 @@ export async function buildHotelCalendarData(
   hotelId: string,
   options: BuildOptions = {}
 ): Promise<HotelCalendarPayload | null> {
-  const { start, end } = getHotelCalendarWindow(options.months);
+  const { start, end } = getHotelCalendarWindow(options.months, {
+    leadDays: options.leadDays,
+    timeZone: options.timeZone,
+  });
   const days = listDateKeys(start, end);
   const rangeEndExclusive = new Date(end);
   rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 1);
