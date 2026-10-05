@@ -8,14 +8,14 @@ export function HomeHero() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-2 pt-4 text-center">
-      <h1 className="text-balance font-poster text-[2rem] font-black leading-[1.08] tracking-tight text-[#4F4C48] sm:text-4xl md:text-5xl">
+      <h1 className="text-balance font-poster text-[2rem] font-black leading-[1.08] tracking-tight text-heading sm:text-4xl md:text-5xl">
         {t("heroTitle")}
       </h1>
       <p className="mx-auto max-w-2xl text-pretty text-base leading-7 text-muted md:text-lg md:leading-8">
         {t("heroLead")}{" "}
         <span className="font-semibold text-[#F97316]">{t("heroPlatforms")}</span>{" "}
         {t("heroMiddle")}{" "}
-        <span className="whitespace-nowrap font-semibold text-[#0092A1]">
+        <span className="whitespace-nowrap font-semibold text-brand">
           {t("heroOurCut")}
         </span>{" "}
         {t("heroTail")}

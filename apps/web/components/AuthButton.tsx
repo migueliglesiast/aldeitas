@@ -41,7 +41,7 @@ export default function AuthButton() {
 
   if (!user) {
     return (
-      <Link href="/sign-in" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black">{t("hostPortal")}</Link>
+      <Link href="/sign-in" className="rounded-full bg-heading px-4 py-2 text-sm font-semibold text-white hover:bg-ink">{t("hostPortal")}</Link>
     );
   }
 
