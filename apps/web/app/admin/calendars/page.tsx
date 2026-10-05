@@ -1,11 +1,20 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { signInUrl } from "@/lib/auth-redirect";
 import CalendarForm from "@/components/CalendarForm";
 import CalendarSourceItem from "@/components/CalendarSourceItem";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarsAdminPage() {
-  const sources = await prisma.calendarSource.findMany({ 
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect(signInUrl("/admin/calendars"));
+  }
+
+  const sources = await prisma.calendarSource.findMany({
+    where: { listing: { hotel: { managers: { some: { userId: user.id } } } } },
     include: { 
       listing: {
         include: {
