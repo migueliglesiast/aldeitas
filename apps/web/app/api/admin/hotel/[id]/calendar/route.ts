@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireHotelManager } from "@/lib/admin-hotel-auth";
+import { buildHotelCalendarData } from "@/lib/hotel-calendar-data";
 import {
-  buildHotelCalendarData,
+  getHotelCalendarShare,
   getHotelCalendarShareUrl,
-  getOrCreateHotelCalendarShareToken,
-} from "@/lib/hotel-calendar-data";
-import { prisma } from "@/lib/prisma";
+  getOrCreateHotelCalendarShare,
+  setHotelCalendarPin,
+} from "@/lib/calendar-share";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +29,11 @@ export async function GET(
     return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
   }
 
-  const share = await prisma.hotelCalendarShare.findUnique({
-    where: { hotelId: params.id },
-    select: { token: true },
-  });
+  const share = await getHotelCalendarShare(params.id);
 
   return NextResponse.json({
     ...data,
-    shareUrl: share ? getHotelCalendarShareUrl(share.token) : null,
+    shareUrl: share?.slug ? getHotelCalendarShareUrl(share.slug) : null,
   });
 }
 
@@ -51,11 +49,26 @@ export async function POST(
 
   const body = await req.json().catch(() => ({}));
   if (body.action === "share") {
-    const share = await getOrCreateHotelCalendarShareToken(params.id);
+    const share = await getOrCreateHotelCalendarShare(params.id);
     return NextResponse.json({
-      token: share.token,
-      url: getHotelCalendarShareUrl(share.token),
+      url: getHotelCalendarShareUrl(share.slug as string),
     });
+  }
+
+  if (body.action === "pin") {
+    const pin = typeof body.pin === "string" ? body.pin.trim() : "";
+    try {
+      const share = await setHotelCalendarPin(params.id, pin);
+      return NextResponse.json({
+        ok: true,
+        url: getHotelCalendarShareUrl(share.slug as string),
+      });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Invalid PIN" },
+        { status: 400 }
+      );
+    }
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

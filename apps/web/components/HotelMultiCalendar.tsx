@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_CALENDAR_PIN } from "@/lib/calendar-share-defaults";
 import { copyTextToClipboard } from "@/lib/copy-to-clipboard";
 import { formatMoneyShort } from "@/lib/currency";
 import type {
@@ -12,7 +13,7 @@ import type {
 type Props = {
   hotelId: string;
   readOnly?: boolean;
-  shareToken?: string;
+  shareSlug?: string;
 };
 
 type SelectedCell = {
@@ -180,7 +181,7 @@ function localTodayKey() {
 export default function HotelMultiCalendar({
   hotelId,
   readOnly = false,
-  shareToken,
+  shareSlug,
 }: Props) {
   const [data, setData] = useState<HotelCalendarPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -194,12 +195,14 @@ export default function HotelMultiCalendar({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [busy, setBusy] = useState(false);
   const compact = useCompactCalendarLayout();
-  const isShareView = Boolean(shareToken);
+  const isShareView = Boolean(shareSlug);
   // Share / phone: tighter columns so more nights fit on screen.
-  const phoneShare = Boolean(shareToken || readOnly) && compact;
+  const phoneShare = Boolean(shareSlug || readOnly) && compact;
   const roomColWidth = phoneShare ? 76 : compact ? 100 : 180;
   // Share needs a touch more width for Spanish weekday + day number.
   const dayColWidth = isShareView
@@ -219,10 +222,14 @@ export default function HotelMultiCalendar({
     setLoading(true);
     setError(null);
     try {
-      const endpoint = shareToken
-        ? `/api/calendar/share/${shareToken}`
+      const endpoint = shareSlug
+        ? `/api/calendar/${encodeURIComponent(shareSlug)}`
         : `/api/admin/hotel/${hotelId}/calendar`;
       const res = await fetch(endpoint);
+      if (shareSlug && res.status === 401) {
+        window.location.reload();
+        return;
+      }
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load calendar");
       setData(json);
@@ -240,7 +247,7 @@ export default function HotelMultiCalendar({
     } finally {
       setLoading(false);
     }
-  }, [hotelId, shareToken]);
+  }, [hotelId, shareSlug]);
 
   useEffect(() => {
     loadCalendar();
@@ -249,7 +256,7 @@ export default function HotelMultiCalendar({
   // Automatically fill missing guest names in the background (admin calendar only).
   // Throttled server-side (~12 min) so opening the calendar does not hammer Gmail.
   useEffect(() => {
-    if (readOnly || shareToken || !hotelId) return;
+    if (readOnly || shareSlug || !hotelId) return;
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -279,7 +286,9 @@ export default function HotelMultiCalendar({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [hotelId, readOnly, shareToken, loadCalendar]);
+  }, [hotelId, readOnly, shareSlug, loadCalendar]);
+
+  const todayIndex = data ? data.days.indexOf(todayKey) : -1;
 
   const monthGroups = useMemo(() => {
     if (!data) return [];
@@ -333,6 +342,34 @@ export default function HotelMultiCalendar({
       setMessage(err instanceof Error ? err.message : "Failed to create share link");
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function handleChangePin() {
+    if (savingPin) return;
+    if (!/^\d{4,8}$/.test(pinInput)) {
+      setMessage("Invalid PIN. Use 4 to 8 digits.");
+      return;
+    }
+    setSavingPin(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/hotel/${hotelId}/calendar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pin", pin: pinInput }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to change PIN");
+      if (json.url) setShareUrl(json.url);
+      setPinInput("");
+      setMessage("PIN updated. Anyone using the link will be asked for the new PIN.");
+    } catch (err) {
+      setMessage(
+        `Failed to change PIN: ${err instanceof Error ? err.message : "unknown error"}`
+      );
+    } finally {
+      setSavingPin(false);
     }
   }
 
@@ -552,8 +589,8 @@ export default function HotelMultiCalendar({
     <div className="space-y-3 sm:space-y-4">
       <div className="flex flex-col gap-2 sm:gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className={`font-semibold ${shareToken ? "text-base sm:text-xl" : "text-xl"}`}>
-            {shareToken ? "Availability" : "Multi Calendar"}
+          <h2 className={`font-semibold ${shareSlug ? "text-base sm:text-xl" : "text-xl"}`}>
+            {shareSlug ? "Availability" : "Multi Calendar"}
           </h2>
           <p className="text-xs text-gray-600 sm:text-sm">
             {data.startDate} → {data.endDate}
@@ -614,9 +651,33 @@ export default function HotelMultiCalendar({
                 </button>
               </div>
               <p className="text-xs text-gray-500">
-                Anyone with this link can view the next 3 months read-only. Refresh the page to
-                see new bookings or blocks.
+                Anyone with this link and the PIN can view the next 3 months read-only. The PIN
+                is asked once per device. New links start with PIN {DEFAULT_CALENDAR_PIN}.
               </p>
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+                <label htmlFor="calendar-share-pin" className="text-sm font-medium text-gray-800">
+                  Change PIN
+                </label>
+                <input
+                  id="calendar-share-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  maxLength={8}
+                  placeholder="New PIN"
+                  value={pinInput}
+                  onChange={(event) => setPinInput(event.target.value.replace(/\D/g, ""))}
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm tracking-widest text-gray-800 sm:w-36"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleChangePin()}
+                  disabled={savingPin || pinInput.length < 4}
+                  className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {savingPin ? "Saving…" : "Save PIN"}
+                </button>
+              </div>
             </>
           ) : null}
           {message ? (
@@ -644,7 +705,7 @@ export default function HotelMultiCalendar({
 
       <div
         className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] sm:gap-3 sm:text-xs ${
-          shareToken ? "text-gray-600" : ""
+          shareSlug ? "text-gray-600" : ""
         }`}
       >
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
@@ -656,7 +717,7 @@ export default function HotelMultiCalendar({
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span className="h-2.5 w-2.5 rounded bg-rose-200 sm:h-3 sm:w-3" /> Booked
         </span>
-        {!shareToken ? (
+        {!shareSlug ? (
           <span className="inline-flex items-center gap-1.5 sm:gap-2">
             <span className="h-2.5 w-2.5 rounded bg-amber-200 sm:h-3 sm:w-3" /> Processing
           </span>
@@ -664,9 +725,16 @@ export default function HotelMultiCalendar({
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span className="h-2.5 w-2.5 rounded bg-violet-200 sm:h-3 sm:w-3" /> External
         </span>
+        {isShareView ? (
+          <span className="inline-flex items-center gap-1.5 sm:gap-2">
+            <span className="h-2.5 w-2.5 rounded border border-[#0f766e]/40 bg-[#0f766e]/10 sm:h-3 sm:w-3" />{" "}
+            Hoy
+          </span>
+        ) : null}
       </div>
 
       <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
+        <div className="relative w-max">
         <table
           className="border-collapse text-[10px] sm:text-xs"
           style={{
@@ -719,13 +787,11 @@ export default function HotelMultiCalendar({
                 const isToday = day === todayKey;
                 if (isShareView) {
                   const { weekday, dayNum } = spanishDayParts(day);
+                  const isPast = day < todayKey;
                   return (
                     <th
                       key={day}
-                      className={[
-                        "border-b border-r border-gray-200 px-0 py-1.5 text-center sm:py-2",
-                        isToday ? "bg-[#f3faf9]" : "",
-                      ].join(" ")}
+                      className="border-b border-r border-gray-200 px-0 py-1.5 text-center sm:py-2"
                       style={{
                         width: dayColWidth,
                         minWidth: dayColWidth,
@@ -736,17 +802,23 @@ export default function HotelMultiCalendar({
                         <span
                           className={[
                             "text-[8px] font-medium tracking-[0.14em] sm:text-[9px]",
-                            isToday ? "text-[#0f766e]" : "text-gray-400",
+                            isToday
+                              ? "font-semibold text-[#0f766e]"
+                              : isPast
+                                ? "text-gray-300"
+                                : "text-gray-400",
                           ].join(" ")}
                         >
-                          {weekday}
+                          {isToday ? "HOY" : weekday}
                         </span>
                         <span
                           className={[
                             "inline-flex h-5 min-w-5 items-center justify-center tabular-nums sm:h-6 sm:min-w-6",
                             isToday
                               ? "rounded-full bg-[#0f766e] px-1 text-[10px] font-semibold text-white sm:text-[11px]"
-                              : "text-[11px] font-semibold text-gray-800 sm:text-xs",
+                              : isPast
+                                ? "text-[11px] font-medium text-gray-300 sm:text-xs"
+                                : "text-[11px] font-semibold text-gray-800 sm:text-xs",
                           ].join(" ")}
                         >
                           {dayNum}
@@ -904,7 +976,8 @@ export default function HotelMultiCalendar({
                   const { day, cell } = segment;
                   const isSelected =
                     selected?.roomId === room.id && selected?.day === day;
-                  const isToday = day === todayKey;
+                  const isToday = day === todayKey && !isShareView;
+                  const isPastShareDay = isShareView && day < todayKey;
                   return (
                     <td
                       key={`${room.id}-${day}`}
@@ -941,7 +1014,9 @@ export default function HotelMultiCalendar({
                           "box-border flex h-full w-full flex-col items-center justify-center transition",
                           isToday && cell.status === "available"
                             ? "bg-[#e8f6f5] text-slate-700 hover:bg-[#d9f0ee]"
-                            : cellClass(cell),
+                            : isPastShareDay && cell.status === "available"
+                              ? "bg-gray-50"
+                              : cellClass(cell),
                           isSelected ? "ring-2 ring-inset ring-[#00a19c]" : "",
                           readOnly ? "cursor-default" : "cursor-pointer",
                         ].join(" ")}
@@ -961,6 +1036,17 @@ export default function HotelMultiCalendar({
             })}
           </tbody>
         </table>
+        {isShareView && todayIndex >= 0 ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 z-[5] border-x border-[#0f766e]/30 bg-[#0f766e]/[0.06]"
+            style={{
+              left: roomColWidth + todayIndex * dayColWidth,
+              width: dayColWidth,
+            }}
+          />
+        ) : null}
+        </div>
       </div>
 
       {selected ? (

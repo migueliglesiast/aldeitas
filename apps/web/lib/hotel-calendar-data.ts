@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import {
@@ -77,6 +76,9 @@ type BuildOptions = {
   includeGuestDetails?: boolean;
   readOnly?: boolean;
   months?: number;
+  /** Days of history to show before today (so checkouts today stay visible). */
+  leadDays?: number;
+  timeZone?: string;
 };
 
 function nightRangeEnd(startKey: string) {
@@ -306,7 +308,10 @@ export async function buildHotelCalendarData(
   hotelId: string,
   options: BuildOptions = {}
 ): Promise<HotelCalendarPayload | null> {
-  const { start, end } = getHotelCalendarWindow(options.months);
+  const { start, end } = getHotelCalendarWindow(options.months, {
+    leadDays: options.leadDays,
+    timeZone: options.timeZone,
+  });
   const days = listDateKeys(start, end);
   const rangeEndExclusive = new Date(end);
   rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 1);
@@ -556,32 +561,4 @@ export async function buildHotelCalendarData(
     rooms,
     readOnly: options.readOnly ?? false,
   };
-}
-
-export async function getOrCreateHotelCalendarShareToken(hotelId: string) {
-  const existing = await prisma.hotelCalendarShare.findUnique({
-    where: { hotelId },
-  });
-  if (existing) return existing;
-
-  return prisma.hotelCalendarShare.create({
-    data: {
-      hotelId,
-      token: randomBytes(24).toString("hex"),
-    },
-  });
-}
-
-export async function getHotelIdForShareToken(token: string) {
-  const share = await prisma.hotelCalendarShare.findUnique({
-    where: { token },
-    select: { hotelId: true },
-  });
-  return share?.hotelId ?? null;
-}
-
-export function getHotelCalendarShareUrl(token: string) {
-  const base =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
-  return `${base}/calendar/${token}`;
 }

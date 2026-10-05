@@ -77,12 +77,16 @@ model Hotel {
 }
 
 model HotelCalendarShare {
-  id        String   @id @default(cuid())
-  hotelId   String   @unique
-  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String    @id @default(cuid())
+  hotelId           String    @unique
+  hotel             Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  token             String    @unique
+  slug              String?   @unique
+  pinHash           String?
+  failedPinAttempts Int       @default(0)
+  pinLockedUntil    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model ManualBlock {
