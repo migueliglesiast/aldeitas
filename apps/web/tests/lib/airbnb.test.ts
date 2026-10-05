@@ -96,26 +96,27 @@ describe("scrapeListingImages", () => {
     vi.clearAllMocks();
   });
 
-  it("collects airbnb/muscache image urls without query strings, capped at 12", async () => {
+  it("collects listing photo urls without query strings, capped at 30", async () => {
     const many = Array.from(
-      { length: 15 },
-      (_, i) => `<img src="https://a0.muscache.com/p${i}.jpg?size=large" />`
+      { length: 35 },
+      (_, i) =>
+        `<img src="https://a0.muscache.com/im/pictures/miso/Hosting-1/original/p${i}.jpeg?im_w=720" />`
     ).join("");
     axiosGet.mockResolvedValue({
       status: 200,
       headers: {},
-      data: `<html><body>${many}<img data-src="https://a0.muscache.com/data.jpg" /><img src="https://other.com/x.jpg" /></body></html>`,
+      data: `<html><body>${many}<img src="https://a0.muscache.com/im/users/avatar.jpg" /><img src="https://other.com/x.jpg" /></body></html>`,
     });
 
     const urls = await scrapeListingImages("https://www.airbnb.com/rooms/1");
 
-    expect(urls).toHaveLength(12);
-    expect(urls[0]).toBe("https://a0.muscache.com/p0.jpg");
-    expect(urls.some((u) => u.includes("other.com"))).toBe(false);
+    expect(urls).toHaveLength(30);
+    expect(urls[0]).toBe("https://a0.muscache.com/im/pictures/miso/Hosting-1/original/p0.jpeg");
+    expect(urls.some((u) => u.includes("other.com") || u.includes("/im/users/"))).toBe(false);
   });
 
   it("refuses unsafe URLs before making a request", async () => {
-    await expect(scrapeListingImages("https://localhost/rooms/1")).rejects.toThrow(/not allowed/);
+    await expect(scrapeListingImages("https://localhost/rooms/1")).rejects.toThrow(/valid Airbnb listing URL/);
     expect(axiosGet).not.toHaveBeenCalled();
   });
 });
@@ -147,13 +148,13 @@ describe("fetchDynamicPricing", () => {
     });
   });
 
-  it("defaults the currency to USD and reads fallback price fields", async () => {
+  it("defaults the currency to MXN and reads fallback price fields", async () => {
     process.env.AIRBNB_RAPIDAPI_KEY = "key";
     axiosGet.mockResolvedValue({ data: { price_total: 50 } });
 
     await expect(fetchDynamicPricing("1", "2025-01-01", "2025-01-03")).resolves.toEqual({
       nightlyCents: 5000,
-      currency: "USD",
+      currency: "MXN",
     });
   });
 

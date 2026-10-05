@@ -37,11 +37,13 @@ test("searching filters the grid by the availability API response", async ({ pag
   const response = await availability;
 
   expect(response.status()).toBe(200);
-  // The seeded rooms have no iCal source, so the API reports them as unavailable.
-  await expect(page.getByText("No results found. Try adjusting your search.")).toBeVisible();
+  // The seeded rooms have no iCal source or overlapping booking, so both are bookable.
+  expect((await response.json()).listingIds).toHaveLength(2);
+  await expect(page.getByText(FREE_LISTING, { exact: true })).toBeVisible();
+  await expect(page.getByText(BLOCKED_LISTING, { exact: true })).toBeVisible();
 });
 
-test("a guest can book available dates and gets a PENDING booking", async ({ page }, testInfo) => {
+test("a guest can book available dates and is sent to the payment page", async ({ page }, testInfo) => {
   await openListing(page, FREE_LISTING);
 
   const { start, end } = freeBookingRange(testInfo.project.name);
@@ -56,7 +58,7 @@ test("a guest can book available dates and gets a PENDING booking", async ({ pag
   const response = await bookingResponse;
 
   expect(response.status()).toBe(200);
-  await expect(page.getByText("Booking created.")).toBeVisible();
+  await page.waitForURL(/\/booking\/[^/]+\/pay$/);
 });
 
 test("booking blocked dates returns 409 and surfaces the error", async ({ page }) => {

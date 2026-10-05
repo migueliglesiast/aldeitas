@@ -2,16 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { fetchDynamicPricing } from "@/lib/airbnb";
-import Stripe from "stripe";
 import { hasLocalDateConflict } from "@/lib/booking-blocks";
 import { checkExternalAvailability } from "@/lib/external-calendars";
 import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
 import { createProviderCheckout } from "@/lib/payment-providers";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-06-20",
-});
 
 const bodySchema = z.object({
   listingId: z.string(),
@@ -58,7 +53,7 @@ async function handleBooking(req: NextRequest) {
   const { listingId, start, end, email, phone } = parsed.data;
 
   const paymentProvider = getDefaultPaymentProvider();
-  if (!paymentProvider && !process.env.STRIPE_SECRET_KEY) return paymentUnavailable();
+  if (!paymentProvider) return paymentUnavailable();
 
   const listing = await prisma.listing.findUnique({ 
     where: { id: listingId },
@@ -96,53 +91,32 @@ async function handleBooking(req: NextRequest) {
       totalPriceCents: totalCents,
       currency,
       status: "PENDING",
-      paymentProvider: paymentProvider ?? "stripe",
+      paymentProvider,
       pendingExpiresAt: new Date(Date.now() + getBookingMaxPendingMs()),
     },
   });
 
   const base = siteUrl(req);
 
-  if (paymentProvider) {
-    const checkout = await createProviderCheckout({
-      provider: paymentProvider,
-      bookingId: booking.id,
-      amountCents: totalCents,
-      currency,
-      description: `${listing.title} (${start} → ${end})`,
-      customerEmail: email,
-      customerPhone: phone,
-      successUrl: `${base}/booking/${booking.id}?provider=${paymentProvider}`,
-      failureUrl: `${base}/listing/${listingId}?canceled=1`,
-    });
-
-    if (checkout.provider === "conekta") {
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: { paymentOrderId: checkout.orderId },
-      });
-      return NextResponse.json({ bookingId: booking.id, checkoutUrl: checkout.checkoutUrl });
-    }
-
-    return NextResponse.json({ bookingId: booking.id, paymentUrl: checkout.paymentPageUrl });
-  }
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [
-      {
-        price_data: {
-          currency,
-          product_data: { name: `${listing.title} (${start} → ${end})` },
-          unit_amount: totalCents,
-        },
-        quantity: 1,
-      },
-    ],
-    success_url: `${base}/listing/${listingId}?success=1`,
-    cancel_url: `${base}/listing/${listingId}?canceled=1`,
-    metadata: { bookingId: booking.id },
+  const checkout = await createProviderCheckout({
+    provider: paymentProvider,
+    bookingId: booking.id,
+    amountCents: totalCents,
+    currency,
+    description: `${listing.title} (${start} → ${end})`,
+    customerEmail: email,
+    customerPhone: phone,
+    successUrl: `${base}/booking/${booking.id}?provider=${paymentProvider}`,
+    failureUrl: `${base}/listing/${listingId}?canceled=1`,
   });
 
-  return NextResponse.json({ checkoutUrl: session.url });
+  if (checkout.provider === "conekta") {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: { paymentOrderId: checkout.orderId },
+    });
+    return NextResponse.json({ bookingId: booking.id, checkoutUrl: checkout.checkoutUrl });
+  }
+
+  return NextResponse.json({ bookingId: booking.id, paymentUrl: checkout.paymentPageUrl });
 }
