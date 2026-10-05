@@ -7,8 +7,9 @@ export const maxDuration = 300;
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params: paramsPromise }: { params: Promise<{ id: string }> }
 ) {
+  const params = await paramsPromise;
   const auth = await requireHotelManager(params.id);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

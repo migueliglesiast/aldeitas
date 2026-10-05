@@ -6,14 +6,20 @@ const prismaMock = {
   listing: { findMany: vi.fn(), findUnique: vi.fn() },
   booking: { findMany: vi.fn() },
   image: { deleteMany: vi.fn(), create: vi.fn() },
-  calendarSource: { upsert: vi.fn(), findMany: vi.fn() },
+  calendarSource: { upsert: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
   $transaction: vi.fn(),
 };
 const fetchIcalBlocks = vi.fn();
+const getCurrentUser = vi.fn();
+const requireManagedListing = vi.fn();
 const fetchDynamicPricing = vi.fn();
 const scrapeListingImages = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
+vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
+vi.mock("@/lib/admin-hotel-auth", () => ({
+  requireManagedListing: (id: string) => requireManagedListing(id),
+}));
 vi.mock("@/lib/airbnb", () => ({
   fetchIcalBlocks: (...a: unknown[]) => fetchIcalBlocks(...a),
   fetchDynamicPricing: (...a: unknown[]) => fetchDynamicPricing(...a),
@@ -328,15 +334,51 @@ describe("POST /api/images", () => {
 });
 
 describe("/api/calendars", () => {
+  const manager = { id: "u1" };
+
+  beforeEach(() => {
+    getCurrentUser.mockResolvedValue(manager);
+    requireManagedListing.mockResolvedValue({ user: manager, listing: { id: "l1" } });
+    prismaMock.calendarSource.findUnique.mockResolvedValue(null);
+  });
+
   it("rejects an invalid payload", async () => {
     const res = await postCalendar(post({ name: "a", icalUrl: "not-a-url" }));
     expect(res.status).toBe(400);
     expect(prismaMock.calendarSource.upsert).not.toHaveBeenCalled();
   });
 
+  it("requires a room", async () => {
+    const res = await postCalendar(post({ name: "Guesty", icalUrl: "https://api.guesty.com/c.ics" }));
+    expect(res.status).toBe(400);
+    expect(prismaMock.calendarSource.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects rooms the caller does not manage", async () => {
+    requireManagedListing.mockResolvedValue({ error: "Unauthorized", status: 401 });
+
+    const res = await postCalendar(
+      post({ name: "Guesty", icalUrl: "https://api.guesty.com/c.ics", listingId: "l1" })
+    );
+
+    expect(res.status).toBe(401);
+    expect(prismaMock.calendarSource.upsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses to move a calendar that belongs to another manager's hotel", async () => {
+    prismaMock.calendarSource.findUnique.mockResolvedValue({ listing: { hotel: { managers: [] } } });
+
+    const res = await postCalendar(
+      post({ name: "Guesty", icalUrl: "https://api.guesty.com/c.ics", listingId: "l1" })
+    );
+
+    expect(res.status).toBe(403);
+    expect(prismaMock.calendarSource.upsert).not.toHaveBeenCalled();
+  });
+
   it("rejects a URL outside the allowlist", async () => {
     const res = await postCalendar(
-      post({ name: "Internal", icalUrl: "https://169.254.169.254/latest" })
+      post({ name: "Internal", icalUrl: "https://169.254.169.254/latest", listingId: "l1" })
     );
 
     expect(res.status).toBe(400);
@@ -361,14 +403,27 @@ describe("/api/calendars", () => {
   it("returns a generic 500 when the upsert fails", async () => {
     prismaMock.calendarSource.upsert.mockRejectedValue(new Error("db"));
 
-    const res = await postCalendar(post({ name: "Guesty", icalUrl: "https://api.guesty.com/c.ics" }));
+    const res = await postCalendar(
+      post({ name: "Guesty", icalUrl: "https://api.guesty.com/c.ics", listingId: "l1" })
+    );
 
     expect(res.status).toBe(500);
   });
 
-  it("lists calendar sources and hides internal errors", async () => {
+  it("requires sign-in to list calendar sources", async () => {
+    getCurrentUser.mockResolvedValue(null);
+    const res = await listCalendars();
+    expect(res.status).toBe(401);
+    expect(prismaMock.calendarSource.findMany).not.toHaveBeenCalled();
+  });
+
+  it("lists only the caller's calendar sources and hides internal errors", async () => {
     prismaMock.calendarSource.findMany.mockResolvedValueOnce([{ id: "c1" }]);
     await expect((await listCalendars()).json()).resolves.toEqual([{ id: "c1" }]);
+    expect(prismaMock.calendarSource.findMany).toHaveBeenCalledWith({
+      where: { listing: { hotel: { managers: { some: { userId: "u1" } } } } },
+      orderBy: { createdAt: "desc" },
+    });
 
     prismaMock.calendarSource.findMany.mockRejectedValueOnce(new Error("db"));
     const failure = await listCalendars();
