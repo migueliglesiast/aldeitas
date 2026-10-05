@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import {
@@ -562,32 +561,4 @@ export async function buildHotelCalendarData(
     rooms,
     readOnly: options.readOnly ?? false,
   };
-}
-
-export async function getOrCreateHotelCalendarShareToken(hotelId: string) {
-  const existing = await prisma.hotelCalendarShare.findUnique({
-    where: { hotelId },
-  });
-  if (existing) return existing;
-
-  return prisma.hotelCalendarShare.create({
-    data: {
-      hotelId,
-      token: randomBytes(24).toString("hex"),
-    },
-  });
-}
-
-export async function getHotelIdForShareToken(token: string) {
-  const share = await prisma.hotelCalendarShare.findUnique({
-    where: { token },
-    select: { hotelId: true },
-  });
-  return share?.hotelId ?? null;
-}
-
-export function getHotelCalendarShareUrl(token: string) {
-  const base =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
-  return `${base}/calendar/${token}`;
 }
