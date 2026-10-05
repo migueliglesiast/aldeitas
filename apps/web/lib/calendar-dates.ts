@@ -10,9 +10,26 @@ export function parseDateKey(dateKey: string) {
   return parseISO(`${dateKey}T00:00:00`);
 }
 
-export function getHotelCalendarWindow(months = HOTEL_CALENDAR_MONTHS) {
-  const start = parseDateKey(toDateKey(new Date()));
-  const end = addDays(addMonths(start, months), -1);
+export function todayKeyInTimeZone(timeZone: string, now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export function getHotelCalendarWindow(
+  months = HOTEL_CALENDAR_MONTHS,
+  options: { leadDays?: number; timeZone?: string } = {}
+) {
+  const today = parseDateKey(
+    options.timeZone
+      ? todayKeyInTimeZone(options.timeZone)
+      : toDateKey(new Date())
+  );
+  const start = addDays(today, -(options.leadDays ?? 0));
+  const end = addDays(addMonths(today, months), -1);
   return { start, end };
 }
 

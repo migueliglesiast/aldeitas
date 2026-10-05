@@ -281,6 +281,8 @@ export default function HotelMultiCalendar({
     };
   }, [hotelId, readOnly, shareToken, loadCalendar]);
 
+  const todayIndex = data ? data.days.indexOf(todayKey) : -1;
+
   const monthGroups = useMemo(() => {
     if (!data) return [];
     const groups: Array<{ label: string; days: string[] }> = [];
@@ -664,9 +666,16 @@ export default function HotelMultiCalendar({
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span className="h-2.5 w-2.5 rounded bg-violet-200 sm:h-3 sm:w-3" /> External
         </span>
+        {isShareView ? (
+          <span className="inline-flex items-center gap-1.5 sm:gap-2">
+            <span className="h-2.5 w-2.5 rounded border border-[#0f766e]/40 bg-[#0f766e]/10 sm:h-3 sm:w-3" />{" "}
+            Hoy
+          </span>
+        ) : null}
       </div>
 
       <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
+        <div className="relative w-max">
         <table
           className="border-collapse text-[10px] sm:text-xs"
           style={{
@@ -719,13 +728,11 @@ export default function HotelMultiCalendar({
                 const isToday = day === todayKey;
                 if (isShareView) {
                   const { weekday, dayNum } = spanishDayParts(day);
+                  const isPast = day < todayKey;
                   return (
                     <th
                       key={day}
-                      className={[
-                        "border-b border-r border-gray-200 px-0 py-1.5 text-center sm:py-2",
-                        isToday ? "bg-[#f3faf9]" : "",
-                      ].join(" ")}
+                      className="border-b border-r border-gray-200 px-0 py-1.5 text-center sm:py-2"
                       style={{
                         width: dayColWidth,
                         minWidth: dayColWidth,
@@ -736,17 +743,23 @@ export default function HotelMultiCalendar({
                         <span
                           className={[
                             "text-[8px] font-medium tracking-[0.14em] sm:text-[9px]",
-                            isToday ? "text-[#0f766e]" : "text-gray-400",
+                            isToday
+                              ? "font-semibold text-[#0f766e]"
+                              : isPast
+                                ? "text-gray-300"
+                                : "text-gray-400",
                           ].join(" ")}
                         >
-                          {weekday}
+                          {isToday ? "HOY" : weekday}
                         </span>
                         <span
                           className={[
                             "inline-flex h-5 min-w-5 items-center justify-center tabular-nums sm:h-6 sm:min-w-6",
                             isToday
                               ? "rounded-full bg-[#0f766e] px-1 text-[10px] font-semibold text-white sm:text-[11px]"
-                              : "text-[11px] font-semibold text-gray-800 sm:text-xs",
+                              : isPast
+                                ? "text-[11px] font-medium text-gray-300 sm:text-xs"
+                                : "text-[11px] font-semibold text-gray-800 sm:text-xs",
                           ].join(" ")}
                         >
                           {dayNum}
@@ -904,7 +917,8 @@ export default function HotelMultiCalendar({
                   const { day, cell } = segment;
                   const isSelected =
                     selected?.roomId === room.id && selected?.day === day;
-                  const isToday = day === todayKey;
+                  const isToday = day === todayKey && !isShareView;
+                  const isPastShareDay = isShareView && day < todayKey;
                   return (
                     <td
                       key={`${room.id}-${day}`}
@@ -941,7 +955,9 @@ export default function HotelMultiCalendar({
                           "box-border flex h-full w-full flex-col items-center justify-center transition",
                           isToday && cell.status === "available"
                             ? "bg-[#e8f6f5] text-slate-700 hover:bg-[#d9f0ee]"
-                            : cellClass(cell),
+                            : isPastShareDay && cell.status === "available"
+                              ? "bg-gray-50"
+                              : cellClass(cell),
                           isSelected ? "ring-2 ring-inset ring-[#00a19c]" : "",
                           readOnly ? "cursor-default" : "cursor-pointer",
                         ].join(" ")}
@@ -961,6 +977,17 @@ export default function HotelMultiCalendar({
             })}
           </tbody>
         </table>
+        {isShareView && todayIndex >= 0 ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 z-[5] border-x border-[#0f766e]/30 bg-[#0f766e]/[0.06]"
+            style={{
+              left: roomColWidth + todayIndex * dayColWidth,
+              width: dayColWidth,
+            }}
+          />
+        ) : null}
+        </div>
       </div>
 
       {selected ? (
