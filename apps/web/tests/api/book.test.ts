@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const prismaMock = {
   listing: { findUnique: vi.fn() },
   booking: { count: vi.fn(), create: vi.fn() },
+  manualBlock: { count: vi.fn() },
 };
 const fetchIcalBlocks = vi.fn();
 const fetchDynamicPricing = vi.fn();
@@ -58,6 +59,7 @@ beforeEach(() => {
   process.env.MERCADOPAGO_ACCESS_TOKEN = "TEST-token";
   fetchDynamicPricing.mockResolvedValue(null);
   prismaMock.booking.count.mockResolvedValue(0);
+  prismaMock.manualBlock.count.mockResolvedValue(0);
   prismaMock.booking.create.mockResolvedValue({ id: "b1" });
 });
 
@@ -104,6 +106,16 @@ describe("POST /api/book", () => {
     const res = await POST(request(VALID_BODY));
 
     expect(res.status).toBe(409);
+  });
+
+  it("returns 409 when a host manual block overlaps", async () => {
+    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
+    prismaMock.manualBlock.count.mockResolvedValue(1);
+
+    const res = await POST(request(VALID_BODY));
+
+    expect(res.status).toBe(409);
+    expect(prismaMock.booking.create).not.toHaveBeenCalled();
   });
 
   it("returns 400 for a non-positive date range", async () => {

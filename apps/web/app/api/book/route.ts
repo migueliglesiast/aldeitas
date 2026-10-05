@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { fetchIcalBlocks, fetchDynamicPricing } from "@/lib/airbnb";
+import { fetchDynamicPricing } from "@/lib/airbnb";
 import Stripe from "stripe";
-import { isBefore } from "date-fns";
-import { countBlockingLocalConflicts } from "@/lib/booking-blocks";
+import { hasLocalDateConflict } from "@/lib/booking-blocks";
+import { checkExternalAvailability } from "@/lib/external-calendars";
 import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
 import { createProviderCheckout } from "@/lib/payment-providers";
@@ -66,42 +66,15 @@ async function handleBooking(req: NextRequest) {
   });
   if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
 
-  // check availability via iCal blocks from all calendar sources
   const startDate = new Date(start);
   const endDate = new Date(end);
-  
-  // Check legacy icalUrl if it exists
-  if (listing.icalUrl) {
-    try {
-      const blocks = await fetchIcalBlocks(listing.icalUrl);
-      const conflict = blocks.some((b) =>
-        isBefore(startDate, b.end) && isBefore(b.start, endDate)
-      );
-      if (conflict) return datesUnavailable();
-    } catch (error) {
-      // Fail closed: an unverifiable calendar must not allow a double booking.
-      console.error(`[Book] Error checking legacy calendar for listing ${listingId}:`, error);
-      return unverifiableAvailability();
-    }
-  }
-  
-  // Check all calendar sources linked to this listing
-  for (const calendarSource of listing.calendarSources) {
-    try {
-      const blocks = await fetchIcalBlocks(calendarSource.icalUrl);
-      const conflict = blocks.some((b) =>
-        isBefore(startDate, b.end) && isBefore(b.start, endDate)
-      );
-      if (conflict) return datesUnavailable();
-    } catch (error) {
-      // Fail closed: an unverifiable calendar must not allow a double booking.
-      console.error(`[Book] Error checking calendar ${calendarSource.name}:`, error);
-      return unverifiableAvailability();
-    }
-  }
 
-  const localConflicts = await countBlockingLocalConflicts(listingId, startDate, endDate);
-  if (localConflicts > 0) return datesUnavailable();
+  if (await hasLocalDateConflict(listingId, startDate, endDate)) return datesUnavailable();
+
+  const external = await checkExternalAvailability(listing, startDate, endDate, "[Book]");
+  if (external.status === "booked") return datesUnavailable();
+  // Fail closed: an unverifiable calendar must not allow a double booking.
+  if (external.status === "unverifiable") return unverifiableAvailability();
 
   // dynamic pricing attempt
   const dynamic = await fetchDynamicPricing(listing.airbnbId, start, end);

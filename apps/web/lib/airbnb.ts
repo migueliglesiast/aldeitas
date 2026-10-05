@@ -1,6 +1,9 @@
 import axios from "axios";
 import ical from "node-ical";
 import * as cheerio from "cheerio";
+import { MAX_RESPONSE_BYTES } from "./safe-url";
+
+const ICAL_FETCH_TIMEOUT_MS = Number(process.env.ICAL_FETCH_TIMEOUT_MS || 8000);
 
 export type AvailabilityBlock = {
   start: Date;
@@ -11,7 +14,14 @@ export type AvailabilityBlock = {
 };
 
 export async function fetchIcalBlocks(icalUrl: string): Promise<AvailabilityBlock[]> {
-  const data = await axios.get(icalUrl).then((r) => r.data as string);
+  const data = await axios
+    .get(icalUrl, {
+      timeout: ICAL_FETCH_TIMEOUT_MS,
+      signal: AbortSignal.timeout(ICAL_FETCH_TIMEOUT_MS),
+      maxContentLength: MAX_RESPONSE_BYTES,
+      responseType: "text",
+    })
+    .then((r) => r.data as string);
   const events = ical.parseICS(data);
   const blocks: AvailabilityBlock[] = [];
   for (const key of Object.keys(events)) {

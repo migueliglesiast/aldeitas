@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { fetchIcalBlocks } from "@/lib/airbnb";
-import { isBefore } from "date-fns";
 import { blockingBookingStatusWhere } from "@/lib/booking-blocks";
+import {
+  checkExternalAvailability,
+  hasExternalCalendars,
+} from "@/lib/external-calendars";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +19,9 @@ export async function POST(req: NextRequest) {
 
     const startDate = new Date(checkIn);
     const endDate = new Date(checkOut);
+    const overlapsStay = {
+      NOT: [{ endDate: { lte: startDate } }, { startDate: { gte: endDate } }],
+    };
 
     const hotels = await prisma.hotel.findMany({
       include: {
@@ -26,59 +31,33 @@ export async function POST(req: NextRequest) {
             bookings: {
               where: {
                 ...blockingBookingStatusWhere,
-                NOT: [{ endDate: { lte: startDate } }, { startDate: { gte: endDate } }],
+                ...overlapsStay,
               },
             },
+            manualBlocks: { where: overlapsStay },
           },
         },
       },
     });
 
-    const availableListingIds: string[] = [];
+    const listings = hotels.flatMap((hotel) => hotel.listings);
+    const availability = await Promise.all(
+      listings.map(async (listing) => {
+        if (listing.bookings.length > 0 || listing.manualBlocks.length > 0) return false;
+        if (!hasExternalCalendars(listing)) return true;
+        const { status } = await checkExternalAvailability(
+          listing,
+          startDate,
+          endDate,
+          `[search] listing ${listing.id}:`
+        );
+        return status === "available";
+      })
+    );
 
-    for (const hotel of hotels) {
-      for (const listing of hotel.listings) {
-        if (listing.bookings.length > 0) continue;
-
-        let available = true;
-
-        if (listing.icalUrl) {
-          try {
-            const blocks = await fetchIcalBlocks(listing.icalUrl);
-            const conflict = blocks.some(
-              (b) => isBefore(startDate, b.end) && isBefore(b.start, endDate)
-            );
-            if (conflict) available = false;
-          } catch (error) {
-            console.error(`Error checking calendar for listing ${listing.id}:`, error);
-            available = false;
-          }
-        }
-
-        if (!available) continue;
-
-        for (const calendarSource of listing.calendarSources) {
-          try {
-            const blocks = await fetchIcalBlocks(calendarSource.icalUrl);
-            const conflict = blocks.some(
-              (b) => isBefore(startDate, b.end) && isBefore(b.start, endDate)
-            );
-            if (conflict) {
-              available = false;
-              break;
-            }
-          } catch (error) {
-            console.error(`Error checking calendar ${calendarSource.name}:`, error);
-            available = false;
-            break;
-          }
-        }
-
-        if (available) availableListingIds.push(listing.id);
-      }
-    }
-
-    return NextResponse.json({ listingIds: availableListingIds });
+    return NextResponse.json({
+      listingIds: listings.filter((_, index) => availability[index]).map((l) => l.id),
+    });
   } catch (error) {
     console.error("Error checking availability:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

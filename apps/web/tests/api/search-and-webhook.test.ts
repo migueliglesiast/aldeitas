@@ -54,17 +54,18 @@ describe("POST /api/search/availability", () => {
       {
         id: "h1",
         listings: [
-          { id: "free", icalUrl: null, calendarSources: [{ name: "G", icalUrl: "u" }], bookings: [] },
-          { id: "no-calendar", icalUrl: null, calendarSources: [], bookings: [] },
+          { id: "free", icalUrl: null, calendarSources: [{ name: "G", icalUrl: "u" }], bookings: [], manualBlocks: [] },
+          { id: "no-calendar", icalUrl: null, calendarSources: [], bookings: [], manualBlocks: [] },
           {
             id: "locally-booked",
             icalUrl: null,
             calendarSources: [{ name: "G", icalUrl: "u" }],
             bookings: [{ id: "b1" }],
+            manualBlocks: [],
           },
         ],
       },
-      { id: "h2", listings: [{ id: "x", icalUrl: null, calendarSources: [], bookings: [] }] },
+      { id: "h2", listings: [{ id: "x", icalUrl: null, calendarSources: [], bookings: [], manualBlocks: [] }] },
     ]);
     fetchIcalBlocks.mockResolvedValue([]);
 
@@ -85,12 +86,14 @@ describe("POST /api/search/availability", () => {
             icalUrl: "https://www.airbnb.com/legacy.ics",
             calendarSources: [],
             bookings: [],
+            manualBlocks: [],
           },
           {
             id: "unreachable",
             icalUrl: null,
             calendarSources: [{ name: "G", icalUrl: "u" }],
             bookings: [],
+            manualBlocks: [],
           },
         ],
       },
@@ -102,6 +105,28 @@ describe("POST /api/search/availability", () => {
     const res = await searchAvailability(post(RANGE));
 
     await expect(res.json()).resolves.toEqual({ listingIds: [] });
+  });
+
+  it("treats listings with an overlapping host manual block as unavailable", async () => {
+    prismaMock.hotel.findMany.mockResolvedValue([
+      {
+        id: "h1",
+        listings: [
+          { id: "free", icalUrl: null, calendarSources: [], bookings: [], manualBlocks: [] },
+          {
+            id: "host-blocked",
+            icalUrl: null,
+            calendarSources: [],
+            bookings: [],
+            manualBlocks: [{ id: "m1" }],
+          },
+        ],
+      },
+    ]);
+
+    const res = await searchAvailability(post(RANGE));
+
+    await expect(res.json()).resolves.toEqual({ listingIds: ["free"] });
   });
 
   it("returns a generic 500 on malformed input or failures", async () => {

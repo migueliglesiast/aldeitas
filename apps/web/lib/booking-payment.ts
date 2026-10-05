@@ -1,50 +1,22 @@
-import { isBefore } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import { fetchIcalBlocks } from "@/lib/airbnb";
 import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { sendBookingProcessingEmail } from "@/lib/booking-email";
 import {
   cancelBooking,
   reconcileBooking,
-  snapshotExternalBlocksForListing,
+  serializeBlocks,
 } from "@/lib/booking-reconcile";
-import { hasBlockingLocalConflict, cancelUnpaidPendingBooking } from "@/lib/booking-blocks";
+import { hasLocalDateConflict, cancelUnpaidPendingBooking } from "@/lib/booking-blocks";
+import { checkExternalAvailability } from "@/lib/external-calendars";
 import {
   getProviderAuthorizationState,
 } from "@/lib/payment-providers";
 import type { PaymentProviderId } from "@/lib/payment-providers/types";
 
-async function bookingHasExternalConflict(
-  listing: {
-    icalUrl: string | null;
-    calendarSources: { icalUrl: string; name: string }[];
-  },
-  startDate: Date,
-  endDate: Date
-) {
-  const sources = [
-    ...(listing.icalUrl ? [{ name: "legacy", icalUrl: listing.icalUrl }] : []),
-    ...listing.calendarSources,
-  ];
-
-  for (const source of sources) {
-    try {
-      const blocks = await fetchIcalBlocks(source.icalUrl);
-      const conflict = blocks.some(
-        (block) => isBefore(startDate, block.end) && isBefore(block.start, endDate)
-      );
-      if (conflict) return true;
-    } catch (error) {
-      console.error(`[booking-payment] Failed to check ${source.name}:`, error);
-    }
-  }
-
-  return false;
-}
-
-async function bookingHasLocalConflict(bookingId: string, listingId: string, startDate: Date, endDate: Date) {
-  return hasBlockingLocalConflict(listingId, startDate, endDate, bookingId);
-}
+const DATES_TAKEN_REASON =
+  "Those dates became unavailable before we could secure your booking. We are sorry for the inconvenience.";
+const DATES_UNVERIFIABLE_REASON =
+  "We couldn't confirm those dates with the property's calendar, so your card was not charged. Please try again in a few minutes.";
 
 async function finalizeAuthorizedBooking(
   bookingId: string,
@@ -73,19 +45,22 @@ async function finalizeAuthorizedBooking(
     return booking;
   }
 
-  const hasLocalConflict = await bookingHasLocalConflict(
-    booking.id,
+  const hasLocalConflict = await hasLocalDateConflict(
     booking.listingId,
     booking.startDate,
-    booking.endDate
+    booking.endDate,
+    booking.id
   );
-  const hasExternalConflict = await bookingHasExternalConflict(
-    booking.listing,
-    booking.startDate,
-    booking.endDate
-  );
+  const external = hasLocalConflict
+    ? null
+    : await checkExternalAvailability(
+        booking.listing,
+        booking.startDate,
+        booking.endDate,
+        "[booking-payment]"
+      );
 
-  if (hasLocalConflict || hasExternalConflict) {
+  if (!external || external.status !== "available") {
     const conflictBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
@@ -102,12 +77,12 @@ async function finalizeAuthorizedBooking(
 
     await cancelBooking(
       conflictBooking,
-      "Those dates became unavailable before we could secure your booking. We are sorry for the inconvenience."
+      external?.status === "unverifiable" ? DATES_UNVERIFIABLE_REASON : DATES_TAKEN_REASON
     );
     return conflictBooking;
   }
 
-  const snapshot = await snapshotExternalBlocksForListing(booking.listing);
+  const snapshot = serializeBlocks(external.result.blocks);
 
   const updated = await prisma.booking.update({
     where: { id: bookingId },

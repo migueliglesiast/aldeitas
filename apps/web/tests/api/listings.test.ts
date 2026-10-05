@@ -73,6 +73,7 @@ describe("GET /api/listings/[id]/availability", () => {
     icalUrl: null,
     calendarSources: [],
     bookings: [],
+    manualBlocks: [],
   };
 
   it("returns 404 for an unknown listing", async () => {
@@ -123,7 +124,7 @@ describe("GET /api/listings/[id]/availability", () => {
     }
   });
 
-  it("records calendar errors in debug output instead of failing", async () => {
+  it("fails closed with 503 and debug details when a calendar cannot be fetched", async () => {
     prismaMock.listing.findUnique.mockResolvedValue({
       ...listing,
       icalUrl: "https://www.airbnb.com/legacy.ics",
@@ -136,9 +137,27 @@ describe("GET /api/listings/[id]/availability", () => {
     });
     const body = await res.json();
 
-    expect(body.bookedDates).toEqual([]);
+    expect(res.status).toBe(503);
+    expect(body.bookedDates).toBeUndefined();
     expect(body.debug.errors).toHaveLength(2);
     expect(body.debug.fetchedDates.fromCalendarSources[0].error).toBe("unreachable");
+  });
+
+  it("includes host manual blocks in booked dates", async () => {
+    prismaMock.listing.findUnique.mockResolvedValue({
+      ...listing,
+      manualBlocks: [
+        { startDate: new Date("2025-03-01"), endDate: new Date("2025-03-03") },
+      ],
+    });
+
+    const res = await getAvailability(get("http://localhost/api"), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+
+    await expect(res.json()).resolves.toMatchObject({
+      bookedDates: ["2025-03-01", "2025-03-02"],
+    });
   });
 
   it("returns a generic 500 on failure", async () => {
@@ -263,6 +282,8 @@ describe("GET /api/ical/[listingId]", () => {
     expect(res.headers.get("content-disposition")).toContain("listing-l1.ics");
     expect(body).toContain("BEGIN:VEVENT");
     expect(body).toContain("Reserved");
+    expect(body).not.toContain("guest@example.com");
+    expect(body).not.toContain("Casa Yahua");
   });
 
   it("pre-generates params for every listing", async () => {
