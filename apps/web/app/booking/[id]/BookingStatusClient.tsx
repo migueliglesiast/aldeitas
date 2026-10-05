@@ -170,7 +170,7 @@ export default function BookingStatusClient({ bookingId }: { bookingId: string }
           {booking.isAwaitingPayment && (
             <Link
               href={`/booking/${bookingId}/pay`}
-              className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white hover:bg-[#008a86]"
+              className="rounded bg-brand px-4 py-2 text-sm text-white hover:bg-brand-dark"
             >
               Complete payment
             </Link>
@@ -185,7 +185,7 @@ export default function BookingStatusClient({ bookingId }: { bookingId: string }
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white hover:bg-[#008a86]"
+              className="rounded bg-brand px-4 py-2 text-sm text-white hover:bg-brand-dark"
             >
               Refresh status
             </button>

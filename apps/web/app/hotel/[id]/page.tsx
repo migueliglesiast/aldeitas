@@ -2,8 +2,11 @@ import { getHotelDetail } from "@/lib/data";
 import Link from "next/link";
 import FilteredListingGrid from "@/components/FilteredListingGrid";
 import SearchForm from "@/components/SearchForm";
+import { redirect } from "next/navigation";
+import { getStorefrontFromHeaders } from "@/lib/storefront";
 
 export default async function HotelPage({ params }: { params: Promise<{ id: string }> }) {
+  if (await getStorefrontFromHeaders()) redirect("/#rooms");
   const { id } = await params;
   const hotel = await getHotelDetail(id);
   if (!hotel) {

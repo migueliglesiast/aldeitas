@@ -6,6 +6,14 @@
 
 html, body { height: 100%; }
 
+:root {
+  --brand: 0 146 161;
+  --brand-dark: 0 122 135;
+  --brand-light: 51 168 180;
+}
+
+html { scroll-padding-top: 9rem; }
+
 @keyframes fadeInScale {
   from {
     opacity: 0;

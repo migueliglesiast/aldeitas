@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { blockingBookingStatusWhere } from "@/lib/booking-blocks";
+import { getStorefrontHotel } from "@/lib/storefront";
 import {
   checkExternalAvailability,
   hasExternalCalendars,
@@ -23,7 +24,12 @@ export async function POST(req: NextRequest) {
       NOT: [{ endDate: { lte: startDate } }, { startDate: { gte: endDate } }],
     };
 
+    const storefront = await getStorefrontHotel(
+      req.headers.get("x-storefront-host") ?? req.headers.get("host")
+    );
+
     const hotels = await prisma.hotel.findMany({
+      where: storefront ? { id: storefront.id } : undefined,
       include: {
         listings: {
           include: {

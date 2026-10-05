@@ -34,7 +34,7 @@ export default function ListingDetailBody({ listing }: Props) {
       <div>
         <Link
           href={backHref}
-          className="inline-flex items-center gap-2 rounded px-3 py-2 text-white bg-[#00a19c] transition-colors duration-200 hover:bg-[#008a86]"
+          className="inline-flex items-center gap-2 rounded px-3 py-2 text-white bg-brand transition-colors duration-200 hover:bg-brand-dark"
         >
           {t("back")}
         </Link>
