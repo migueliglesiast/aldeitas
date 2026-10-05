@@ -30,7 +30,7 @@ test("a host can sign up, stay signed in, sign out and sign back in", async ({ p
   await expect(page.getByText(`Hi, ${user.username}`)).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("link", { name: "Hosting portal" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Hosting portal" })).toBeVisible();
 
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email or username").fill(user.username);
@@ -45,7 +45,7 @@ test("sign in rejects a wrong password", async ({ page }) => {
   const user = uniqueUser();
   await signUp(page, user);
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("link", { name: "Hosting portal" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Hosting portal" })).toBeVisible();
 
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email or username").fill(user.username);
