@@ -11,15 +11,20 @@ export function HomeHero() {
       <h1 className="text-balance font-poster text-[2rem] font-black leading-[1.08] tracking-tight text-heading sm:text-4xl md:text-5xl">
         {t("heroTitle")}
       </h1>
-      <p className="mx-auto max-w-2xl text-pretty text-base leading-7 text-muted md:text-lg md:leading-8">
-        {t("heroLead")}{" "}
-        <span className="font-semibold text-[#F97316]">{t("heroPlatforms")}</span>{" "}
-        {t("heroMiddle")}{" "}
-        <span className="whitespace-nowrap font-semibold text-brand">
-          {t("heroOurCut")}
-        </span>{" "}
-        {t("heroTail")}
-      </p>
+      <div className="mx-auto max-w-xl space-y-3 pt-1">
+        <p className="text-pretty text-lg leading-7 text-muted md:text-xl">
+          {t("heroLead")}{" "}
+          <strong className="whitespace-nowrap font-semibold text-aldeitas">{t("heroPlatforms")}</strong>.
+        </p>
+        <p className="text-xl font-semibold leading-8 text-heading md:text-2xl">
+          <span className="underline decoration-aldeitas decoration-[5px] underline-offset-[9px] [text-decoration-skip-ink:none]">
+            {t("heroOurCut")}
+          </span>
+        </p>
+        <p className="text-pretty pt-1 text-base leading-7 text-muted">
+          {t("heroTail")}
+        </p>
+      </div>
     </div>
   );
 }
