@@ -1,37 +1,38 @@
 import { getHotelDetail } from "@/lib/data";
-import HotelDetailView from "@/components/HotelDetailView";
-import { getStorefrontFromHeaders } from "@/lib/storefront";
+import type { StorefrontHotel } from "@/lib/storefront";
+import StorefrontLanding from "@/components/storefront/StorefrontLanding";
 
-export default async function StorefrontHomePage() {
-  const storefront = await getStorefrontFromHeaders();
-  if (!storefront) return null;
-
+export default async function StorefrontHomePage({ storefront }: { storefront: StorefrontHotel }) {
   const hotel = await getHotelDetail(storefront.id);
   if (!hotel) {
     return <div>Hotel not found</div>;
   }
 
-  const serializedListings = hotel.listings.map((listing) => ({
-    id: listing.id,
-    title: listing.title,
-    nightlyBasePrice: listing.nightlyBasePrice,
-    baseCurrency: listing.baseCurrency,
-    images: listing.images,
-  }));
+  const listings = [...hotel.listings]
+    .sort((a, b) => a.title.localeCompare(b.title, "es", { numeric: true }))
+    .map((listing) => ({
+      id: listing.id,
+      title: listing.title,
+      nightlyBasePrice: listing.nightlyBasePrice,
+      baseCurrency: listing.baseCurrency,
+      images: listing.images,
+    }));
 
   return (
-    <HotelDetailView
-      storefront
+    <StorefrontLanding
       hotel={{
-        id: hotel.id,
         name: hotel.name,
         location: hotel.location,
         logoImageUrl: hotel.logoImageUrl,
+        storefrontTagline: hotel.storefrontTagline,
         description: hotel.description,
         descriptionEn: hotel.descriptionEn,
         descriptionEs: hotel.descriptionEs,
+        googleMapsUrl: hotel.googleMapsUrl,
+        latitude: hotel.latitude,
+        longitude: hotel.longitude,
       }}
-      listings={serializedListings}
+      listings={listings}
     />
   );
 }

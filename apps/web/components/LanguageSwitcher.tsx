@@ -25,7 +25,7 @@ function FlagButton({
       className={[
         "flex h-9 w-9 items-center justify-center rounded-full border text-lg transition-all",
         active
-          ? "border-[#00a19c] bg-white shadow-sm ring-2 ring-[#00a19c]/25"
+          ? "border-brand bg-white shadow-sm ring-2 ring-brand/25"
           : "border-gray-200 bg-white/80 hover:border-gray-300 hover:bg-white",
       ].join(" ")}
     >

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getHotelCoverCandidates } from "@/lib/hotel-cover";
@@ -62,7 +63,9 @@ export async function getStorefrontHotel(
   };
 }
 
+const getStorefrontHotelCached = cache(getStorefrontHotel);
+
 export async function getStorefrontFromHeaders(): Promise<StorefrontHotel | null> {
   const headerStore = await headers();
-  return getStorefrontHotel(headerStore.get("x-storefront-host") ?? headerStore.get("host"));
+  return getStorefrontHotelCached(headerStore.get("x-storefront-host") ?? headerStore.get("host"));
 }

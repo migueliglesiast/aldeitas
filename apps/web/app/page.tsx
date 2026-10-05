@@ -2,11 +2,16 @@ import { getHotelsWithListings, type HotelWithListings } from "@/lib/data";
 import HotelGrid from "@/components/HotelGrid";
 import SearchForm from "@/components/SearchForm";
 import { HomeHero, HomeSignUpPrompt } from "@/components/HomeHero";
+import StorefrontHomePage from "@/components/StorefrontHomePage";
+import { getStorefrontFromHeaders } from "@/lib/storefront";
 
 // Make homepage dynamic to ensure it works at runtime
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
+  const storefront = await getStorefrontFromHeaders();
+  if (storefront) return <StorefrontHomePage storefront={storefront} />;
+
   const hotels: HotelWithListings[] = await getHotelsWithListings();
   // Order hotels exactly as requested
   const desiredOrder = [

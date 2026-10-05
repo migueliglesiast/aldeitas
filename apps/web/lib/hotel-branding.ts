@@ -103,13 +103,15 @@ function mixHex(base: string, target: string, amount: number) {
   return rgbToHex(mix(br, tr), mix(bg, tg), mix(bb, tb));
 }
 
-function isUsableColor(r: number, g: number, b: number) {
+function saturationOf(r: number, g: number, b: number) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  const lightness = (max + min) / 2 / 255;
-  const saturation = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+  return max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+}
 
-  return lightness > 0.12 && lightness < 0.82 && saturation > 0.12;
+function isUsableColor(r: number, g: number, b: number) {
+  const lightness = (Math.max(r, g, b) + Math.min(r, g, b)) / 2 / 255;
+  return lightness > 0.12 && lightness < 0.82 && saturationOf(r, g, b) > 0.12;
 }
 
 export async function extractBrandPalette(imageUrl: string): Promise<HotelBrandPalette> {
@@ -124,7 +126,7 @@ export async function extractBrandPalette(imageUrl: string): Promise<HotelBrandP
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        const size = 48;
+        const size = 96;
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext("2d");
@@ -137,7 +139,7 @@ export async function extractBrandPalette(imageUrl: string): Promise<HotelBrandP
         const { data } = ctx.getImageData(0, 0, size, size);
         const buckets = new Map<string, { count: number; r: number; g: number; b: number }>();
 
-        for (let i = 0; i < data.length; i += 16) {
+        for (let i = 0; i < data.length; i += 8) {
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
@@ -156,7 +158,11 @@ export async function extractBrandPalette(imageUrl: string): Promise<HotelBrandP
           }
         }
 
-        const dominant = [...buckets.values()].sort((a, b) => b.count - a.count)[0];
+        // Weight by saturation so anti-aliased edge pixels don't wash out the logo color.
+        const score = (bucket: { count: number; r: number; g: number; b: number }) =>
+          bucket.count *
+          saturationOf(bucket.r / bucket.count, bucket.g / bucket.count, bucket.b / bucket.count) ** 2;
+        const dominant = [...buckets.values()].sort((a, b) => score(b) - score(a))[0];
         if (!dominant) {
           resolve(DEFAULT_HOTEL_PALETTE);
           return;

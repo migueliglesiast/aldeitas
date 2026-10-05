@@ -9,10 +9,11 @@ export default {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#0092A1",
-          dark: "#007A87",
-          light: "#33A8B4",
+          DEFAULT: "rgb(var(--brand) / <alpha-value>)",
+          dark: "rgb(var(--brand-dark) / <alpha-value>)",
+          light: "rgb(var(--brand-light) / <alpha-value>)",
         },
+        aldeitas: "#0092A1",
         ink: "#3D3B38",
         heading: "#4F4C48",
         muted: "#78736B",

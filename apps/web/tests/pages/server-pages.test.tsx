@@ -12,6 +12,7 @@ const prismaMock = {
 };
 
 vi.mock("@/lib/data", () => dataMock);
+vi.mock("@/lib/storefront", () => ({ getStorefrontFromHeaders: async () => null }));
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => ({ id: "u1" }) }));
 vi.mock("next/image", () => ({

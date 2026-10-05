@@ -4,6 +4,9 @@ import Link from "next/link";
 import BookingForm from "@/components/BookingForm";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { getStorefrontFromHeaders } from "@/lib/storefront";
+import { getPortalOrigin } from "@/lib/storefront-host";
 
 export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,6 +14,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   if (!listing) {
     return <div>Listing not found</div>;
+  }
+
+  const storefront = await getStorefrontFromHeaders();
+  if (storefront && listing.hotelId !== storefront.id) {
+    redirect(`${getPortalOrigin()}/listing/${listing.id}`);
   }
 
   const [mainImage, ...secondaryImages] = listing.images;
@@ -75,7 +83,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           <div className="lg:sticky lg:top-24">
             <BookingForm listingId={listing.id} basePriceCents={listing.nightlyBasePrice} currency={listing.baseCurrency} />
             <p className="mt-4 text-center text-sm text-muted">
-              <Link href={`/hotel/${listing.hotel.id}`} className="underline underline-offset-2 hover:text-ink">
+              <Link href={storefront ? "/#rooms" : `/hotel/${listing.hotel.id}`} className="underline underline-offset-2 hover:text-ink">
                 See more rooms at {listing.hotel.name}
               </Link>
             </p>

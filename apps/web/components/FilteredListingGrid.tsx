@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
 import ImageCarousel from "./ImageCarousel";
 import { ListingGridSkeleton } from "./Skeleton";
 
@@ -21,6 +22,7 @@ type FilteredListingGridProps = {
 
 export default function FilteredListingGrid({ listings, hotelName }: FilteredListingGridProps) {
   const { searchParams } = useHotel();
+  const { t } = useLocale();
   const [listingAvailability, setListingAvailability] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
 
@@ -100,10 +102,10 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
       <div className="space-y-4">
         <div className="rounded-2xl border border-line bg-surface p-8 text-center">
           <p className="mb-2 font-semibold text-ink">
-            No rooms available for the selected dates.
+            {t("noRoomsForDates")}
           </p>
           <p className="text-sm text-muted">
-            Try adjusting your check-in or check-out dates.
+            {t("adjustDates")}
           </p>
         </div>
       </div>
@@ -128,7 +130,7 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-surface text-muted">
-                No image yet
+                {t("noImageYet")}
               </div>
             )}
           </div>
@@ -144,7 +146,7 @@ export default function FilteredListingGrid({ listings, hotelName }: FilteredLis
         </div>
       ))}
       {filteredListings.length === 0 && !searchParams && (
-        <div className="text-muted col-span-full">No rooms listed yet.</div>
+        <div className="text-muted col-span-full">{t("noRoomsListed")}</div>
       )}
     </div>
   );
