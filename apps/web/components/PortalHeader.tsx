@@ -50,7 +50,7 @@ export default function PortalHeader() {
         ) : null}
         <div className="flex shrink-0 items-center gap-3">
           <LanguageSwitcher />
-          <AuthButton />
+          {isStorefront ? null : <AuthButton />}
         </div>
       </div>
     </header>
