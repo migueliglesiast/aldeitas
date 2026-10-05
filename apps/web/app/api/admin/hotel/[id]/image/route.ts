@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params: paramsPromise }: { params: Promise<{ id: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -76,8 +77,9 @@ export async function POST(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; imageId?: string } }
+  { params: paramsPromise }: { params: Promise<{ id: string; imageId?: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     const user = await getCurrentUser();
     if (!user) {

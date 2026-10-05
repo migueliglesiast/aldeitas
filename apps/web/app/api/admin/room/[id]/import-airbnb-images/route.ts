@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 /** @deprecated Use /import-airbnb instead */
 export async function POST(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const body = await req.json();
   const wrapped = new NextRequest(req.url, {

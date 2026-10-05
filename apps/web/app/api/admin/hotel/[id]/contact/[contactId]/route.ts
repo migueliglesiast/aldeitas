@@ -13,8 +13,9 @@ const contactSchema = z.object({
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; contactId: string } }
+  { params: paramsPromise }: { params: Promise<{ id: string; contactId: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -74,8 +75,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; contactId: string } }
+  { params: paramsPromise }: { params: Promise<{ id: string; contactId: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     const user = await getCurrentUser();
     if (!user) {
