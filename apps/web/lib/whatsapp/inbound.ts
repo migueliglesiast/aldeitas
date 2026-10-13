@@ -68,10 +68,11 @@ export async function handleInboundMessage(message: InboundMessage, now = new Da
 
   if (conversation.endedAt) {
     await askHost(conversation, message.text, "RELAY");
+    const ack = t("afterCheckout", locale);
     const recentAck = await prisma.whatsappMessage.findFirst({
-      where: { conversationId: conversation.id, author: "bot", createdAt: { gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) } },
+      where: { conversationId: conversation.id, body: ack, createdAt: { gte: new Date(now.getTime() - 12 * 60 * 60 * 1000) } },
     });
-    if (!recentAck) await sendToPhone(conversation.phone, t("afterCheckout", locale));
+    if (!recentAck) await sendToPhone(conversation.phone, ack);
     return;
   }
   if (conversation.botPaused) {

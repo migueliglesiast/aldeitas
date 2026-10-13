@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { detectEmergencyByKeywords } from "@/lib/whatsapp/agent";
 import { bestKeywordMatch } from "@/lib/whatsapp/answers";
@@ -58,9 +58,10 @@ describe("room codes", () => {
 
 describe("webhook parsing", () => {
   it("verifies Meta's sha256 signature", () => {
-    vi.stubEnv("WHATSAPP_APP_SECRET", "app-secret");
+    const key = randomBytes(16).toString("hex");
+    vi.stubEnv("WHATSAPP_APP_SECRET", key);
     const body = '{"a":1}';
-    const sig = `sha256=${createHmac("sha256", "app-secret").update(body).digest("hex")}`;
+    const sig = `sha256=${createHmac("sha256", key).update(body).digest("hex")}`;
     expect(verifyWhatsappSignature(body, sig)).toBe(true);
     expect(verifyWhatsappSignature(body + " ", sig)).toBe(false);
     expect(verifyWhatsappSignature(body, null)).toBe(false);
