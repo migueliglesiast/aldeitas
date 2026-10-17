@@ -15,13 +15,15 @@ export type CalendarCellStatus =
   | "available"
   | "manual_block"
   | "booking"
-  | "external";
+  | "external"
+  | "ghost";
 
 export type CalendarCell = {
   status: CalendarCellStatus;
   priceCents: number;
   priceOverride: boolean;
   blockId?: string;
+  ghostId?: string;
   bookingId?: string;
   bookingStatus?: string;
   guestEmail?: string;
@@ -34,7 +36,7 @@ export type CalendarCell = {
 
 export type CalendarSpan = {
   id: string;
-  kind: "booking" | "external" | "manual_block";
+  kind: "booking" | "external" | "manual_block" | "ghost";
   startDay: string;
   /** Inclusive last night key covered by this reservation/block. */
   endDay: string;
@@ -51,6 +53,7 @@ export type CalendarSpan = {
   bookingId?: string;
   bookingStatus?: string;
   blockId?: string;
+  ghostId?: string;
   sourceUid?: string;
 };
 
@@ -338,6 +341,15 @@ export async function buildHotelCalendarData(
             },
             orderBy: { startDate: "asc" },
           },
+          ghostBookings: {
+            where: {
+              NOT: [
+                { endDate: { lte: start } },
+                { startDate: { gte: rangeEndExclusive } },
+              ],
+            },
+            orderBy: { startDate: "asc" },
+          },
         },
       },
     },
@@ -397,9 +409,29 @@ export async function buildHotelCalendarData(
         id: `block-${block.id}`,
         kind: "manual_block",
         label: "Blocked",
+        guestName: block.note?.trim() || undefined,
         blockId: block.id,
         checkoutDay: toDateKey(block.endDate),
         rangeStartDay: toDateKey(block.startDate),
+      });
+      if (span) spans.push(span);
+    }
+
+    for (const ghost of listing.ghostBookings) {
+      const nights = nightsForRange(days, (nightKey) =>
+        manualBlockCoversNight(ghost, parseDateKey(nightKey))
+      );
+      const span = buildSpanFromNights(nights, {
+        id: `ghost-${ghost.id}`,
+        kind: "ghost",
+        label: "Ghost (not blocked)",
+        guestName: ghost.guestName,
+        guestCount: ghost.guestCount,
+        payoutCents: ghost.payoutCents,
+        payoutCurrency: ghost.payoutCurrency,
+        ghostId: ghost.id,
+        checkoutDay: toDateKey(ghost.endDate),
+        rangeStartDay: toDateKey(ghost.startDate),
       });
       if (span) spans.push(span);
     }
@@ -522,6 +554,23 @@ export async function buildHotelCalendarData(
           guestCount,
           spanId: `external-${listing.id}-${externalIndex}-${nights[0] || externalIndex}`,
           label: "External",
+        };
+        continue;
+      }
+
+      const ghost = listing.ghostBookings.find((item) =>
+        manualBlockCoversNight(item, parseDateKey(day))
+      );
+      if (ghost) {
+        cells[day] = {
+          status: "ghost",
+          priceCents,
+          priceOverride,
+          ghostId: ghost.id,
+          guestName: ghost.guestName,
+          guestCount: ghost.guestCount,
+          spanId: `ghost-${ghost.id}`,
+          label: "Ghost (not blocked)",
         };
         continue;
       }

@@ -37,6 +37,8 @@ function cellClass(cell: CalendarCell) {
         : "bg-amber-200 text-amber-950";
     case "external":
       return "bg-violet-200 text-violet-950";
+    case "ghost":
+      return "bg-white text-slate-700";
     default:
       return "bg-white text-slate-700 hover:bg-emerald-50";
   }
@@ -48,6 +50,8 @@ function spanBarClass(span: CalendarSpan) {
       return "bg-slate-500 text-white";
     case "external":
       return "bg-[#0f766e] text-white";
+    case "ghost":
+      return "border-2 border-dashed border-slate-400 bg-white/80 text-slate-700 shadow-none";
     case "booking":
       return span.bookingStatus === "CONFIRMED"
         ? "bg-[#0f766e] text-white"
@@ -392,6 +396,37 @@ export default function HotelMultiCalendar({
       } else {
         return;
       }
+      setSelected(null);
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ghostAction(ghostId: string, action: "block" | "remove") {
+    if (readOnly || busy) return;
+    if (action === "remove" && !confirm("Remove this ghost booking?")) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res =
+        action === "block"
+          ? await fetch(`/api/admin/hotel/${hotelId}/calendar/ghosts`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ghostId }),
+            })
+          : await fetch(
+              `/api/admin/hotel/${hotelId}/calendar/ghosts?ghostId=${ghostId}`,
+              { method: "DELETE" }
+            );
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Action failed");
+      }
+      setMessage(action === "block" ? "Dates blocked." : "Ghost booking removed.");
       setSelected(null);
       await loadCalendar();
     } catch (err) {
@@ -1033,6 +1068,49 @@ export default function HotelMultiCalendar({
               ) : null}
             </div>
           )}
+          {selected.cell.status === "ghost" ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                {selected.span ? spanTitle(selected.span) : selected.cell.guestName}
+                {selected.span ? (
+                  <div className="mt-1 text-gray-600">
+                    {selected.span.rangeStartDay} → {selected.span.checkoutDay}
+                  </div>
+                ) : null}
+                {!isShareView && selected.span?.payoutCents != null ? (
+                  <div className="mt-1 text-gray-600">
+                    Payout:{" "}
+                    {(selected.span.payoutCents / 100).toLocaleString(undefined, {
+                      style: "currency",
+                      currency: selected.span.payoutCurrency || "MXN",
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <p className="text-xs text-gray-500">
+                Ghost booking: shown for planning only. These dates are still open on
+                Aldeitas and in the calendar feed until you block them.
+              </p>
+              {!readOnly && selected.cell.ghostId ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void ghostAction(selected.cell.ghostId!, "block")}
+                    className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white"
+                  >
+                    Block these dates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void ghostAction(selected.cell.ghostId!, "remove")}
+                    className="rounded border px-4 py-2 text-sm"
+                  >
+                    Remove ghost
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {!readOnly && selected.cell.status === "booking" && selected.cell.bookingId ? (
             <button
               type="button"
@@ -1042,7 +1120,9 @@ export default function HotelMultiCalendar({
               Cancel reservation
             </button>
           ) : null}
-          {!readOnly && selected.cell.status !== "external" ? (
+          {!readOnly &&
+          selected.cell.status !== "external" &&
+          selected.cell.status !== "ghost" ? (
             <div className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
