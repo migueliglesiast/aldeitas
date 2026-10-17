@@ -19,6 +19,8 @@ export async function GET(
   const data = await buildHotelCalendarData(hotelId, {
     includeGuestDetails: true,
     readOnly: true,
+    leadDays: 1,
+    timeZone: "America/Mexico_City",
   });
 
   if (!data) {
