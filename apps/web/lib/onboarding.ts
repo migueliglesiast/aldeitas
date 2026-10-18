@@ -8,9 +8,9 @@ export const ONBOARDING_STEPS = [
   "you",
   "story",
   "map",
+  "inbox",
   "airbnb",
   "calendars",
-  "inbox",
   "team",
 ] as const;
 
@@ -112,9 +112,9 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     if (!hotel.location.trim() || hotel.latitude == null || hotel.longitude == null) {
       missing.push("map");
     }
-    if (rooms.some((room) => !roomHasAirbnb(room))) missing.push("airbnb");
-    if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!(hotel.gmailSyncEmail && hotel.gmailSyncPasswordEnc)) missing.push("inbox");
+    if (rooms.length === 0 || rooms.some((room) => !roomHasAirbnb(room))) missing.push("airbnb");
+    if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!cleaner) missing.push("team");
   }
 

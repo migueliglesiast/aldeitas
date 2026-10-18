@@ -2,6 +2,7 @@ import type { Locale } from "./messages";
 
 const en = {
   navButton: "Finish setup",
+  navButtonListings: "Complete your listings",
   navButtonAria: "Finish setting up your hotel, {count} steps left",
   tourButton: "Take the tour",
   close: "Close",
@@ -49,6 +50,12 @@ const en = {
   airbnbPh: "https://www.airbnb.com/rooms/…",
   importing: "Importing photos…",
   photosImported: "{count} photos",
+  gmailFinding: "Looking for your listings in Gmail…",
+  gmailFound: "We found these in your booking emails. Pick the room for each one:",
+  gmailNone: "No Airbnb listings turned up in your Gmail. Paste the links instead:",
+  bookingsCount: "{count} bookings",
+  newRoom: "New room",
+  skipListing: "Not this hotel",
 
   calKicker: "Zero double bookings",
   calTitle: "Every channel, one calendar",
@@ -99,6 +106,7 @@ type Copy = typeof en;
 
 const es: Copy = {
   navButton: "Completar perfil",
+  navButtonListings: "Completa tus anuncios",
   navButtonAria: "Termina de configurar tu hotel, faltan {count} pasos",
   tourButton: "Ver recorrido",
   close: "Cerrar",
@@ -146,6 +154,12 @@ const es: Copy = {
   airbnbPh: "https://www.airbnb.mx/rooms/…",
   importing: "Importando fotos…",
   photosImported: "{count} fotos",
+  gmailFinding: "Buscando tus anuncios en Gmail…",
+  gmailFound: "Los encontramos en tus correos de reserva. Elige el cuarto de cada uno:",
+  gmailNone: "No encontramos anuncios de Airbnb en tu Gmail. Pega los links:",
+  bookingsCount: "{count} reservas",
+  newRoom: "Cuarto nuevo",
+  skipListing: "No es de este hotel",
 
   calKicker: "Cero reservas dobles",
   calTitle: "Todos tus canales, un calendario",

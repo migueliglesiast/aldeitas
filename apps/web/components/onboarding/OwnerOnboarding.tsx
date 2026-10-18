@@ -5,12 +5,14 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { onboardingText, type OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
+import type { DiscoveredListing } from "@/lib/gmail-listing-discovery";
 import type { OnboardingRoom, OnboardingState } from "@/lib/onboarding";
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
 const SEEN_KEY = "aldeitas-onboarding-seen";
-const FULL_TOUR: DemoId[] = ["you", "story", "map", "airbnb", "calendars", "inbox", "team", "done"];
+const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "done"];
+const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
 
 type T = (key: OnboardingCopyKey, vars?: Record<string, string | number>) => string;
 
@@ -134,6 +136,89 @@ function MapStep({ t, state, setState, next, footer }: StepProps) {
   );
 }
 
+const SKIP = "skip";
+const NEW_ROOM = "new";
+
+function nameWords(text: string) {
+  return new Set(
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)
+  );
+}
+
+function defaultPicks(found: DiscoveredListing[], rooms: OnboardingRoom[]) {
+  const free = rooms.filter((room) => !room.airbnbUrl && !found.some((f) => f.roomId === room.id));
+  const picks: Record<string, string> = {};
+  for (const listing of found) {
+    if (listing.roomId) continue;
+    const words = nameWords(listing.title ?? "");
+    const byName = free.find((room) => [...nameWords(room.title)].some((w) => words.has(w)));
+    const room = byName ?? free[0];
+    picks[listing.airbnbId] = room ? room.id : NEW_ROOM;
+    if (room) free.splice(free.indexOf(room), 1);
+  }
+  return picks;
+}
+
+function GmailListings({
+  t, rooms, found, picks, setPicks,
+}: {
+  t: T;
+  rooms: OnboardingRoom[];
+  found: DiscoveredListing[] | "loading" | "error";
+  picks: Record<string, string>;
+  setPicks: (update: (picks: Record<string, string>) => Record<string, string>) => void;
+}) {
+  if (found === "loading") {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-line bg-surface/60 px-3 py-3 text-sm text-muted">
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-aldeitas/30 border-t-aldeitas" />
+        {t("gmailFinding")}
+      </div>
+    );
+  }
+  if (found === "error" || found.length === 0) {
+    return <p className="rounded-xl bg-surface/60 px-3 py-2 text-xs text-muted">{t("gmailNone")}</p>;
+  }
+  const roomTitle = (id: string | null) => rooms.find((room) => room.id === id)?.title ?? "";
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-ink">{t("gmailFound")}</p>
+      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+        {found.map((listing) => (
+          <div key={listing.airbnbId} className="flex items-center gap-3 rounded-xl border border-line bg-white p-2">
+            {listing.photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={listing.photo} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+            ) : (
+              <span className="h-11 w-11 shrink-0 rounded-lg bg-surface" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-ink">{listing.title ?? listing.airbnbUrl}</div>
+              <div className="text-[11px] text-muted">{t("bookingsCount", { count: listing.bookings })}</div>
+            </div>
+            {listing.roomId ? (
+              <span className="shrink-0 text-xs font-medium text-[#0f766e]">✓ {roomTitle(listing.roomId)}</span>
+            ) : (
+              <select
+                aria-label={listing.title ?? listing.airbnbId}
+                value={picks[listing.airbnbId] ?? NEW_ROOM}
+                onChange={(e) => setPicks((p) => ({ ...p, [listing.airbnbId]: e.target.value }))}
+                className="max-w-[9rem] shrink-0 rounded-lg border border-line bg-white px-2 py-1.5 text-xs text-ink focus:border-aldeitas focus:outline-none"
+              >
+                {rooms.filter((room) => !found.some((f) => f.roomId === room.id)).map((room) => (
+                  <option key={room.id} value={room.id}>{room.title}</option>
+                ))}
+                <option value={NEW_ROOM}>+ {t("newRoom")}</option>
+                <option value={SKIP}>{t("skipListing")}</option>
+              </select>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RoomLinksStep({
   t, state, setState, next, footer, kind,
 }: StepProps & { kind: "airbnb" | "calendars" }) {
@@ -145,8 +230,50 @@ function RoomLinksStep({
   const [status, setStatus] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const useGmail = kind === "airbnb" && Boolean(state.hotel?.gmailConnected);
+  const [found, setFound] = useState<DiscoveredListing[] | "loading" | "error">(useGmail ? "loading" : []);
+  const [picks, setPicks] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!useGmail) return;
+    let alive = true;
+    fetch("/api/admin/onboarding/listings")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("search failed"))))
+      .then((data: { listings: DiscoveredListing[] }) => {
+        if (!alive) return;
+        setFound(data.listings);
+        setPicks(defaultPicks(data.listings, state.rooms));
+      })
+      .catch(() => alive && setFound("error"));
+    return () => {
+      alive = false;
+    };
+    // Search once per slide; later state refreshes must not re-scan Gmail.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useGmail]);
+
+  async function linkFromGmail() {
+    if (!Array.isArray(found)) return true;
+    const links = found
+      .filter((listing) => !listing.roomId && picks[listing.airbnbId] !== SKIP)
+      .map((listing) => {
+        const pick = picks[listing.airbnbId] ?? NEW_ROOM;
+        return { airbnbId: listing.airbnbId, roomId: pick === NEW_ROOM ? null : pick, title: listing.title ?? undefined };
+      });
+    if (links.length === 0) return true;
+    const { ok, data } = await postJson("/api/admin/onboarding/listings", { links });
+    if (data?.state) setState(data.state);
+    return ok && Array.isArray(data?.results) && data.results.every((r: { ok: boolean }) => r.ok);
+  }
 
   async function save() {
+    if (useGmail && Array.isArray(found) && found.length > 0) {
+      setBusy(true);
+      setError(null);
+      const linked = await linkFromGmail();
+      setBusy(false);
+      if (!linked) return setError(t("error"));
+    }
     const todo = state.rooms.filter((room) => {
       const value = values[room.id]?.trim();
       if (!value) return false;
@@ -184,8 +311,11 @@ function RoomLinksStep({
 
   return (
     <>
-      <p className="text-sm font-medium text-ink">{t(kind === "airbnb" ? "airbnbAsk" : "calAsk")}</p>
-      <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+      {useGmail ? <GmailListings t={t} rooms={state.rooms} found={found} picks={picks} setPicks={setPicks} /> : null}
+      {useGmail && Array.isArray(found) && found.length > 0 ? null : (
+        <p className="text-sm font-medium text-ink">{t(kind === "airbnb" ? "airbnbAsk" : "calAsk")}</p>
+      )}
+      <div className={`max-h-56 space-y-2 overflow-y-auto pr-1 ${useGmail && found !== "error" && (found === "loading" || found.length > 0) ? "hidden" : ""}`}>
         {state.rooms.map((room) => (
           <div key={room.id} className="grid grid-cols-[minmax(0,7rem)_1fr] items-center gap-2 sm:grid-cols-[9rem_1fr]">
             <span className="truncate text-sm text-ink">
@@ -207,7 +337,9 @@ function RoomLinksStep({
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted">{t(kind === "airbnb" ? "airbnbHint" : "calHint")}</p>
+      {useGmail && found !== "error" && (found === "loading" || found.length > 0) ? null : (
+        <p className="text-xs text-muted">{t(kind === "airbnb" ? "airbnbHint" : "calHint")}</p>
+      )}
       {footer({ busy, onSave: save, error })}
     </>
   );
@@ -491,7 +623,9 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   }, [userId]);
 
   if (!state) return null;
-  const missingCount = stepsFor("missing", state).length;
+  const missingSteps = stepsFor("missing", state);
+  const missingCount = missingSteps.length;
+  const listingsOnly = missingSteps.every((step) => LISTING_STEPS.has(step));
 
   return (
     <>
@@ -505,7 +639,7 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
           <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-aldeitas text-[11px] text-white">
             {missingCount}
           </span>
-          <span className="hidden md:inline">{t("navButton")}</span>
+          <span className="hidden md:inline">{t(listingsOnly ? "navButtonListings" : "navButton")}</span>
         </button>
       ) : null}
       {mode
