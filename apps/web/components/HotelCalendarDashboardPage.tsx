@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import HotelMultiCalendar from "@/components/HotelMultiCalendar";
 import OwnerDashboard from "@/components/OwnerDashboard";
+import ReviewsPanel from "@/components/ReviewsPanel";
 import { buildHotelCalendarData } from "@/lib/hotel-calendar-data";
 import { computeHotelStats, toPublicStats } from "@/lib/hotel-stats";
 import { hotelTodayKey } from "@/lib/calendar-dates";
+import { getHotelReviewInsights } from "@/lib/review-insights";
 
 const USD_TO_MXN = Number(process.env.OWNER_DASHBOARD_USD_MXN || 18.5);
 
@@ -16,6 +18,12 @@ async function HotelStatsSection({ hotelId, owner }: { hotelId: string; owner: b
   if (!data || data.rooms.length === 0) return null;
   const stats = computeHotelStats(data, hotelTodayKey(), USD_TO_MXN);
   return <OwnerDashboard stats={owner ? stats : toPublicStats(stats)} showMoney={owner} />;
+}
+
+async function ReviewsSection({ hotelId, owner }: { hotelId: string; owner: boolean }) {
+  const insights = await getHotelReviewInsights(hotelId);
+  if (!insights) return null;
+  return <ReviewsPanel insights={insights} staff={!owner} />;
 }
 
 function StatsSkeleton() {
@@ -61,6 +69,9 @@ export default function HotelCalendarDashboardPage({
       <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={token} showPrices={owner} />
       <Suspense fallback={<StatsSkeleton />}>
         <HotelStatsSection hotelId={hotelId} owner={owner} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <ReviewsSection hotelId={hotelId} owner={owner} />
       </Suspense>
     </div>
   );

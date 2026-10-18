@@ -18,7 +18,8 @@ export default async function OwnerHotelCalendarPage({
 
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/sign-in?next=${encodeURIComponent(`/calendar/${token}/owner`)}`);
+    const ownerPath = `/calendar/${token}/owner`;
+    redirect(`/sign-in?next=${encodeURIComponent(ownerPath)}`);
   }
 
   const manager = await prisma.hotelManager.findFirst({
