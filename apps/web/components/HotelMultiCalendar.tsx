@@ -59,7 +59,7 @@ function spanBarClass(span: CalendarSpan) {
       return "border-2 border-dashed border-slate-400 bg-white/80 text-slate-700 shadow-none";
     case "booking":
       return span.bookingStatus === "CONFIRMED"
-        ? "bg-[#0f766e] text-white"
+        ? "bg-[#9a7b52] text-white"
         : "bg-amber-500 text-white";
     default:
       return "bg-slate-500 text-white";
@@ -709,7 +709,7 @@ export default function HotelMultiCalendar({
           <span className="h-2.5 w-2.5 rounded bg-slate-300 sm:h-3 sm:w-3" /> Blocked
         </span>
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
-          <span className="h-2.5 w-2.5 rounded bg-rose-200 sm:h-3 sm:w-3" /> Booked
+          <span className="h-2.5 w-2.5 rounded bg-[#9a7b52] sm:h-3 sm:w-3" /> Direct
         </span>
         {!shareToken ? (
           <span className="inline-flex items-center gap-1.5 sm:gap-2">
@@ -717,7 +717,7 @@ export default function HotelMultiCalendar({
           </span>
         ) : null}
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
-          <span className="h-2.5 w-2.5 rounded bg-violet-200 sm:h-3 sm:w-3" /> External
+          <span className="h-2.5 w-2.5 rounded bg-[#0f766e] sm:h-3 sm:w-3" /> Airbnb / Vrbo
         </span>
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span className="h-2.5 w-2.5 rounded border border-dashed border-slate-400 bg-white sm:h-3 sm:w-3" />{" "}

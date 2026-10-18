@@ -76,6 +76,24 @@ function scheduleBookingReconcile() {
   console.log("[aldeitas] booking reconcile every %s min", minutes);
 }
 
+function scheduleAirbnbPriceSync() {
+  const secret = process.env.BOOKING_RECONCILE_SECRET;
+  const hours = Number(process.env.AIRBNB_PRICE_SYNC_INTERVAL_HOURS || 2);
+  if (!secret || !Number.isFinite(hours) || hours <= 0) return;
+
+  const url = `http://127.0.0.1:${port}/api/cron/sync-airbnb-prices`;
+  const run = () =>
+    fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
+      .then((res) => {
+        if (!res.ok) console.error("[aldeitas] airbnb price sync returned %s", res.status);
+      })
+      .catch((error) => logError("airbnb price sync", error));
+
+  setTimeout(run, 2 * 60 * 1000).unref();
+  setInterval(run, hours * 60 * 60 * 1000).unref();
+  console.log("[aldeitas] airbnb price sync every %s h", hours);
+}
+
 const app = next({ dev: false, dir: appDir, hostname, port });
 const handle = app.getRequestHandler();
 
@@ -89,6 +107,7 @@ app
       .listen(port, hostname, () => {
         console.log("[aldeitas] Ready on http://%s:%s", hostname, port);
         scheduleBookingReconcile();
+        scheduleAirbnbPriceSync();
       })
       .on("error", (error) => fatal("listen error", error));
   })
