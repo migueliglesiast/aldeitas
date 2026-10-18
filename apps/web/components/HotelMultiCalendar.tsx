@@ -185,13 +185,14 @@ function spanishDayParts(day: string) {
   };
 }
 
-/** Local calendar date as YYYY-MM-DD (matches day keys; avoids UTC shift). */
+/** Today's date (YYYY-MM-DD) on the hotels' wall clock (Mexico), whatever the viewer's timezone. */
 function localTodayKey() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 export default function HotelMultiCalendar({
@@ -217,6 +218,8 @@ export default function HotelMultiCalendar({
   const [pastDays, setPastDays] = useState(DEFAULT_PAST_DAYS);
   const compact = useCompactCalendarLayout();
   const isShareView = Boolean(shareToken);
+  const canSeeHistory = !shareToken || showPrices;
+  const showingHistory = pastDays > DEFAULT_PAST_DAYS;
   // Share / phone: tighter columns so more nights fit on screen.
   const phoneShare = Boolean(shareToken || readOnly) && compact;
   const roomColWidth = phoneShare ? 76 : compact ? 100 : 180;
@@ -613,23 +616,6 @@ export default function HotelMultiCalendar({
               ({data.days.length} nights shown)
             </span>
           </p>
-          {!shareToken || showPrices ? (
-          <button
-            type="button"
-            onClick={() =>
-              setPastDays((d) => (d > DEFAULT_PAST_DAYS ? DEFAULT_PAST_DAYS : EXTENDED_PAST_DAYS))
-            }
-            disabled={loading}
-            aria-pressed={pastDays > DEFAULT_PAST_DAYS}
-            className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[#0092A1]/30 bg-white px-3 py-1 text-xs font-medium text-[#0092A1] transition hover:bg-[#0092A1]/[0.06] disabled:opacity-60"
-          >
-            {loading
-              ? "Cargando…"
-              : pastDays > DEFAULT_PAST_DAYS
-                ? "Volver a hoy →"
-                : "← Ver 7 días antes"}
-          </button>
-          ) : null}
         </div>
         {!readOnly ? (
           <div className="flex flex-wrap gap-2">
@@ -786,7 +772,36 @@ export default function HotelMultiCalendar({
                   maxWidth: roomColWidth,
                 }}
               >
-                {isShareView || phoneShare ? "" : "Base price"}
+                {canSeeHistory ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPastDays((d) => (d > DEFAULT_PAST_DAYS ? DEFAULT_PAST_DAYS : EXTENDED_PAST_DAYS))
+                    }
+                    disabled={loading}
+                    aria-pressed={showingHistory}
+                    title={showingHistory ? "Volver a ayer y hoy" : "Ver los 7 días anteriores"}
+                    className="group inline-flex w-full items-center justify-center gap-1 rounded-md px-1 py-1 text-[10px] font-medium tracking-wide text-[#0092A1]/80 transition hover:bg-[#0092A1]/[0.07] hover:text-[#0092A1] disabled:cursor-wait disabled:opacity-50 sm:text-[11px]"
+                  >
+                    {loading ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-[#0092A1]/30 border-t-[#0092A1]" />
+                    ) : showingHistory ? (
+                      <>
+                        Hoy
+                        <span aria-hidden className="transition group-hover:translate-x-0.5">›</span>
+                      </>
+                    ) : (
+                      <>
+                        <span aria-hidden className="transition group-hover:-translate-x-0.5">‹</span>
+                        {phoneShare ? "7 días" : "7 días antes"}
+                      </>
+                    )}
+                  </button>
+                ) : isShareView || phoneShare ? (
+                  ""
+                ) : (
+                  "Base price"
+                )}
               </th>
               {data.days.map((day) => {
                 const isToday = day === todayKey;
@@ -1027,12 +1042,12 @@ export default function HotelMultiCalendar({
                         title={cell.label}
                       >
                         {isShareView ? (
-                          showPrices && cell.status === "available" && cell.priceCents > 0 ? (
+                          showPrices && cell.status === "available" && cell.priceCents > 0 && day >= todayKey ? (
                             <span className="text-[9px] tabular-nums text-slate-500 sm:text-[10px]">
                               {compactPrice(cell.priceCents)}
                             </span>
                           ) : null
-                        ) : !phoneShare ? (
+                        ) : !phoneShare && day >= todayKey ? (
                           <span className="text-[10px]">
                             {formatMoneyShort(cell.priceCents, room.baseCurrency)}
                           </span>
