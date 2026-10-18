@@ -161,6 +161,14 @@ function spanBarGeometry(
   return { marginLeft, width };
 }
 
+/** "$1.9k"-style nightly price that fits a narrow day column. */
+function compactPrice(cents: number) {
+  const amount = cents / 100;
+  if (amount < 1000) return `$${Math.round(amount)}`;
+  const k = amount / 1000;
+  return `$${k >= 10 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, "")}k`;
+}
+
 /** Spanish 3-letter weekday labels for the shareable calendar (Sun→Sat). */
 const ES_WEEKDAYS = ["DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB"] as const;
 
@@ -699,6 +707,10 @@ export default function HotelMultiCalendar({
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span className="h-2.5 w-2.5 rounded bg-violet-200 sm:h-3 sm:w-3" /> External
         </span>
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+          <span className="h-2.5 w-2.5 rounded border border-dashed border-slate-400 bg-white sm:h-3 sm:w-3" />{" "}
+          Ghost
+        </span>
       </div>
 
       <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
@@ -982,7 +994,13 @@ export default function HotelMultiCalendar({
                         ].join(" ")}
                         title={cell.label}
                       >
-                        {!isShareView && !phoneShare ? (
+                        {isShareView ? (
+                          cell.status === "available" && cell.priceCents > 0 ? (
+                            <span className="text-[9px] tabular-nums text-slate-500 sm:text-[10px]">
+                              {compactPrice(cell.priceCents)}
+                            </span>
+                          ) : null
+                        ) : !phoneShare ? (
                           <span className="text-[10px]">
                             {formatMoneyShort(cell.priceCents, room.baseCurrency)}
                           </span>
