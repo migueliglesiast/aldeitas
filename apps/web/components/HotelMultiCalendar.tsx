@@ -717,7 +717,7 @@ export default function HotelMultiCalendar({
         </span>
       </div>
 
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
+      <div className="relative -mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
         <table
           className="border-collapse text-[10px] sm:text-xs"
           style={{
@@ -1018,6 +1018,16 @@ export default function HotelMultiCalendar({
             })}
           </tbody>
         </table>
+        {data.days.includes(todayKey) ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 top-0 z-[3] border-x border-[#0092A1]/25 bg-[#0092A1]/[0.06]"
+            style={{
+              left: roomColWidth + data.days.indexOf(todayKey) * dayColWidth,
+              width: dayColWidth,
+            }}
+          />
+        ) : null}
       </div>
 
       {selected ? (
