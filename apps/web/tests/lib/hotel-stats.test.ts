@@ -104,5 +104,12 @@ describe("computeHotelStats", () => {
     expect(stats.arrivals.map((a) => a.guestName)).toEqual(["Lauren (Vrbo)"]);
     expect(stats.departures).toHaveLength(1);
     expect(stats.rooms[0].listedRateCents).toBe(200000);
+    expect(stats.next7.map((d) => d.occupied)).toEqual([0, 1, 1, 0, 0, 0]);
+    expect(stats.kpis.revenueNext7Cents).toBe(200000);
+    expect(stats.revenueBySource).toEqual([
+      { source: "airbnb", past30Cents: 400000, next90Cents: 0 },
+      { source: "vrbo", past30Cents: 0, next90Cents: 200000 },
+    ]);
+    expect(stats.payoutCoverage).toEqual({ withPayout: 2, total: 2 });
   });
 });

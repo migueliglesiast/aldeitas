@@ -19,6 +19,8 @@ export type HotelStats = {
   usdToMxn: number;
   roomCount: number;
   kpis: {
+    occupancyNext7: number;
+    revenueNext7Cents: number;
     occupancyNext30: number;
     occupancyPast30: number;
     revenuePast30Cents: number;
@@ -30,6 +32,9 @@ export type HotelStats = {
     ghostNights: number;
   };
   timeline: Array<{ day: string; occupied: number; pct: number }>;
+  next7: Array<{ day: string; occupied: number; pct: number; revenueCents: number }>;
+  revenueBySource: Array<{ source: StaySource; past30Cents: number; next90Cents: number }>;
+  payoutCoverage: { withPayout: number; total: number };
   months: Array<{ month: string; occupancy: number; revenueCents: number }>;
   sources: Array<{ source: StaySource; nights: number }>;
   rooms: Array<{
@@ -40,6 +45,8 @@ export type HotelStats = {
     nightsNext90: number;
     revenueNext90Cents: number;
     listedRateCents: number | null;
+    /** Next 30 nights: "o" occupied, "b" blocked, "g" ghost, "f" free. */
+    next30Strip: string;
   }>;
   arrivals: StayRow[];
   departures: StayRow[];
@@ -97,6 +104,10 @@ export function computeHotelStats(
   let revenuePast30 = 0;
   let revenueNext90 = 0;
   let revenueNext30 = 0;
+  const revenueByDay = new Map<string, number>();
+  const sourceRevenue = new Map<StaySource, { past30: number; next90: number }>();
+  let staysTotal = 0;
+  let staysWithPayout = 0;
   let paidNights = 0;
   let paidRevenue = 0;
   let blockedNext30 = 0;
@@ -108,6 +119,8 @@ export function computeHotelStats(
 
   const rooms = payload.rooms.map((room) => {
     const occupiedNights = new Set<string>();
+    const blockedNights = new Set<string>();
+    const ghostNightSet = new Set<string>();
     let roomRevenue90 = 0;
 
     for (const span of room.spans) {
@@ -117,14 +130,22 @@ export function computeHotelStats(
       for (let d = span.startDay; d <= span.endDay; d = addDays(d, 1)) nights.push(d);
 
       if (source === "ghost") {
+        nights.forEach((d) => ghostNightSet.add(d));
         ghostNights += nights.filter((d) => next90.has(d)).length;
         continue;
       }
       if (source === "blocked") {
+        nights.forEach((d) => blockedNights.add(d));
         blockedNext30 += nights.filter((d) => next30.has(d)).length;
         continue;
       }
       if (!OCCUPYING.has(source)) continue;
+
+      const inWindow = nights.some((d) => past30.has(d) || next90.has(d));
+      if (inWindow) {
+        staysTotal += 1;
+        if (span.payoutCents != null) staysWithPayout += 1;
+      }
 
       const perNight =
         span.payoutCents != null
@@ -138,6 +159,11 @@ export function computeHotelStats(
           sourceNights.set(source, (sourceNights.get(source) || 0) + 1);
         }
         if (perNight != null) {
+          revenueByDay.set(night, (revenueByDay.get(night) || 0) + perNight);
+          const bySource = sourceRevenue.get(source) || { past30: 0, next90: 0 };
+          if (past30.has(night)) bySource.past30 += perNight;
+          if (next90.has(night)) bySource.next90 += perNight;
+          sourceRevenue.set(source, bySource);
           if (past30.has(night)) revenuePast30 += perNight;
           if (next30.has(night)) revenueNext30 += perNight;
           if (next90.has(night)) {
@@ -183,6 +209,12 @@ export function computeHotelStats(
       occupancyNext30: pct([...next30].filter((d) => occupiedNights.has(d)).length, next30.size),
       nightsNext90: [...next90].filter((d) => occupiedNights.has(d)).length,
       revenueNext90Cents: Math.round(roomRevenue90),
+      next30Strip: [...next30]
+        .sort()
+        .map((d) =>
+          occupiedNights.has(d) ? "o" : blockedNights.has(d) ? "b" : ghostNightSet.has(d) ? "g" : "f"
+        )
+        .join(""),
       listedRateCents: listed.length
         ? Math.round(listed.reduce((a, b) => a + b, 0) / listed.length)
         : null,
@@ -212,6 +244,13 @@ export function computeHotelStats(
   const occupiedIn = (set: Set<string>) =>
     [...set].reduce((sum, d) => sum + (occupiedByDay.get(d) || 0), 0);
   const byDate = (a: StayRow, b: StayRow) => a.checkIn.localeCompare(b.checkIn);
+  const next7Days = days.filter((d) => d >= todayKey && d < week);
+  const next7 = next7Days.map((day) => ({
+    day,
+    occupied: occupiedByDay.get(day) || 0,
+    pct: pct(occupiedByDay.get(day) || 0, roomCount),
+    revenueCents: Math.round(revenueByDay.get(day) || 0),
+  }));
 
   return {
     todayKey,
@@ -219,6 +258,11 @@ export function computeHotelStats(
     usdToMxn,
     roomCount,
     kpis: {
+      occupancyNext7: pct(
+        next7.reduce((sum, d) => sum + d.occupied, 0),
+        next7.length * roomCount
+      ),
+      revenueNext7Cents: next7.reduce((sum, d) => sum + d.revenueCents, 0),
       occupancyNext30: pct(occupiedIn(next30), next30.size * roomCount),
       occupancyPast30: pct(occupiedIn(past30), past30.size * roomCount),
       revenuePast30Cents: Math.round(revenuePast30),
@@ -236,6 +280,18 @@ export function computeHotelStats(
       occupied: occupiedByDay.get(day) || 0,
       pct: pct(occupiedByDay.get(day) || 0, roomCount),
     })),
+    next7,
+    revenueBySource: (["airbnb", "aldeitas", "vrbo"] as StaySource[])
+      .map((source) => {
+        const r = sourceRevenue.get(source) || { past30: 0, next90: 0 };
+        return {
+          source,
+          past30Cents: Math.round(r.past30),
+          next90Cents: Math.round(r.next90),
+        };
+      })
+      .filter((r) => r.past30Cents > 0 || r.next90Cents > 0),
+    payoutCoverage: { withPayout: staysWithPayout, total: staysTotal },
     months: [...monthAgg.entries()].map(([month, agg]) => ({
       month,
       occupancy: pct(agg.occupied, agg.days),

@@ -1,11 +1,25 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import type { HotelStats, StaySource } from "@/lib/hotel-stats";
 
 const COPY = {
   es: {
     overview: "Resumen",
+    thisWeek: "Esta semana",
+    occupied: "ocupado",
+    expected: "esperado",
+    next30: "Próximos 30 días",
+    airbnbRevenue: "Ingresos de Airbnb · últimos 30 días",
+    allChannels: "todos los canales",
+    weekTitle: "Los próximos 7 días, día por día",
+    weekNote: "Cuartos ocupados e ingreso esperado de las reservas ya confirmadas",
+    rooms7: "cuartos",
+    weekTotal: "Total de la semana",
+    avgOcc: "ocupación media",
+    revenue90short: "ingresos 90 d",
+    coverage: (a: number, b: number) => `Pago conocido en ${a} de ${b} estancias.`,
     occupancyNext30: "Ocupación · próximos 30 días",
     vsPast30: "últimos 30 días",
     revenuePast30: "Ingresos · últimos 30 días",
@@ -41,6 +55,19 @@ const COPY = {
   },
   en: {
     overview: "Overview",
+    thisWeek: "This week",
+    occupied: "occupied",
+    expected: "expected",
+    next30: "Next 30 days",
+    airbnbRevenue: "Airbnb revenue · last 30 days",
+    allChannels: "all channels",
+    weekTitle: "The next 7 days, day by day",
+    weekNote: "Rooms occupied and expected payout from confirmed stays",
+    rooms7: "rooms",
+    weekTotal: "Week total",
+    avgOcc: "average occupancy",
+    revenue90short: "revenue 90 d",
+    coverage: (a: number, b: number) => `Payout known for ${a} of ${b} stays.`,
     occupancyNext30: "Occupancy · next 30 days",
     vsPast30: "last 30 days",
     revenuePast30: "Revenue · last 30 days",
@@ -93,6 +120,51 @@ function money(cents: number, locale: string) {
 }
 
 const MAX_STAYS = 5;
+
+const noopSubscribe = () => () => {};
+
+function Ring({ value, label, sub }: { value: number; label: string; sub: string }) {
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-black/[0.07] bg-white p-3 sm:gap-4 sm:p-5">
+      <svg viewBox="0 0 72 72" className="h-14 w-14 shrink-0 -rotate-90 sm:h-20 sm:w-20" aria-hidden>
+        <circle cx="36" cy="36" r={r} fill="none" stroke="#EEF0F0" strokeWidth="7" />
+        <circle
+          cx="36"
+          cy="36"
+          r={r}
+          fill="none"
+          stroke="#0092A1"
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={`${c * Math.min(value, 1)} ${c}`}
+        />
+      </svg>
+      <div className="min-w-0">
+        <p className="text-[11px] leading-tight text-muted sm:text-xs">{label}</p>
+        <p className="mt-0.5 text-xl font-semibold tabular-nums tracking-tight text-heading sm:text-3xl">
+          {percent(value)}
+        </p>
+        <p className="text-[11px] leading-snug text-muted sm:text-xs">{sub}</p>
+      </div>
+    </div>
+  );
+}
+
+const STRIP_CLASS: Record<string, string> = {
+  o: "bg-aldeitas",
+  b: "bg-slate-300",
+  g: "border border-dashed border-slate-400 bg-white",
+  f: "bg-slate-100",
+};
+
+function compactMoney(cents: number) {
+  const amount = cents / 100;
+  if (amount <= 0) return "—";
+  if (amount < 1000) return `$${Math.round(amount)}`;
+  return `$${(amount / 1000).toFixed(amount >= 10000 ? 0 : 1)}k`;
+}
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
@@ -206,7 +278,14 @@ function Timeline({ stats, todayLabel }: { stats: HotelStats; todayLabel: string
 }
 
 export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
-  const { locale } = useLocale();
+  const { locale: userLocale } = useLocale();
+  // Server HTML is Spanish; switch to the visitor's locale only after hydration.
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  );
+  const locale = hydrated ? userLocale : "es";
   const t = COPY[locale === "en" ? "en" : "es"];
   const k = stats.kpis;
   const totalSourceNights = stats.sources.reduce((s, r) => s + r.nights, 0);
@@ -251,21 +330,71 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
       <h2 className="pt-2 text-base font-semibold text-heading sm:pt-4 sm:text-xl">{t.overview}</h2>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
-        <Kpi
-          label={t.occupancyNext30}
-          value={percent(k.occupancyNext30)}
+        <Ring
+          label={t.thisWeek}
+          value={k.occupancyNext7}
+          sub={`${money(k.revenueNext7Cents, locale)} ${t.expected}`}
+        />
+        <Ring
+          label={t.next30}
+          value={k.occupancyNext30}
           sub={`${percent(k.occupancyPast30)} ${t.vsPast30}`}
         />
-        <Kpi label={t.revenuePast30} value={money(k.revenuePast30Cents, locale)} />
+        <Kpi
+          label={t.airbnbRevenue}
+          value={money(stats.revenueBySource.find((r) => r.source === "airbnb")?.past30Cents ?? 0, locale)}
+          sub={`${money(k.revenuePast30Cents, locale)} ${t.allChannels}`}
+        />
         <Kpi label={t.onTheBooks} value={money(k.revenueNext90Cents, locale)} />
+      </div>
+
+      <Card>
+        <CardTitle note={t.weekNote}>{t.weekTitle}</CardTitle>
+        <div className="grid grid-cols-7 gap-1 sm:gap-3">
+          {stats.next7.map((d) => (
+            <div key={d.day} className="flex flex-col items-center text-center">
+              <span className="text-[10px] uppercase tracking-wide text-muted sm:text-xs">
+                {new Date(`${d.day}T00:00:00`).toLocaleDateString(locale === "es" ? "es-MX" : "en-US", {
+                  weekday: "short",
+                })}
+              </span>
+              <span className="text-xs font-medium text-heading sm:text-sm">
+                {new Date(`${d.day}T00:00:00`).getDate()}
+              </span>
+              <div
+                className="relative mt-2 flex h-20 w-full max-w-[56px] items-end overflow-hidden rounded-md bg-slate-100 sm:h-28"
+                title={`${d.occupied}/${stats.roomCount}`}
+              >
+                <div className="w-full rounded-md bg-aldeitas" style={{ height: percent(d.pct) }} />
+              </div>
+              <span className="mt-1.5 text-sm font-semibold tabular-nums text-heading sm:text-base">
+                {percent(d.pct)}
+              </span>
+              <span className="text-[10px] text-muted sm:text-xs">
+                {d.occupied}/{stats.roomCount}
+                <span className="hidden sm:inline"> {t.rooms7}</span>
+              </span>
+              <span className="mt-0.5 text-[10px] tabular-nums text-ink sm:text-xs">
+                {compactMoney(d.revenueCents)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-t border-black/[0.06] pt-3 text-sm">
+          <span className="text-muted">{t.weekTotal}</span>
+          <span className="tabular-nums text-heading">
+            <strong className="font-semibold">{money(k.revenueNext7Cents, locale)}</strong>{" "}
+            {t.expected} · {percent(k.occupancyNext7)} {t.avgOcc}
+          </span>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <Kpi
           label={t.adr}
           value={k.adrCents != null ? money(k.adrCents, locale) : "—"}
           sub={`${t.revpar}: ${money(k.revparNext30Cents, locale)}`}
         />
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Kpi
           label={t.avgStay}
           value={k.avgStayNights != null ? `${k.avgStayNights}` : "—"}
@@ -318,9 +447,16 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                     <span className={`h-2.5 w-2.5 rounded-sm ${SOURCE_COLOR[row.source]}`} />
                     {t.source[row.source]}
                   </span>
-                  <span className="tabular-nums text-muted">
+                  <span className="text-right tabular-nums text-muted">
                     {row.nights} {t.nights} ·{" "}
                     {percent(row.nights / Math.max(totalSourceNights, 1))}
+                    <span className="block text-xs">
+                      {money(
+                        stats.revenueBySource.find((r) => r.source === row.source)?.next90Cents ?? 0,
+                        locale
+                      )}{" "}
+                      {t.revenue90short}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -376,13 +512,12 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                   <td className="px-3 py-2.5 text-right text-muted">{percent(room.occupancyPast30)}</td>
                   <td className="px-3 py-2.5 text-right">
                     <span className="inline-flex items-center gap-2">
-                      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-slate-100 sm:inline-block">
-                        <span
-                          className="block h-full rounded-full bg-aldeitas"
-                          style={{ width: percent(room.occupancyNext30) }}
-                        />
+                      <span className="hidden gap-px sm:inline-flex" aria-hidden>
+                        {room.next30Strip.split("").map((c, i) => (
+                          <span key={i} className={`h-3.5 w-1.5 rounded-[1px] ${STRIP_CLASS[c]}`} />
+                        ))}
                       </span>
-                      <span className="text-ink">{percent(room.occupancyNext30)}</span>
+                      <span className="w-9 text-ink">{percent(room.occupancyNext30)}</span>
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-right text-ink">{room.nightsNext90}</td>
@@ -399,7 +534,10 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
         </div>
       </Card>
 
-      <p className="text-[11px] leading-relaxed text-muted sm:text-xs">{t.footnote(stats.usdToMxn)}</p>
+      <p className="text-[11px] leading-relaxed text-muted sm:text-xs">
+        {t.footnote(stats.usdToMxn)}{" "}
+        {t.coverage(stats.payoutCoverage.withPayout, stats.payoutCoverage.total)}
+      </p>
     </div>
   );
 }
