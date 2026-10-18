@@ -32,7 +32,13 @@ export type HotelStats = {
     ghostNights: number;
   };
   timeline: Array<{ day: string; occupied: number; pct: number }>;
-  next7: Array<{ day: string; occupied: number; pct: number; revenueCents: number }>;
+  next7: Array<{
+    day: string;
+    occupied: number;
+    pct: number;
+    revenueCents: number;
+    checkouts: number;
+  }>;
   revenueBySource: Array<{ source: StaySource; past30Cents: number; next90Cents: number }>;
   payoutCoverage: { withPayout: number; total: number };
   months: Array<{ month: string; occupancy: number; revenueCents: number }>;
@@ -250,6 +256,7 @@ export function computeHotelStats(
     occupied: occupiedByDay.get(day) || 0,
     pct: pct(occupiedByDay.get(day) || 0, roomCount),
     revenueCents: Math.round(revenueByDay.get(day) || 0),
+    checkouts: departures.filter((row) => row.checkOut === day).length,
   }));
 
   return {
@@ -303,5 +310,25 @@ export function computeHotelStats(
     rooms,
     arrivals: arrivals.sort(byDate),
     departures: departures.sort((a, b) => a.checkOut.localeCompare(b.checkOut)),
+  };
+}
+
+/** Same stats with every money figure zeroed, for links shared with staff. */
+export function toPublicStats(stats: HotelStats): HotelStats {
+  return {
+    ...stats,
+    kpis: {
+      ...stats.kpis,
+      revenuePast30Cents: 0,
+      revenueNext90Cents: 0,
+      revenueNext7Cents: 0,
+      adrCents: null,
+      revparNext30Cents: 0,
+    },
+    next7: stats.next7.map((d) => ({ ...d, revenueCents: 0 })),
+    months: stats.months.map((m) => ({ ...m, revenueCents: 0 })),
+    rooms: stats.rooms.map((r) => ({ ...r, revenueNext90Cents: 0, listedRateCents: null })),
+    revenueBySource: [],
+    payoutCoverage: { withPayout: 0, total: 0 },
   };
 }

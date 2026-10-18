@@ -13,6 +13,8 @@ type Props = {
   hotelId: string;
   readOnly?: boolean;
   shareToken?: string;
+  /** Show nightly prices on open days in the read-only share view. */
+  showPrices?: boolean;
 };
 
 type SelectedCell = {
@@ -193,6 +195,7 @@ export default function HotelMultiCalendar({
   hotelId,
   readOnly = false,
   shareToken,
+  showPrices = false,
 }: Props) {
   const [data, setData] = useState<HotelCalendarPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -657,7 +660,8 @@ export default function HotelMultiCalendar({
                 </button>
               </div>
               <p className="text-xs text-gray-500">
-                Anyone with this link can view the next 3 months read-only. Refresh the page to
+                Owner view with revenue (login required): {shareUrl}/owner. Anyone with the link
+                above sees the calendar, guest counts and occupancy, without money figures. Refresh the page to
                 see new bookings or blocks.
               </p>
             </>
@@ -995,7 +999,7 @@ export default function HotelMultiCalendar({
                         title={cell.label}
                       >
                         {isShareView ? (
-                          cell.status === "available" && cell.priceCents > 0 ? (
+                          showPrices && cell.status === "available" && cell.priceCents > 0 ? (
                             <span className="text-[9px] tabular-nums text-slate-500 sm:text-[10px]">
                               {compactPrice(cell.priceCents)}
                             </span>
