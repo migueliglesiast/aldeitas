@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildHotelCalendarData,
   getHotelIdForShareToken,
+  parsePastDaysParam,
 } from "@/lib/hotel-calendar-data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
@@ -19,6 +20,7 @@ export async function GET(
   const data = await buildHotelCalendarData(hotelId, {
     includeGuestDetails: true,
     readOnly: true,
+    pastDays: parsePastDaysParam(req.nextUrl.searchParams.get("past")),
   });
 
   if (!data) {
