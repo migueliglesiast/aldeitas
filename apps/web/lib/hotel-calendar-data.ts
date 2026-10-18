@@ -644,6 +644,23 @@ export async function buildHotelCalendarData(
         continue;
       }
 
+      const history = spans.find(
+        (span) =>
+          span.id.startsWith("history-") && span.startDay <= day && span.endDay >= day
+      );
+      if (history) {
+        cells[day] = {
+          status: "external",
+          priceCents,
+          priceOverride,
+          guestName: history.guestName,
+          guestCount: history.guestCount,
+          spanId: history.id,
+          label: "Past stay",
+        };
+        continue;
+      }
+
       cells[day] = {
         status: "available",
         priceCents,
