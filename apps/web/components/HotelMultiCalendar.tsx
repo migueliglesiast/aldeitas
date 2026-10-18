@@ -17,6 +17,9 @@ type Props = {
   showPrices?: boolean;
 };
 
+const DEFAULT_PAST_DAYS = 1;
+const EXTENDED_PAST_DAYS = 8;
+
 type SelectedCell = {
   roomId: string;
   roomTitle: string;
@@ -211,6 +214,7 @@ export default function HotelMultiCalendar({
   const [sharing, setSharing] = useState(false);
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pastDays, setPastDays] = useState(DEFAULT_PAST_DAYS);
   const compact = useCompactCalendarLayout();
   const isShareView = Boolean(shareToken);
   // Share / phone: tighter columns so more nights fit on screen.
@@ -234,9 +238,10 @@ export default function HotelMultiCalendar({
     setLoading(true);
     setError(null);
     try {
-      const endpoint = shareToken
+      const base = shareToken
         ? `/api/calendar/share/${shareToken}`
         : `/api/admin/hotel/${hotelId}/calendar`;
+      const endpoint = `${base}?past=${pastDays}`;
       const res = await fetch(endpoint);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load calendar");
@@ -255,7 +260,7 @@ export default function HotelMultiCalendar({
     } finally {
       setLoading(false);
     }
-  }, [hotelId, shareToken]);
+  }, [hotelId, shareToken, pastDays]);
 
   useEffect(() => {
     loadCalendar();
@@ -586,7 +591,7 @@ export default function HotelMultiCalendar({
     }
   }
 
-  if (loading) {
+  if (loading && !data) {
     return <div className="rounded border bg-white p-6 text-gray-600">Loading calendar…</div>;
   }
 
@@ -608,6 +613,23 @@ export default function HotelMultiCalendar({
               ({data.days.length} nights shown)
             </span>
           </p>
+          {!shareToken || showPrices ? (
+          <button
+            type="button"
+            onClick={() =>
+              setPastDays((d) => (d > DEFAULT_PAST_DAYS ? DEFAULT_PAST_DAYS : EXTENDED_PAST_DAYS))
+            }
+            disabled={loading}
+            aria-pressed={pastDays > DEFAULT_PAST_DAYS}
+            className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[#0092A1]/30 bg-white px-3 py-1 text-xs font-medium text-[#0092A1] transition hover:bg-[#0092A1]/[0.06] disabled:opacity-60"
+          >
+            {loading
+              ? "Cargando…"
+              : pastDays > DEFAULT_PAST_DAYS
+                ? "Volver a hoy →"
+                : "← Ver 7 días antes"}
+          </button>
+          ) : null}
         </div>
         {!readOnly ? (
           <div className="flex flex-wrap gap-2">
@@ -787,17 +809,23 @@ export default function HotelMultiCalendar({
                         <span
                           className={[
                             "text-[8px] font-medium tracking-[0.14em] sm:text-[9px]",
-                            isToday ? "text-[#0f766e]" : "text-gray-400",
+                            isToday
+                              ? "font-semibold text-[#0092A1]"
+                              : day < todayKey
+                                ? "text-gray-300"
+                                : "text-gray-400",
                           ].join(" ")}
                         >
-                          {weekday}
+                          {isToday ? "HOY" : weekday}
                         </span>
                         <span
                           className={[
                             "inline-flex h-5 min-w-5 items-center justify-center tabular-nums sm:h-6 sm:min-w-6",
                             isToday
                               ? "rounded-full bg-[#0f766e] px-1 text-[10px] font-semibold text-white sm:text-[11px]"
-                              : "text-[11px] font-semibold text-gray-800 sm:text-xs",
+                              : day < todayKey
+                                ? "text-[11px] font-medium text-gray-400 sm:text-xs"
+                                : "text-[11px] font-semibold text-gray-800 sm:text-xs",
                           ].join(" ")}
                         >
                           {dayNum}
@@ -1018,6 +1046,16 @@ export default function HotelMultiCalendar({
             })}
           </tbody>
         </table>
+        {data.days.indexOf(todayKey) > 0 ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 top-0 z-[3] bg-slate-500/[0.05]"
+            style={{
+              left: roomColWidth,
+              width: data.days.indexOf(todayKey) * dayColWidth,
+            }}
+          />
+        ) : null}
         {data.days.includes(todayKey) ? (
           <div
             aria-hidden

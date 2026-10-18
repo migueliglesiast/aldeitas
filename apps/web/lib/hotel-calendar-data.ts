@@ -86,6 +86,17 @@ type BuildOptions = {
   pastDays?: number;
 };
 
+export const DEFAULT_CALENDAR_PAST_DAYS = 1;
+export const MAX_CALENDAR_PAST_DAYS = 31;
+
+/** `?past=` query value → days before today to include (yesterday by default). */
+export function parsePastDaysParam(value: string | null | undefined) {
+  if (value == null || value === "") return DEFAULT_CALENDAR_PAST_DAYS;
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return DEFAULT_CALENDAR_PAST_DAYS;
+  return Math.min(Math.max(n, 0), MAX_CALENDAR_PAST_DAYS);
+}
+
 function nightRangeEnd(startKey: string) {
   const end = parseDateKey(startKey);
   end.setDate(end.getDate() + 1);

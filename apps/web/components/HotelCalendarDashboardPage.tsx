@@ -3,7 +3,7 @@ import HotelMultiCalendar from "@/components/HotelMultiCalendar";
 import OwnerDashboard from "@/components/OwnerDashboard";
 import { buildHotelCalendarData } from "@/lib/hotel-calendar-data";
 import { computeHotelStats, toPublicStats } from "@/lib/hotel-stats";
-import { toDateKey } from "@/lib/calendar-dates";
+import { hotelTodayKey } from "@/lib/calendar-dates";
 
 const USD_TO_MXN = Number(process.env.OWNER_DASHBOARD_USD_MXN || 18.5);
 
@@ -14,7 +14,7 @@ async function HotelStatsSection({ hotelId, owner }: { hotelId: string; owner: b
     months: 3,
   });
   if (!data || data.rooms.length === 0) return null;
-  const stats = computeHotelStats(data, toDateKey(new Date()), USD_TO_MXN);
+  const stats = computeHotelStats(data, hotelTodayKey(), USD_TO_MXN);
   return <OwnerDashboard stats={owner ? stats : toPublicStats(stats)} showMoney={owner} />;
 }
 

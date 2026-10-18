@@ -4,13 +4,14 @@ import {
   buildHotelCalendarData,
   getHotelCalendarShareUrl,
   getOrCreateHotelCalendarShareToken,
+  parsePastDaysParam,
 } from "@/lib/hotel-calendar-data";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params: paramsPromise }: { params: Promise<{ id: string }> }
 ) {
   const params = await paramsPromise;
@@ -22,6 +23,7 @@ export async function GET(
   const data = await buildHotelCalendarData(params.id, {
     includeGuestDetails: true,
     readOnly: false,
+    pastDays: parsePastDaysParam(req.nextUrl.searchParams.get("past")),
   });
 
   if (!data) {

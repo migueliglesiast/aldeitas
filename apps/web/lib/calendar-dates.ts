@@ -10,8 +10,20 @@ export function parseDateKey(dateKey: string) {
   return parseISO(`${dateKey}T00:00:00`);
 }
 
+/** Hotels are in Mexico; "today" follows their wall clock, not the server's. */
+export const HOTEL_TIME_ZONE = process.env.HOTEL_TIME_ZONE || "America/Mexico_City";
+
+export function hotelTodayKey(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: HOTEL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
 export function getHotelCalendarWindow(months = HOTEL_CALENDAR_MONTHS) {
-  const start = parseDateKey(toDateKey(new Date()));
+  const start = parseDateKey(hotelTodayKey());
   const end = addDays(addMonths(start, months), -1);
   return { start, end };
 }

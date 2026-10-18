@@ -15,7 +15,7 @@ const COPY = {
     cleanings: "limpiezas por hacer",
     bookedNights: "noches reservadas",
     publicNote: "Ocupación a partir de las reservas confirmadas en todos los canales. Las salidas indican las limpiezas de cada día.",
-    thisWeek: "Esta semana",
+    thisWeek: "Próximos 7 días",
     occupied: "ocupado",
     expected: "esperado",
     next30: "Próximos 30 días",
@@ -24,7 +24,7 @@ const COPY = {
     weekTitle: "Los próximos 7 días, día por día",
     weekNote: "Cuartos ocupados e ingreso esperado de las reservas ya confirmadas",
     rooms7: "cuartos",
-    weekTotal: "Total de la semana",
+    weekTotal: "Total · próximos 7 días",
     avgOcc: "ocupación media",
     revenue90short: "ingresos 90 d",
     coverage: (a: number, b: number) => `Pago conocido en ${a} de ${b} estancias.`,
@@ -41,6 +41,7 @@ const COPY = {
     ghosts: "Noches fantasma (90 días)",
     timeline: "Ocupación diaria",
     timelineNote: "30 días atrás y 60 hacia adelante · % de cuartos ocupados",
+    timelineNotePublic: "Próximos 60 días · % de cuartos ocupados",
     today: "Hoy",
     next7: "Próximos 7 días",
     arrivals: "Llegadas",
@@ -71,7 +72,7 @@ const COPY = {
     cleanings: "cleanings to do",
     bookedNights: "booked nights",
     publicNote: "Occupancy from confirmed stays on every channel. Check-outs show each day's cleanings.",
-    thisWeek: "This week",
+    thisWeek: "Next 7 days",
     occupied: "occupied",
     expected: "expected",
     next30: "Next 30 days",
@@ -80,7 +81,7 @@ const COPY = {
     weekTitle: "The next 7 days, day by day",
     weekNote: "Rooms occupied and expected payout from confirmed stays",
     rooms7: "rooms",
-    weekTotal: "Week total",
+    weekTotal: "Total · next 7 days",
     avgOcc: "average occupancy",
     revenue90short: "revenue 90 d",
     coverage: (a: number, b: number) => `Payout known for ${a} of ${b} stays.`,
@@ -97,6 +98,7 @@ const COPY = {
     ghosts: "Ghost nights (90 days)",
     timeline: "Daily occupancy",
     timelineNote: "30 days back and 60 ahead · % of rooms occupied",
+    timelineNotePublic: "Next 60 days · % of rooms occupied",
     today: "Today",
     next7: "Next 7 days",
     arrivals: "Arrivals",
@@ -227,8 +229,18 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
   );
 }
 
-function Timeline({ stats, todayLabel }: { stats: HotelStats; todayLabel: string }) {
-  const points = stats.timeline;
+function Timeline({
+  stats,
+  todayLabel,
+  forwardOnly = false,
+}: {
+  stats: HotelStats;
+  todayLabel: string;
+  forwardOnly?: boolean;
+}) {
+  const points = forwardOnly
+    ? stats.timeline.filter((p) => p.day >= stats.todayKey)
+    : stats.timeline;
   const width = 900;
   const height = 160;
   const pad = { top: 12, bottom: 22, left: 30 };
@@ -364,7 +376,11 @@ export default function OwnerDashboard({
         <Ring
           label={t.next30}
           value={k.occupancyNext30}
-          sub={`${percent(k.occupancyPast30)} ${t.vsPast30}`}
+          sub={
+            showMoney
+              ? `${percent(k.occupancyPast30)} ${t.vsPast30}`
+              : `${Math.round(k.occupancyNext30 * stats.rooms.length * 30)} ${t.bookedNights}`
+          }
         />
         {showMoney ? (
         <Kpi
@@ -459,8 +475,8 @@ export default function OwnerDashboard({
       </div>
 
       <Card>
-        <CardTitle note={t.timelineNote}>{t.timeline}</CardTitle>
-        <Timeline stats={stats} todayLabel={t.today} />
+        <CardTitle note={showMoney ? t.timelineNote : t.timelineNotePublic}>{t.timeline}</CardTitle>
+        <Timeline stats={stats} todayLabel={t.today} forwardOnly={!showMoney} />
       </Card>
 
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-3">
@@ -551,7 +567,9 @@ export default function OwnerDashboard({
             <thead>
               <tr className="border-b border-black/[0.07] text-left text-xs text-muted">
                 <th scope="col" className="px-4 py-2 font-medium sm:px-5">{t.room}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t.occPast}</th>
+                {showMoney ? (
+                  <th scope="col" className="px-3 py-2 text-right font-medium">{t.occPast}</th>
+                ) : null}
                 <th scope="col" className="px-3 py-2 text-right font-medium">{t.occNext}</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">{t.booked90}</th>
                 {showMoney ? (
@@ -568,7 +586,9 @@ export default function OwnerDashboard({
                   <th scope="row" className="px-4 py-2.5 text-left font-medium text-ink sm:px-5">
                     {room.title}
                   </th>
-                  <td className="px-3 py-2.5 text-right text-muted">{percent(room.occupancyPast30)}</td>
+                  {showMoney ? (
+                    <td className="px-3 py-2.5 text-right text-muted">{percent(room.occupancyPast30)}</td>
+                  ) : null}
                   <td className="px-3 py-2.5 text-right">
                     <span className="inline-flex items-center gap-2">
                       <span className="hidden gap-px sm:inline-flex" aria-hidden>
