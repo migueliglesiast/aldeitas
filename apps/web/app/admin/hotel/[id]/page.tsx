@@ -4,8 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import HotelAdminPanel from "@/components/HotelAdminPanel";
+import ReviewsPanel from "@/components/ReviewsPanel";
+import { getHotelReviewInsights } from "@/lib/review-insights";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
+
+async function HotelReviews({ hotelId }: { hotelId: string }) {
+  const insights = await getHotelReviewInsights(hotelId);
+  if (!insights) return null;
+  return <ReviewsPanel insights={insights} staff={false} />;
+}
 
 export default async function HotelEditPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = await paramsPromise;
@@ -55,6 +64,10 @@ export default async function HotelEditPage({ params: paramsPromise }: { params:
       </div>
 
       <HotelAdminPanel hotel={hotel} />
+
+      <Suspense fallback={null}>
+        <HotelReviews hotelId={hotel.id} />
+      </Suspense>
     </div>
   );
 }
