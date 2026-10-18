@@ -21,6 +21,7 @@ function resolvePort() {
 function logError(label, error) {
   console.error("[aldeitas] %s:", label);
   if (error) console.error(error);
+  if (error && error.cause) console.error(error.cause);
 }
 
 function fatal(message, error) {
@@ -59,12 +60,18 @@ try {
   fatal("cannot require('next') — run npm install in app root", error);
 }
 
+/** Hostinger's process manager doesn't expose the app on loopback, so scheduled jobs call the public URL. */
+function schedulerBaseUrl() {
+  const base = process.env.SCHEDULER_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  return (base || `http://127.0.0.1:${port}`).replace(/\/+$/, "");
+}
+
 function scheduleBookingReconcile() {
   const secret = process.env.BOOKING_RECONCILE_SECRET;
   const minutes = Number(process.env.BOOKING_RECONCILE_INTERVAL_MINUTES || 5);
   if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
 
-  const url = `http://127.0.0.1:${port}/api/bookings/reconcile`;
+  const url = `${schedulerBaseUrl()}/api/bookings/reconcile`;
   const run = () =>
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
@@ -81,7 +88,7 @@ function scheduleAirbnbPriceSync() {
   const hours = Number(process.env.AIRBNB_PRICE_SYNC_INTERVAL_HOURS || 2);
   if (!secret || !Number.isFinite(hours) || hours <= 0) return;
 
-  const url = `http://127.0.0.1:${port}/api/cron/sync-airbnb-prices`;
+  const url = `${schedulerBaseUrl()}/api/cron/sync-airbnb-prices`;
   const run = () =>
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
