@@ -21,6 +21,7 @@ export default {
         surface: "#F4EFE7",
         paper: "#FBF8F3",
         card: "#FFFDFA",
+        bronze: "#9a7b52",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
