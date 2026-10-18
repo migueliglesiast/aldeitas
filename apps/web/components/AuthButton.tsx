@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n/locale-context";
+import OwnerOnboarding from "@/components/onboarding/OwnerOnboarding";
 
 type User = { id: string; username: string; email: string; verified?: boolean } | null;
 
@@ -52,6 +53,7 @@ export default function AuthButton() {
 
   return (
     <div className="flex items-center gap-3">
+      <OwnerOnboarding userId={user.id} />
       <span className="text-sm text-gray-600">{t("hiUser", { name: user.username })}</span>
       <button onClick={onSignOut} className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-surface">{t("signOut")}</button>
     </div>
