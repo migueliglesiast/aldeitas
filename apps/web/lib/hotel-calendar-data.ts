@@ -15,13 +15,15 @@ export type CalendarCellStatus =
   | "available"
   | "manual_block"
   | "booking"
-  | "external";
+  | "external"
+  | "ghost";
 
 export type CalendarCell = {
   status: CalendarCellStatus;
   priceCents: number;
   priceOverride: boolean;
   blockId?: string;
+  ghostId?: string;
   bookingId?: string;
   bookingStatus?: string;
   guestEmail?: string;
@@ -34,7 +36,7 @@ export type CalendarCell = {
 
 export type CalendarSpan = {
   id: string;
-  kind: "booking" | "external" | "manual_block";
+  kind: "booking" | "external" | "manual_block" | "ghost";
   startDay: string;
   /** Inclusive last night key covered by this reservation/block. */
   endDay: string;
@@ -51,7 +53,10 @@ export type CalendarSpan = {
   bookingId?: string;
   bookingStatus?: string;
   blockId?: string;
+  ghostId?: string;
   sourceUid?: string;
+  /** Where the stay comes from; "blocked" = closed with no guest. */
+  source?: "aldeitas" | "airbnb" | "vrbo" | "blocked" | "ghost";
 };
 
 export type HotelCalendarRoom = {
@@ -77,7 +82,20 @@ type BuildOptions = {
   includeGuestDetails?: boolean;
   readOnly?: boolean;
   months?: number;
+  /** Start the window this many days before today (for history/stats). */
+  pastDays?: number;
 };
+
+export const DEFAULT_CALENDAR_PAST_DAYS = 1;
+export const MAX_CALENDAR_PAST_DAYS = 31;
+
+/** `?past=` query value → days before today to include (yesterday by default). */
+export function parsePastDaysParam(value: string | null | undefined) {
+  if (value == null || value === "") return DEFAULT_CALENDAR_PAST_DAYS;
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return DEFAULT_CALENDAR_PAST_DAYS;
+  return Math.min(Math.max(n, 0), MAX_CALENDAR_PAST_DAYS);
+}
 
 function nightRangeEnd(startKey: string) {
   const end = parseDateKey(startKey);
@@ -123,6 +141,15 @@ function addDaysKey(dateKey: string, daysToAdd: number) {
   const date = parseDateKey(dateKey);
   date.setDate(date.getDate() + daysToAdd);
   return toDateKey(date);
+}
+
+function externalSource(summary?: string, savedGuestName?: string | null) {
+  const name = savedGuestName?.trim();
+  if (name && /\bvrbo\b/i.test(name)) return "vrbo" as const;
+  if (!name && /not available|unavailable|blocked|closed/i.test(summary || "")) {
+    return "blocked" as const;
+  }
+  return "airbnb" as const;
 }
 
 /** Parse guest name + count from iCal SUMMARY/DESCRIPTION when a PMS provides them. */
@@ -306,7 +333,11 @@ export async function buildHotelCalendarData(
   hotelId: string,
   options: BuildOptions = {}
 ): Promise<HotelCalendarPayload | null> {
-  const { start, end } = getHotelCalendarWindow(options.months);
+  const calendarWindow = getHotelCalendarWindow(options.months);
+  const start = options.pastDays
+    ? parseDateKey(addDaysKey(toDateKey(calendarWindow.start), -options.pastDays))
+    : calendarWindow.start;
+  const { end } = calendarWindow;
   const days = listDateKeys(start, end);
   const rangeEndExclusive = new Date(end);
   rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 1);
@@ -330,6 +361,15 @@ export async function buildHotelCalendarData(
             orderBy: { startDate: "asc" },
           },
           manualBlocks: {
+            where: {
+              NOT: [
+                { endDate: { lte: start } },
+                { startDate: { gte: rangeEndExclusive } },
+              ],
+            },
+            orderBy: { startDate: "asc" },
+          },
+          ghostBookings: {
             where: {
               NOT: [
                 { endDate: { lte: start } },
@@ -381,6 +421,9 @@ export async function buildHotelCalendarData(
               : "Awaiting payment",
         guestName,
         guestCount,
+        payoutCents: booking.totalPriceCents,
+        payoutCurrency: booking.currency,
+        source: "aldeitas",
         bookingId: booking.id,
         bookingStatus: booking.status,
         checkoutDay: toDateKey(booking.endDate),
@@ -397,9 +440,31 @@ export async function buildHotelCalendarData(
         id: `block-${block.id}`,
         kind: "manual_block",
         label: "Blocked",
+        source: "blocked",
+        guestName: block.note?.trim() || undefined,
         blockId: block.id,
         checkoutDay: toDateKey(block.endDate),
         rangeStartDay: toDateKey(block.startDate),
+      });
+      if (span) spans.push(span);
+    }
+
+    for (const ghost of listing.ghostBookings) {
+      const nights = nightsForRange(days, (nightKey) =>
+        manualBlockCoversNight(ghost, parseDateKey(nightKey))
+      );
+      const span = buildSpanFromNights(nights, {
+        id: `ghost-${ghost.id}`,
+        kind: "ghost",
+        label: "Ghost (not blocked)",
+        guestName: ghost.guestName,
+        guestCount: ghost.guestCount,
+        payoutCents: ghost.payoutCents,
+        payoutCurrency: ghost.payoutCurrency,
+        ghostId: ghost.id,
+        source: "ghost",
+        checkoutDay: toDateKey(ghost.endDate),
+        rangeStartDay: toDateKey(ghost.startDate),
       });
       if (span) spans.push(span);
     }
@@ -435,12 +500,48 @@ export async function buildHotelCalendarData(
         guestCount,
         payoutCents: saved?.payoutCents ?? null,
         payoutCurrency: saved?.payoutCurrency ?? null,
+        source: externalSource(block.summary, saved?.guestName),
         checkoutDay,
         rangeStartDay,
         sourceUid: block.uid,
       });
       if (span) spans.push(span);
     });
+
+    if (options.pastDays) {
+      // iCal exports drop past stays after a few days; fill history from the
+      // guest records saved by Gmail sync / host edits.
+      const todayKey = toDateKey(calendarWindow.start);
+      guestMetas.forEach((meta, index) => {
+        const metaStart = toDateKey(meta.startDate);
+        const metaEnd = toDateKey(meta.endDate);
+        if (metaStart >= todayKey) return;
+        const nights = days.filter(
+          (d) => d >= metaStart && d < metaEnd && d < todayKey
+        );
+        if (nights.length === 0) return;
+        const first = nights[0];
+        const last = nights[nights.length - 1];
+        const covered = spans.some(
+          (span) =>
+            span.kind !== "manual_block" && span.startDay <= last && span.endDay >= first
+        );
+        if (covered) return;
+        const span = buildSpanFromNights(nights, {
+          id: `history-${listing.id}-${index}`,
+          kind: "external",
+          label: "Past stay",
+          guestName: meta.guestName?.trim() || undefined,
+          guestCount: meta.guestCount ?? null,
+          payoutCents: meta.payoutCents ?? null,
+          payoutCurrency: meta.payoutCurrency ?? null,
+          source: /\bvrbo\b/i.test(meta.guestName || "") ? "vrbo" : "airbnb",
+          checkoutDay: metaEnd,
+          rangeStartDay: metaStart,
+        });
+        if (span) spans.push(span);
+      });
+    }
 
     for (const day of days) {
       const priceOverride = dailyPrices.has(day);
@@ -522,6 +623,40 @@ export async function buildHotelCalendarData(
           guestCount,
           spanId: `external-${listing.id}-${externalIndex}-${nights[0] || externalIndex}`,
           label: "External",
+        };
+        continue;
+      }
+
+      const ghost = listing.ghostBookings.find((item) =>
+        manualBlockCoversNight(item, parseDateKey(day))
+      );
+      if (ghost) {
+        cells[day] = {
+          status: "ghost",
+          priceCents,
+          priceOverride,
+          ghostId: ghost.id,
+          guestName: ghost.guestName,
+          guestCount: ghost.guestCount,
+          spanId: `ghost-${ghost.id}`,
+          label: "Ghost (not blocked)",
+        };
+        continue;
+      }
+
+      const history = spans.find(
+        (span) =>
+          span.id.startsWith("history-") && span.startDay <= day && span.endDay >= day
+      );
+      if (history) {
+        cells[day] = {
+          status: "external",
+          priceCents,
+          priceOverride,
+          guestName: history.guestName,
+          guestCount: history.guestCount,
+          spanId: history.id,
+          label: "Past stay",
         };
         continue;
       }

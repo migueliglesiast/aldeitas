@@ -27,6 +27,29 @@ function runNode(args, cwd) {
   execFileSync(process.execPath, args, { cwd, stdio: "inherit" });
 }
 
+// Version the build actually compiled against (workspace or root node_modules).
+function builtVersion(name) {
+  for (const dir of [appModules, path.join(appDir, "..", "..", "node_modules")]) {
+    const manifest = path.join(dir, name, "package.json");
+    if (fs.existsSync(manifest)) {
+      return JSON.parse(fs.readFileSync(manifest, "utf8")).version;
+    }
+  }
+  return null;
+}
+
+// The scratch install has no lockfile, so ranges like "^16.0.0" would resolve
+// to whatever is newest today. Pin each dependency to the version used by
+// `next build` so the runtime matches the compiled output.
+function pinToBuiltVersions(pkg) {
+  const deps = { ...(pkg.dependencies || {}) };
+  for (const name of Object.keys(deps)) {
+    const version = builtVersion(name);
+    if (version) deps[name] = version;
+  }
+  return { ...pkg, dependencies: deps };
+}
+
 if (fs.existsSync(path.join(appModules, "next"))) {
   console.log("[runtime-deps] apps/web/node_modules/next already present");
   process.exit(0);
@@ -34,7 +57,10 @@ if (fs.existsSync(path.join(appModules, "next"))) {
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "aldeitas-runtime-deps-"));
 try {
-  fs.copyFileSync(path.join(appDir, "package.json"), path.join(scratch, "package.json"));
+  fs.writeFileSync(
+    path.join(scratch, "package.json"),
+    JSON.stringify(pinToBuiltVersions(JSON.parse(fs.readFileSync(path.join(appDir, "package.json"), "utf8"))), null, 2)
+  );
   runNode([npmCli, "install", "--omit=dev", "--no-audit", "--no-fund", "--no-package-lock", "--ignore-scripts"], scratch);
   fs.mkdirSync(appModules, { recursive: true });
   fs.cpSync(path.join(scratch, "node_modules"), appModules, { recursive: true, force: true });

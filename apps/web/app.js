@@ -21,6 +21,7 @@ function resolvePort() {
 function logError(label, error) {
   console.error("[aldeitas] %s:", label);
   if (error) console.error(error);
+  if (error && error.cause) console.error(error.cause);
 }
 
 function fatal(message, error) {
@@ -59,12 +60,18 @@ try {
   fatal("cannot require('next') — run npm install in app root", error);
 }
 
+/** Hostinger's process manager doesn't expose the app on loopback, so scheduled jobs call the public URL. */
+function schedulerBaseUrl() {
+  const base = process.env.SCHEDULER_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  return (base || `http://127.0.0.1:${port}`).replace(/\/+$/, "");
+}
+
 function scheduleBookingReconcile() {
   const secret = process.env.BOOKING_RECONCILE_SECRET;
   const minutes = Number(process.env.BOOKING_RECONCILE_INTERVAL_MINUTES || 5);
   if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
 
-  const url = `http://127.0.0.1:${port}/api/bookings/reconcile`;
+  const url = `${schedulerBaseUrl()}/api/bookings/reconcile`;
   const run = () =>
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
@@ -80,7 +87,7 @@ function scheduleWhatsappTick() {
   const secret = process.env.BOOKING_RECONCILE_SECRET;
   if (!secret || !process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) return;
 
-  const url = `http://127.0.0.1:${port}/api/whatsapp/tick`;
+  const url = `${schedulerBaseUrl()}/api/whatsapp/tick`;
   const run = () =>
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
@@ -90,6 +97,24 @@ function scheduleWhatsappTick() {
 
   setInterval(run, 60 * 1000).unref();
   console.log("[aldeitas] whatsapp tick every 1 min");
+}
+
+function scheduleAirbnbPriceSync() {
+  const secret = process.env.BOOKING_RECONCILE_SECRET;
+  const hours = Number(process.env.AIRBNB_PRICE_SYNC_INTERVAL_HOURS || 2);
+  if (!secret || !Number.isFinite(hours) || hours <= 0) return;
+
+  const url = `${schedulerBaseUrl()}/api/cron/sync-airbnb-prices`;
+  const run = () =>
+    fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
+      .then((res) => {
+        if (!res.ok) console.error("[aldeitas] airbnb price sync returned %s", res.status);
+      })
+      .catch((error) => logError("airbnb price sync", error));
+
+  setTimeout(run, 2 * 60 * 1000).unref();
+  setInterval(run, hours * 60 * 60 * 1000).unref();
+  console.log("[aldeitas] airbnb price sync every %s h", hours);
 }
 
 const app = next({ dev: false, dir: appDir, hostname, port });
@@ -106,6 +131,7 @@ app
         console.log("[aldeitas] Ready on http://%s:%s", hostname, port);
         scheduleBookingReconcile();
         scheduleWhatsappTick();
+        scheduleAirbnbPriceSync();
       })
       .on("error", (error) => fatal("listen error", error));
   })

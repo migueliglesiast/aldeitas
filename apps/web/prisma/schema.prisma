@@ -67,6 +67,7 @@ model Hotel {
   managers             HotelManager[]
   calendarShare        HotelCalendarShare?
   manualBlocks         ManualBlock[]
+  ghostBookings        GhostBooking[]
   gmailSyncEmail       String?
   gmailSyncPasswordEnc String?
   gmailSyncEnabled     Boolean                @default(false)
@@ -97,6 +98,25 @@ model ManualBlock {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([listingId, startDate, endDate])
+  @@index([hotelId])
+}
+
+model GhostBooking {
+  id             String   @id @default(cuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  listingId      String
+  listing        Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  startDate      DateTime
+  endDate        DateTime
+  guestName      String
+  guestCount     Int?
+  payoutCents    Int?
+  payoutCurrency String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([listingId, startDate, endDate])
   @@index([hotelId])
@@ -171,6 +191,7 @@ model Listing {
   updatedAt            DateTime            @updatedAt
   bookings             Booking[]
   manualBlocks         ManualBlock[]
+  ghostBookings        GhostBooking[]
   dailyPrices          ListingDailyPrice[]
   guestMetas           CalendarGuestMeta[]
 }

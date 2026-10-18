@@ -13,7 +13,12 @@ type Props = {
   hotelId: string;
   readOnly?: boolean;
   shareToken?: string;
+  /** Show nightly prices on open days in the read-only share view. */
+  showPrices?: boolean;
 };
+
+const DEFAULT_PAST_DAYS = 1;
+const EXTENDED_PAST_DAYS = 8;
 
 type SelectedCell = {
   roomId: string;
@@ -37,6 +42,8 @@ function cellClass(cell: CalendarCell) {
         : "bg-amber-200 text-amber-950";
     case "external":
       return "bg-violet-200 text-violet-950";
+    case "ghost":
+      return "bg-white text-slate-700";
     default:
       return "bg-white text-slate-700 hover:bg-emerald-50";
   }
@@ -48,9 +55,11 @@ function spanBarClass(span: CalendarSpan) {
       return "bg-slate-500 text-white";
     case "external":
       return "bg-[#0f766e] text-white";
+    case "ghost":
+      return "border-2 border-dashed border-slate-400 bg-white/80 text-slate-700 shadow-none";
     case "booking":
       return span.bookingStatus === "CONFIRMED"
-        ? "bg-[#0f766e] text-white"
+        ? "bg-[#9a7b52] text-white"
         : "bg-amber-500 text-white";
     default:
       return "bg-slate-500 text-white";
@@ -157,6 +166,14 @@ function spanBarGeometry(
   return { marginLeft, width };
 }
 
+/** "$1.9k"-style nightly price that fits a narrow day column. */
+function compactPrice(cents: number) {
+  const amount = cents / 100;
+  if (amount < 1000) return `$${Math.round(amount)}`;
+  const k = amount / 1000;
+  return `$${k >= 10 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, "")}k`;
+}
+
 /** Spanish 3-letter weekday labels for the shareable calendar (Sun→Sat). */
 const ES_WEEKDAYS = ["DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB"] as const;
 
@@ -168,19 +185,21 @@ function spanishDayParts(day: string) {
   };
 }
 
-/** Local calendar date as YYYY-MM-DD (matches day keys; avoids UTC shift). */
+/** Today's date (YYYY-MM-DD) on the hotels' wall clock (Mexico), whatever the viewer's timezone. */
 function localTodayKey() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 export default function HotelMultiCalendar({
   hotelId,
   readOnly = false,
   shareToken,
+  showPrices = false,
 }: Props) {
   const [data, setData] = useState<HotelCalendarPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -196,8 +215,11 @@ export default function HotelMultiCalendar({
   const [sharing, setSharing] = useState(false);
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pastDays, setPastDays] = useState(DEFAULT_PAST_DAYS);
   const compact = useCompactCalendarLayout();
   const isShareView = Boolean(shareToken);
+  const canSeeHistory = !shareToken || showPrices;
+  const showingHistory = pastDays > DEFAULT_PAST_DAYS;
   // Share / phone: tighter columns so more nights fit on screen.
   const phoneShare = Boolean(shareToken || readOnly) && compact;
   const roomColWidth = phoneShare ? 76 : compact ? 100 : 180;
@@ -219,9 +241,10 @@ export default function HotelMultiCalendar({
     setLoading(true);
     setError(null);
     try {
-      const endpoint = shareToken
+      const base = shareToken
         ? `/api/calendar/share/${shareToken}`
         : `/api/admin/hotel/${hotelId}/calendar`;
+      const endpoint = `${base}?past=${pastDays}`;
       const res = await fetch(endpoint);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load calendar");
@@ -240,7 +263,7 @@ export default function HotelMultiCalendar({
     } finally {
       setLoading(false);
     }
-  }, [hotelId, shareToken]);
+  }, [hotelId, shareToken, pastDays]);
 
   useEffect(() => {
     loadCalendar();
@@ -401,6 +424,37 @@ export default function HotelMultiCalendar({
     }
   }
 
+  async function ghostAction(ghostId: string, action: "block" | "remove") {
+    if (readOnly || busy) return;
+    if (action === "remove" && !confirm("Remove this ghost booking?")) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res =
+        action === "block"
+          ? await fetch(`/api/admin/hotel/${hotelId}/calendar/ghosts`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ghostId }),
+            })
+          : await fetch(
+              `/api/admin/hotel/${hotelId}/calendar/ghosts?ghostId=${ghostId}`,
+              { method: "DELETE" }
+            );
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Action failed");
+      }
+      setMessage(action === "block" ? "Dates blocked." : "Ghost booking removed.");
+      setSelected(null);
+      await loadCalendar();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveGuestDetails() {
     if (readOnly || busy || !selected) return;
     if (selected.cell.status !== "booking" && selected.cell.status !== "external") {
@@ -540,7 +594,7 @@ export default function HotelMultiCalendar({
     }
   }
 
-  if (loading) {
+  if (loading && !data) {
     return <div className="rounded border bg-white p-6 text-gray-600">Loading calendar…</div>;
   }
 
@@ -614,7 +668,8 @@ export default function HotelMultiCalendar({
                 </button>
               </div>
               <p className="text-xs text-gray-500">
-                Anyone with this link can view the next 3 months read-only. Refresh the page to
+                Owner view with revenue (login required): {shareUrl}/owner. Anyone with the link
+                above sees the calendar, guest counts and occupancy, without money figures. Refresh the page to
                 see new bookings or blocks.
               </p>
             </>
@@ -654,7 +709,7 @@ export default function HotelMultiCalendar({
           <span className="h-2.5 w-2.5 rounded bg-slate-300 sm:h-3 sm:w-3" /> Blocked
         </span>
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
-          <span className="h-2.5 w-2.5 rounded bg-rose-200 sm:h-3 sm:w-3" /> Booked
+          <span className="h-2.5 w-2.5 rounded bg-[#9a7b52] sm:h-3 sm:w-3" /> Direct
         </span>
         {!shareToken ? (
           <span className="inline-flex items-center gap-1.5 sm:gap-2">
@@ -662,11 +717,15 @@ export default function HotelMultiCalendar({
           </span>
         ) : null}
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
-          <span className="h-2.5 w-2.5 rounded bg-violet-200 sm:h-3 sm:w-3" /> External
+          <span className="h-2.5 w-2.5 rounded bg-[#0f766e] sm:h-3 sm:w-3" /> Airbnb / Vrbo
+        </span>
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+          <span className="h-2.5 w-2.5 rounded border border-dashed border-slate-400 bg-white sm:h-3 sm:w-3" />{" "}
+          Ghost
         </span>
       </div>
 
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
+      <div className="relative -mx-1 overflow-x-auto overscroll-x-contain rounded-lg border bg-white sm:mx-0">
         <table
           className="border-collapse text-[10px] sm:text-xs"
           style={{
@@ -713,7 +772,36 @@ export default function HotelMultiCalendar({
                   maxWidth: roomColWidth,
                 }}
               >
-                {isShareView || phoneShare ? "" : "Base price"}
+                {canSeeHistory ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPastDays((d) => (d > DEFAULT_PAST_DAYS ? DEFAULT_PAST_DAYS : EXTENDED_PAST_DAYS))
+                    }
+                    disabled={loading}
+                    aria-pressed={showingHistory}
+                    title={showingHistory ? "Volver a ayer y hoy" : "Ver los 7 días anteriores"}
+                    className="group inline-flex w-full items-center justify-center gap-1 rounded-md px-1 py-1 text-[10px] font-medium tracking-wide text-[#0092A1]/80 transition hover:bg-[#0092A1]/[0.07] hover:text-[#0092A1] disabled:cursor-wait disabled:opacity-50 sm:text-[11px]"
+                  >
+                    {loading ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-[#0092A1]/30 border-t-[#0092A1]" />
+                    ) : showingHistory ? (
+                      <>
+                        Hoy
+                        <span aria-hidden className="transition group-hover:translate-x-0.5">›</span>
+                      </>
+                    ) : (
+                      <>
+                        <span aria-hidden className="transition group-hover:-translate-x-0.5">‹</span>
+                        {phoneShare ? "7 días" : "7 días antes"}
+                      </>
+                    )}
+                  </button>
+                ) : isShareView || phoneShare ? (
+                  ""
+                ) : (
+                  "Base price"
+                )}
               </th>
               {data.days.map((day) => {
                 const isToday = day === todayKey;
@@ -736,17 +824,23 @@ export default function HotelMultiCalendar({
                         <span
                           className={[
                             "text-[8px] font-medium tracking-[0.14em] sm:text-[9px]",
-                            isToday ? "text-[#0f766e]" : "text-gray-400",
+                            isToday
+                              ? "font-semibold text-[#0092A1]"
+                              : day < todayKey
+                                ? "text-gray-300"
+                                : "text-gray-400",
                           ].join(" ")}
                         >
-                          {weekday}
+                          {isToday ? "HOY" : weekday}
                         </span>
                         <span
                           className={[
                             "inline-flex h-5 min-w-5 items-center justify-center tabular-nums sm:h-6 sm:min-w-6",
                             isToday
                               ? "rounded-full bg-[#0f766e] px-1 text-[10px] font-semibold text-white sm:text-[11px]"
-                              : "text-[11px] font-semibold text-gray-800 sm:text-xs",
+                              : day < todayKey
+                                ? "text-[11px] font-medium text-gray-400 sm:text-xs"
+                                : "text-[11px] font-semibold text-gray-800 sm:text-xs",
                           ].join(" ")}
                         >
                           {dayNum}
@@ -947,7 +1041,13 @@ export default function HotelMultiCalendar({
                         ].join(" ")}
                         title={cell.label}
                       >
-                        {!isShareView && !phoneShare ? (
+                        {isShareView ? (
+                          showPrices && cell.status === "available" && cell.priceCents > 0 && day >= todayKey ? (
+                            <span className="text-[9px] tabular-nums text-slate-500 sm:text-[10px]">
+                              {compactPrice(cell.priceCents)}
+                            </span>
+                          ) : null
+                        ) : !phoneShare && day >= todayKey ? (
                           <span className="text-[10px]">
                             {formatMoneyShort(cell.priceCents, room.baseCurrency)}
                           </span>
@@ -961,6 +1061,26 @@ export default function HotelMultiCalendar({
             })}
           </tbody>
         </table>
+        {data.days.indexOf(todayKey) > 0 ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 top-0 z-[3] bg-slate-500/[0.05]"
+            style={{
+              left: roomColWidth,
+              width: data.days.indexOf(todayKey) * dayColWidth,
+            }}
+          />
+        ) : null}
+        {data.days.includes(todayKey) ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 top-0 z-[3] border-x border-[#0092A1]/25 bg-[#0092A1]/[0.06]"
+            style={{
+              left: roomColWidth + data.days.indexOf(todayKey) * dayColWidth,
+              width: dayColWidth,
+            }}
+          />
+        ) : null}
       </div>
 
       {selected ? (
@@ -1033,6 +1153,49 @@ export default function HotelMultiCalendar({
               ) : null}
             </div>
           )}
+          {selected.cell.status === "ghost" ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                {selected.span ? spanTitle(selected.span) : selected.cell.guestName}
+                {selected.span ? (
+                  <div className="mt-1 text-gray-600">
+                    {selected.span.rangeStartDay} → {selected.span.checkoutDay}
+                  </div>
+                ) : null}
+                {!isShareView && selected.span?.payoutCents != null ? (
+                  <div className="mt-1 text-gray-600">
+                    Payout:{" "}
+                    {(selected.span.payoutCents / 100).toLocaleString(undefined, {
+                      style: "currency",
+                      currency: selected.span.payoutCurrency || "MXN",
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <p className="text-xs text-gray-500">
+                Ghost booking: shown for planning only. These dates are still open on
+                Aldeitas and in the calendar feed until you block them.
+              </p>
+              {!readOnly && selected.cell.ghostId ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void ghostAction(selected.cell.ghostId!, "block")}
+                    className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white"
+                  >
+                    Block these dates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void ghostAction(selected.cell.ghostId!, "remove")}
+                    className="rounded border px-4 py-2 text-sm"
+                  >
+                    Remove ghost
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {!readOnly && selected.cell.status === "booking" && selected.cell.bookingId ? (
             <button
               type="button"
@@ -1042,7 +1205,9 @@ export default function HotelMultiCalendar({
               Cancel reservation
             </button>
           ) : null}
-          {!readOnly && selected.cell.status !== "external" ? (
+          {!readOnly &&
+          selected.cell.status !== "external" &&
+          selected.cell.status !== "ghost" ? (
             <div className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
