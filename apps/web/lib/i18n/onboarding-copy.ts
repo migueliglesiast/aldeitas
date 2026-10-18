@@ -60,7 +60,7 @@ const en = {
 
   inboxKicker: "No more copy-paste",
   inboxTitle: "Guests fill themselves in",
-  inboxBody: "Names, headcounts and payouts land on your calendar straight from your booking emails.",
+  inboxBody: "Names, headcounts and payouts land on your calendar straight from your booking emails in Gmail.",
   inboxAsk: "Gmail that receives your booking emails",
   gmail: "Gmail address",
   gmailPh: "myhotel@gmail.com",
@@ -86,6 +86,7 @@ const en = {
 
   demoBooking: "New booking",
   demoGuests: "2 guests",
+  demoMailSubject: "New booking",
   demoTonight: "Tonight",
   demoCheckouts: "2 check-outs today",
   demoOccupancy: "Next 7 days",
@@ -156,7 +157,7 @@ const es: Copy = {
 
   inboxKicker: "Sin copiar y pegar",
   inboxTitle: "Tus huéspedes se registran solos",
-  inboxBody: "Nombres, número de huéspedes y pagos llegan a tu calendario desde tus correos de reserva.",
+  inboxBody: "Nombres, número de huéspedes y pagos llegan a tu calendario directo desde tus correos de reserva en Gmail.",
   inboxAsk: "Gmail donde recibes tus reservas",
   gmail: "Correo de Gmail",
   gmailPh: "mihotel@gmail.com",
@@ -182,6 +183,7 @@ const es: Copy = {
 
   demoBooking: "Nueva reserva",
   demoGuests: "2 huéspedes",
+  demoMailSubject: "Nueva reserva",
   demoTonight: "Hoy",
   demoCheckouts: "2 salidas hoy",
   demoOccupancy: "Próximos 7 días",
