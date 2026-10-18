@@ -25,5 +25,11 @@ export async function GET(
     return NextResponse.json({ error: "Calendar not found" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({
+    ...data,
+    rooms: data.rooms.map((room) => ({
+      ...room,
+      spans: room.spans.map((span) => ({ ...span, payoutCents: null, payoutCurrency: null })),
+    })),
+  });
 }

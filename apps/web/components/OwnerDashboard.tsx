@@ -7,6 +7,14 @@ import type { HotelStats, StaySource } from "@/lib/hotel-stats";
 const COPY = {
   es: {
     overview: "Resumen",
+    checkoutsLower: "salidas",
+    weekNotePublic: "Cuartos ocupados y salidas (limpiezas) de cada día",
+    checkoutsShort: "sal.",
+    arrivals7: "Llegadas · próximos 7 días",
+    departures7: "Salidas · próximos 7 días",
+    cleanings: "limpiezas por hacer",
+    bookedNights: "noches reservadas",
+    publicNote: "Ocupación a partir de las reservas confirmadas en todos los canales. Las salidas indican las limpiezas de cada día.",
     thisWeek: "Esta semana",
     occupied: "ocupado",
     expected: "esperado",
@@ -55,6 +63,14 @@ const COPY = {
   },
   en: {
     overview: "Overview",
+    checkoutsLower: "check-outs",
+    weekNotePublic: "Rooms occupied and check-outs (cleanings) each day",
+    checkoutsShort: "out",
+    arrivals7: "Arrivals · next 7 days",
+    departures7: "Check-outs · next 7 days",
+    cleanings: "cleanings to do",
+    bookedNights: "booked nights",
+    publicNote: "Occupancy from confirmed stays on every channel. Check-outs show each day's cleanings.",
     thisWeek: "This week",
     occupied: "occupied",
     expected: "expected",
@@ -277,7 +293,13 @@ function Timeline({ stats, todayLabel }: { stats: HotelStats; todayLabel: string
   );
 }
 
-export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
+export default function OwnerDashboard({
+  stats,
+  showMoney = true,
+}: {
+  stats: HotelStats;
+  showMoney?: boolean;
+}) {
   const { locale: userLocale } = useLocale();
   // Server HTML is Spanish; switch to the visitor's locale only after hydration.
   const hydrated = useSyncExternalStore(
@@ -333,23 +355,35 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
         <Ring
           label={t.thisWeek}
           value={k.occupancyNext7}
-          sub={`${money(k.revenueNext7Cents, locale)} ${t.expected}`}
+          sub={
+            showMoney
+              ? `${money(k.revenueNext7Cents, locale)} ${t.expected}`
+              : `${stats.departures.length} ${t.checkoutsLower}`
+          }
         />
         <Ring
           label={t.next30}
           value={k.occupancyNext30}
           sub={`${percent(k.occupancyPast30)} ${t.vsPast30}`}
         />
+        {showMoney ? (
         <Kpi
           label={t.airbnbRevenue}
           value={money(stats.revenueBySource.find((r) => r.source === "airbnb")?.past30Cents ?? 0, locale)}
           sub={`${money(k.revenuePast30Cents, locale)} ${t.allChannels}`}
         />
-        <Kpi label={t.onTheBooks} value={money(k.revenueNext90Cents, locale)} />
+        ) : (
+          <Kpi label={t.arrivals7} value={`${stats.arrivals.length}`} sub={t.next7} />
+        )}
+        {showMoney ? (
+          <Kpi label={t.onTheBooks} value={money(k.revenueNext90Cents, locale)} />
+        ) : (
+          <Kpi label={t.departures7} value={`${stats.departures.length}`} sub={t.cleanings} />
+        )}
       </div>
 
       <Card>
-        <CardTitle note={t.weekNote}>{t.weekTitle}</CardTitle>
+        <CardTitle note={showMoney ? t.weekNote : t.weekNotePublic}>{t.weekTitle}</CardTitle>
         <div className="grid grid-cols-7 gap-1 sm:gap-3">
           {stats.next7.map((d) => (
             <div key={d.day} className="flex flex-col items-center text-center">
@@ -375,7 +409,11 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                 <span className="hidden sm:inline"> {t.rooms7}</span>
               </span>
               <span className="mt-0.5 text-[10px] tabular-nums text-ink sm:text-xs">
-                {compactMoney(d.revenueCents)}
+                {showMoney
+                  ? compactMoney(d.revenueCents)
+                  : d.checkouts
+                    ? `${d.checkouts} ${t.checkoutsShort}`
+                    : "—"}
               </span>
             </div>
           ))}
@@ -383,18 +421,36 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
         <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-t border-black/[0.06] pt-3 text-sm">
           <span className="text-muted">{t.weekTotal}</span>
           <span className="tabular-nums text-heading">
-            <strong className="font-semibold">{money(k.revenueNext7Cents, locale)}</strong>{" "}
-            {t.expected} · {percent(k.occupancyNext7)} {t.avgOcc}
+            {showMoney ? (
+              <>
+                <strong className="font-semibold">{money(k.revenueNext7Cents, locale)}</strong>{" "}
+                {t.expected} ·{" "}
+              </>
+            ) : (
+              <>
+                <strong className="font-semibold">{stats.departures.length}</strong>{" "}
+                {t.checkoutsLower} ·{" "}
+              </>
+            )}
+            {percent(k.occupancyNext7)} {t.avgOcc}
           </span>
         </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
-        <Kpi
-          label={t.adr}
-          value={k.adrCents != null ? money(k.adrCents, locale) : "—"}
-          sub={`${t.revpar}: ${money(k.revparNext30Cents, locale)}`}
-        />
+        {showMoney ? (
+          <Kpi
+            label={t.adr}
+            value={k.adrCents != null ? money(k.adrCents, locale) : "—"}
+            sub={`${t.revpar}: ${money(k.revparNext30Cents, locale)}`}
+          />
+        ) : (
+          <Kpi
+            label={t.next30}
+            value={`${stats.rooms.reduce((sum, r) => sum + (r.next30Strip.match(/o/g)?.length ?? 0), 0)}`}
+            sub={t.bookedNights}
+          />
+        )}
         <Kpi
           label={t.avgStay}
           value={k.avgStayNights != null ? `${k.avgStayNights}` : "—"}
@@ -450,7 +506,7 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                   <span className="text-right tabular-nums text-muted">
                     {row.nights} {t.nights} ·{" "}
                     {percent(row.nights / Math.max(totalSourceNights, 1))}
-                    <span className="block text-xs">
+                    <span className={showMoney ? "block text-xs" : "hidden"}>
                       {money(
                         stats.revenueBySource.find((r) => r.source === row.source)?.next90Cents ?? 0,
                         locale
@@ -471,7 +527,8 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                   <div className="flex items-baseline justify-between text-sm">
                     <span className="capitalize text-ink">{monthLabel(m.month, locale)}</span>
                     <span className="tabular-nums text-muted">
-                      {percent(m.occupancy)} · {money(m.revenueCents, locale)}
+                      {percent(m.occupancy)}
+                      {showMoney ? ` · ${money(m.revenueCents, locale)}` : ""}
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -499,8 +556,12 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                 <th scope="col" className="px-3 py-2 text-right font-medium">{t.occPast}</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">{t.occNext}</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">{t.booked90}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t.revenue90}</th>
-                <th scope="col" className="px-4 py-2 text-right font-medium sm:px-5">{t.listed}</th>
+                {showMoney ? (
+                  <>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">{t.revenue90}</th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium sm:px-5">{t.listed}</th>
+                  </>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.05] tabular-nums">
@@ -521,12 +582,16 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-right text-ink">{room.nightsNext90}</td>
-                  <td className="px-3 py-2.5 text-right text-ink">
-                    {money(room.revenueNext90Cents, locale)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-muted sm:px-5">
-                    {room.listedRateCents != null ? money(room.listedRateCents, locale) : "—"}
-                  </td>
+                  {showMoney ? (
+                    <>
+                      <td className="px-3 py-2.5 text-right text-ink">
+                        {money(room.revenueNext90Cents, locale)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-muted sm:px-5">
+                        {room.listedRateCents != null ? money(room.listedRateCents, locale) : "—"}
+                      </td>
+                    </>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -535,8 +600,14 @@ export default function OwnerDashboard({ stats }: { stats: HotelStats }) {
       </Card>
 
       <p className="text-[11px] leading-relaxed text-muted sm:text-xs">
-        {t.footnote(stats.usdToMxn)}{" "}
-        {t.coverage(stats.payoutCoverage.withPayout, stats.payoutCoverage.total)}
+        {showMoney ? (
+          <>
+            {t.footnote(stats.usdToMxn)}{" "}
+            {t.coverage(stats.payoutCoverage.withPayout, stats.payoutCoverage.total)}
+          </>
+        ) : (
+          t.publicNote
+        )}
       </p>
     </div>
   );

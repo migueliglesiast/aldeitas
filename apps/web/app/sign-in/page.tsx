@@ -22,7 +22,8 @@ export default function SignInPage() {
       body: JSON.stringify({ email_or_username: emailOrUsername, password }),
     });
     if (res.ok) {
-      window.location.href = "/";
+      const next = new URLSearchParams(window.location.search).get("next");
+      window.location.href = next && /^\/(?!\/)/.test(next) ? next : "/";
     } else {
       let data: any = {};
       try {
