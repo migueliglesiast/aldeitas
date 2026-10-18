@@ -181,6 +181,9 @@ export function scrapeListingDescription(html: string): string | null {
     if (text.length > 0) return text;
   }
 
+  const structured = listingStructuredData(html)?.description?.trim();
+  if (structured) return structured;
+
   const ogMatch = html.match(
     /property="og:description"\s+content="([^"]+)"/i
   );
@@ -192,6 +195,33 @@ export function scrapeListingDescription(html: string): string | null {
   }
 
   return null;
+}
+
+/** The schema.org VacationRental block Airbnb embeds on listing pages. */
+function listingStructuredData(html: string): { name?: string; description?: string } | null {
+  for (const match of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)) {
+    try {
+      const data = JSON.parse(match[1]);
+      if (data?.["@type"] === "VacationRental") return data;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+export function scrapeListingTitle(html: string): string | null {
+  const structured = listingStructuredData(html)?.name?.trim();
+  if (structured) return structured;
+  const raw = html.match(/<title>([^<]+)<\/title>/i)?.[1];
+  if (!raw) return null;
+  const title = raw
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .split(" - ")[0]
+    .trim();
+  return title && !/^404\b/.test(title) && title.toLowerCase() !== "airbnb" ? title : null;
 }
 
 export function scrapeListingImagesFromHtml(html: string): string[] {
