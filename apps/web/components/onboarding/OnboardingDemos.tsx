@@ -161,17 +161,76 @@ function CalendarsDemo({ t }: { t: T }) {
   );
 }
 
+function GmailMark() {
+  return (
+    <svg viewBox="0 0 24 18" className="h-3 w-4">
+      <path d="M1.6 18H5.5V8.6L0 4.5V16.4C0 17.3.7 18 1.6 18Z" fill="#4285F4" />
+      <path d="M18.5 18h3.9c.9 0 1.6-.7 1.6-1.6V4.5l-5.5 4.1Z" fill="#34A853" />
+      <path d="M18.5 1.5v7.1L24 4.5V2.3C24 .3 21.7-.8 20.1.4Z" fill="#FBBC04" />
+      <path d="M5.5 8.6V1.5L12 6.4l6.5-4.9v7.1L12 13.5Z" fill="#EA4335" />
+      <path d="M0 2.3v2.2l5.5 4.1V1.5L3.9.4C2.3-.8 0 .3 0 2.3Z" fill="#C5221F" />
+    </svg>
+  );
+}
+
+const MAILS = [
+  { from: "Airbnb", guest: "Laura M.", room: 0, left: "4%", right: "22%" },
+  { from: "Booking.com", guest: "John D.", room: 1, left: "38%", right: "4%" },
+  { from: "Vrbo", guest: "Ana R.", room: 2, left: "12%", right: "36%" },
+] as const;
+
 function InboxDemo({ t }: { t: T }) {
   return (
     <Frame>
-      <div className="ob-loop ob-fly absolute left-[38%] top-[30%] flex h-9 w-12 items-center justify-center rounded-md border border-line bg-white text-lg shadow">✉</div>
-      <div className="absolute inset-x-5 bottom-8">
-        <div className="relative h-8 rounded-lg bg-white/80">
-          <div className="absolute inset-y-0 left-[18%] right-[22%] flex items-center rounded-lg bg-[#0f766e] px-2.5 text-[11px] font-medium text-white">
-            <span className="ob-loop ob-in-50">Laura Méndez · {t("demoGuests")} · $3.2k</span>
+      <div className="absolute inset-y-3 left-3 w-[46%] overflow-hidden rounded-xl border border-line bg-white shadow-sm">
+        <div className="flex items-center gap-1.5 border-b border-line/70 px-2 py-1.5">
+          <GmailMark />
+          <span className="text-[10px] font-medium text-[#5f6368]">Gmail</span>
+          <span className="ml-1 h-3 flex-1 rounded-full bg-[#f1f3f4]" />
+        </div>
+        {MAILS.map((m, i) => (
+          <div key={m.from} className={`ob-loop ob-mail ob-mail-${i} border-b border-line/50 px-2 py-1.5`}>
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="truncate text-[10px] font-bold text-[#202124]">{m.from}</span>
+              <span className="text-[8px] text-[#5f6368]">9:4{i}</span>
+            </div>
+            <div className="truncate text-[9px] text-[#5f6368]">
+              <span className="font-semibold text-[#202124]">{t("demoMailSubject")}</span> · {m.guest}
+            </div>
           </div>
+        ))}
+      </div>
+
+      <div className="absolute inset-y-3 right-3 w-[42%] rounded-xl border border-line bg-paper p-2 shadow-sm">
+        <div className="mb-2 flex items-center gap-1 text-[10px] font-semibold text-heading">
+          <span className="h-1.5 w-1.5 rounded-full bg-aldeitas" />
+          Aldeitas
+        </div>
+        <div className="space-y-2">
+          {MAILS.map((m, i) => (
+            <div key={m.room} className="flex items-center gap-1.5">
+              <span className="w-4 text-[8px] text-muted">T{m.room + 1}</span>
+              <div className="relative h-5 flex-1 rounded bg-white/90 ring-1 ring-line/60">
+                <div
+                  className={`ob-loop ob-land ob-land-${i} absolute inset-y-0 flex items-center overflow-hidden rounded bg-[#0f766e] px-1.5 text-[8px] font-medium text-white`}
+                  style={{ left: m.left, right: m.right }}
+                >
+                  <span className="truncate">{m.guest}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+
+      {MAILS.map((m, i) => (
+        <div
+          key={m.guest}
+          className={`ob-loop ob-hop ob-hop-${i} absolute z-10 rounded-md bg-[#0f766e] px-1.5 py-0.5 text-[8px] font-semibold text-white shadow-md`}
+        >
+          {m.guest}
+        </div>
+      ))}
     </Frame>
   );
 }
