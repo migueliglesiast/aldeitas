@@ -456,8 +456,6 @@ export default function OwnerDashboard({
           value={k.avgStayNights != null ? `${k.avgStayNights}` : "—"}
           sub={t.nights}
         />
-        <Kpi label={t.blocked} value={`${k.blockedNightsNext30}`} />
-        <Kpi label={t.ghosts} value={`${k.ghostNights}`} />
       </div>
 
       <Card>
