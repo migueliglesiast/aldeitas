@@ -195,6 +195,8 @@ model Listing {
   ghostBookings        GhostBooking[]
   dailyPrices          ListingDailyPrice[]
   guestMetas           CalendarGuestMeta[]
+  reviews              ListingReview[]
+  ratingSummary        ListingRatingSummary?
 }
 
 model CalendarGuestMeta {
@@ -358,4 +360,37 @@ model EmergencyDispatch {
   createdAt      DateTime             @default(now())
 
   @@index([status])
+}
+
+model ListingReview {
+  id           String   @id @default(cuid())
+  listingId    String
+  listing      Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  source       String   @default("airbnb")
+  externalId   String
+  rating       Int?
+  comments     String
+  language     String?
+  reviewerName String?
+  reviewedAt   DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([listingId, externalId])
+  @@index([listingId, reviewedAt])
+}
+
+model ListingRatingSummary {
+  listingId     String   @id
+  listing       Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  source        String   @default("airbnb")
+  overall       Float?
+  reviewCount   Int?
+  cleanliness   Float?
+  accuracy      Float?
+  checkin       Float?
+  communication Float?
+  location      Float?
+  value         Float?
+  updatedAt     DateTime @updatedAt
 }

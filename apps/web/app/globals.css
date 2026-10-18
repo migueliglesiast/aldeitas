@@ -62,3 +62,47 @@ html { scroll-padding-top: 9rem; }
   background: transparent !important;
   border: none !important;
 }
+
+/* Owner onboarding: looping demo animations (7s cycle). */
+.ob-loop { animation-duration: 7s; animation-iteration-count: infinite; animation-timing-function: ease-out; animation-fill-mode: both; }
+.ob-type { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom; animation-name: ob-type; animation-timing-function: steps(28, end); }
+.ob-in-20 { animation-name: ob-in-20; }
+.ob-in-35 { animation-name: ob-in-35; }
+.ob-in-50 { animation-name: ob-in-50; }
+.ob-in-60 { animation-name: ob-in-60; }
+.ob-in-70 { animation-name: ob-in-70; }
+.ob-grow { transform-origin: left center; animation-name: ob-grow; }
+.ob-grow-late { transform-origin: left center; animation-name: ob-grow-late; }
+.ob-pin { animation-name: ob-pin; }
+.ob-cursor { animation-name: ob-cursor; animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1); }
+.ob-press { animation-name: ob-press; }
+.ob-ring { animation-name: ob-ring; }
+.ob-fly { animation-name: ob-fly; }
+
+@keyframes ob-type { 0%, 12% { max-width: 0; } 38%, 92% { max-width: 100%; } 100% { max-width: 0; } }
+@keyframes ob-in-20 { 0%, 20% { opacity: 0; transform: translateY(6px) scale(0.96); } 26%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ob-in-35 { 0%, 35% { opacity: 0; transform: translateY(6px) scale(0.96); } 41%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ob-in-50 { 0%, 50% { opacity: 0; transform: translateY(6px) scale(0.96); } 56%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ob-in-60 { 0%, 60% { opacity: 0; transform: translateY(6px) scale(0.96); } 66%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ob-in-70 { 0%, 70% { opacity: 0; transform: translateY(6px) scale(0.96); } 76%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ob-grow { 0%, 45% { transform: scaleX(0); opacity: 0; } 58%, 92% { transform: scaleX(1); opacity: 1; } 100% { opacity: 0; } }
+@keyframes ob-grow-late { 0%, 60% { transform: scaleX(0); opacity: 0; } 72%, 92% { transform: scaleX(1); opacity: 1; } 100% { opacity: 0; } }
+@keyframes ob-pin { 0%, 48% { opacity: 0; transform: translateY(-28px); } 56% { opacity: 1; transform: translateY(2px); } 60%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ob-cursor {
+  0%, 4% { opacity: 0; transform: translate(var(--x0), var(--y0)); }
+  8% { opacity: 1; transform: translate(var(--x0), var(--y0)); }
+  18%, 24% { transform: translate(var(--x1), var(--y1)); }
+  21% { transform: translate(var(--x1), var(--y1)) scale(0.8); }
+  40%, 48% { transform: translate(var(--x2), var(--y2)); }
+  44% { transform: translate(var(--x2), var(--y2)) scale(0.8); }
+  86% { opacity: 1; transform: translate(var(--x2), var(--y2)); }
+  92%, 100% { opacity: 0; transform: translate(var(--x2), var(--y2)); }
+}
+@keyframes ob-press { 0%, 42% { transform: none; filter: none; } 44% { transform: scale(0.94); filter: brightness(0.9); } 47%, 100% { transform: none; filter: none; } }
+@keyframes ob-ring { 0%, 30% { stroke-dashoffset: var(--ring-full); } 70%, 92% { stroke-dashoffset: var(--ring-to); } 100% { stroke-dashoffset: var(--ring-full); } }
+@keyframes ob-fly { 0%, 22% { opacity: 0; transform: translate(-40px, -20px) rotate(-8deg); } 30% { opacity: 1; } 46% { opacity: 1; transform: translate(0, 0) rotate(0); } 52%, 100% { opacity: 0; transform: translate(0, 0) scale(0.6); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-loop { animation: none !important; opacity: 1 !important; transform: none !important; max-width: 100% !important; stroke-dashoffset: var(--ring-to) !important; }
+  .ob-cursor, .ob-fly { display: none; }
+}
