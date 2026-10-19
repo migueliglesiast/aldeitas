@@ -42,6 +42,8 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
+    // Hostinger caps threads per account well below its reported CPU count.
+    cpus: Number(process.env.NEXT_BUILD_CPUS) || 4,
     serverActions: {
       allowedOrigins,
     },
