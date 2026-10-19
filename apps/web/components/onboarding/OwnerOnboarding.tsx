@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { onboardingText, type OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
-import type { DiscoveredListing } from "@/lib/gmail-listing-discovery";
+import type { GmailListing } from "@/lib/gmail-listing-discovery";
 import type { OnboardingRoom, OnboardingState } from "@/lib/onboarding";
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
@@ -43,8 +43,35 @@ type StepProps = {
   state: OnboardingState;
   setState: (state: OnboardingState) => void;
   next: () => void;
-  footer: (opts: { busy: boolean; onSave: () => void; error: string | null }) => ReactNode;
+  footer: (opts: FooterOpts) => ReactNode;
+  importer: Importer;
+  ensureNext: (id: DemoId) => void;
 };
+
+type FooterOpts = { busy: boolean; onSave: () => void; error: string | null; locked?: boolean };
+
+type ImportItem = {
+  airbnbId: string;
+  roomId: string | null;
+  title: string | null;
+  cover: string | null;
+  photoCount: number;
+  created: boolean;
+  status: "waiting" | "working" | "ok" | "linked" | "failed";
+};
+
+type ImportJob = { status: "idle" | "scanning" | "importing" | "done" | "error"; items: ImportItem[] };
+
+type Importer = { job: ImportJob; start: () => void; reviewed: boolean; markReviewed: () => void };
+
+const isRunning = (job: ImportJob) => job.status === "scanning" || job.status === "importing";
+
+function importProgress(job: ImportJob) {
+  const total = job.items.length;
+  const done = job.items.filter((item) => item.status !== "waiting" && item.status !== "working").length;
+  const ratio = job.status === "scanning" ? 0.08 : total ? Math.max(0.1, done / total) : 1;
+  return { total, done, ratio };
+}
 
 function YouStep({ t, state, setState, next, footer }: StepProps) {
   const [nickname, setNickname] = useState(state.user.nickname);
@@ -136,82 +163,60 @@ function MapStep({ t, state, setState, next, footer }: StepProps) {
   );
 }
 
-const SKIP = "skip";
-const NEW_ROOM = "new";
+const SITE_GUIDES = {
+  airbnb: ["calStepAirbnb1", "calStepAirbnb2", "calStepAirbnb3"],
+  booking: ["calStepBooking1", "calStepBooking2", "calStepBooking3"],
+  vrbo: ["calStepVrbo1", "calStepVrbo2", "calStepVrbo3"],
+  other: ["calStepOther1", "calStepOther2", "calStepOther3"],
+} as const satisfies Record<string, readonly OnboardingCopyKey[]>;
 
-function nameWords(text: string) {
-  return new Set(
-    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)
+type Site = keyof typeof SITE_GUIDES;
+
+function siteOf(urlOrHost: string): Site {
+  const text = urlOrHost.toLowerCase();
+  if (text.includes("airbnb.")) return "airbnb";
+  if (text.includes("booking.com")) return "booking";
+  if (/vrbo|homeaway|abritel/.test(text)) return "vrbo";
+  return "other";
+}
+
+function siteName(t: T, site: Site) {
+  return site === "airbnb" ? "Airbnb" : site === "booking" ? "Booking.com" : site === "vrbo" ? "Vrbo" : t("otherSite");
+}
+
+function Thumb({ src, className = "h-11 w-11" }: { src: string | null; className?: string }) {
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" className={`${className} shrink-0 rounded-lg object-cover`} />
+  ) : (
+    <span className={`${className} shrink-0 rounded-lg bg-surface`} />
   );
 }
 
-function defaultPicks(found: DiscoveredListing[], rooms: OnboardingRoom[]) {
-  const free = rooms.filter((room) => !room.airbnbUrl && !found.some((f) => f.roomId === room.id));
-  const picks: Record<string, string> = {};
-  for (const listing of found) {
-    if (listing.roomId) continue;
-    const words = nameWords(listing.title ?? "");
-    const byName = free.find((room) => [...nameWords(room.title)].some((w) => words.has(w)));
-    const room = byName ?? free[0];
-    picks[listing.airbnbId] = room ? room.id : NEW_ROOM;
-    if (room) free.splice(free.indexOf(room), 1);
-  }
-  return picks;
-}
-
-function GmailListings({
-  t, rooms, found, picks, setPicks,
-}: {
-  t: T;
-  rooms: OnboardingRoom[];
-  found: DiscoveredListing[] | "loading" | "error";
-  picks: Record<string, string>;
-  setPicks: (update: (picks: Record<string, string>) => Record<string, string>) => void;
-}) {
-  if (found === "loading") {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-line bg-surface/60 px-3 py-3 text-sm text-muted">
-        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-aldeitas/30 border-t-aldeitas" />
-        {t("gmailFinding")}
-      </div>
-    );
-  }
-  if (found === "error" || found.length === 0) {
-    return <p className="rounded-xl bg-surface/60 px-3 py-2 text-xs text-muted">{t("gmailNone")}</p>;
-  }
-  const roomTitle = (id: string | null) => rooms.find((room) => room.id === id)?.title ?? "";
+/** Live view of the Gmail import, shown in place of the slide's animation. */
+function ImportVisual({ t, job, rooms }: { t: T; job: ImportJob; rooms: OnboardingRoom[] }) {
+  const { total, done, ratio } = importProgress(job);
+  const cover = (item: ImportItem) => item.cover ?? rooms.find((room) => room.id === item.roomId)?.cover ?? null;
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-ink">{t("gmailFound")}</p>
-      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-        {found.map((listing) => (
-          <div key={listing.airbnbId} className="flex items-center gap-3 rounded-xl border border-line bg-white p-2">
-            {listing.photo ? (
+    <div aria-live="polite" className="relative flex h-44 flex-col overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-surface via-paper to-card p-4 sm:h-52">
+      <div className="flex items-center justify-between text-xs font-medium text-heading">
+        <span className="flex items-center gap-2">
+          {isRunning(job) ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-aldeitas/30 border-t-aldeitas" /> : <span className="text-[#0f766e]">✓</span>}
+          {t(job.status === "scanning" ? "importScanning" : isRunning(job) ? "importCopying" : "importDone")}
+        </span>
+        {total ? <span className="tabular-nums text-muted">{done}/{total}</span> : null}
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line/70">
+        <div className="h-full rounded-full bg-aldeitas transition-all duration-700" style={{ width: `${Math.round(ratio * 100)}%` }} />
+      </div>
+      <div className="mt-3 grid flex-1 grid-cols-4 content-start gap-2 sm:grid-cols-5">
+        {(job.items.length ? job.items : Array.from({ length: 5 }, () => null)).slice(0, 10).map((item, i) => (
+          <div key={item?.airbnbId ?? i} className={`relative aspect-[4/3] overflow-hidden rounded-lg bg-white/80 ring-1 ring-line/60 ${!item || item.status === "working" ? "animate-pulse" : ""}`}>
+            {item && cover(item) ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={listing.photo} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
-            ) : (
-              <span className="h-11 w-11 shrink-0 rounded-lg bg-surface" />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-ink">{listing.title ?? listing.airbnbUrl}</div>
-              <div className="text-[11px] text-muted">{t("bookingsCount", { count: listing.bookings })}</div>
-            </div>
-            {listing.roomId ? (
-              <span className="shrink-0 text-xs font-medium text-[#0f766e]">✓ {roomTitle(listing.roomId)}</span>
-            ) : (
-              <select
-                aria-label={listing.title ?? listing.airbnbId}
-                value={picks[listing.airbnbId] ?? NEW_ROOM}
-                onChange={(e) => setPicks((p) => ({ ...p, [listing.airbnbId]: e.target.value }))}
-                className="max-w-[9rem] shrink-0 rounded-lg border border-line bg-white px-2 py-1.5 text-xs text-ink focus:border-aldeitas focus:outline-none"
-              >
-                {rooms.filter((room) => !found.some((f) => f.roomId === room.id)).map((room) => (
-                  <option key={room.id} value={room.id}>{room.title}</option>
-                ))}
-                <option value={NEW_ROOM}>+ {t("newRoom")}</option>
-                <option value={SKIP}>{t("skipListing")}</option>
-              </select>
-            )}
+              <img src={cover(item)!} alt="" className="animate-fade-in-scale h-full w-full object-cover" />
+            ) : null}
+            {item?.status === "failed" ? <span className="absolute inset-0 flex items-center justify-center text-[10px] text-muted">—</span> : null}
           </div>
         ))}
       </div>
@@ -219,133 +224,312 @@ function GmailListings({
   );
 }
 
-function RoomLinksStep({
-  t, state, setState, next, footer, kind,
-}: StepProps & { kind: "airbnb" | "calendars" }) {
-  const isDone = (room: OnboardingRoom) =>
-    kind === "airbnb" ? Boolean(room.airbnbUrl) && room.imageCount > 0 : room.calendarCount > 0;
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(state.rooms.map((room) => [room.id, kind === "airbnb" ? room.airbnbUrl : ""]))
-  );
-  const [status, setStatus] = useState<Record<string, string>>({});
+function RoomsStep({ t, state, setState, next, footer, importer }: StepProps) {
+  const { job, start, markReviewed } = importer;
+  const gmail = Boolean(state.hotel?.gmailConnected);
+  const needsScan = gmail && job.status === "idle" && (state.rooms.length === 0 || state.rooms.some((room) => room.imageCount === 0));
+  useEffect(() => {
+    if (needsScan) start();
+  }, [needsScan, start]);
+
+  const listed = state.rooms.filter((room) => room.imageCount > 0 || room.airbnbUrl);
+  const bare = state.rooms.filter((room) => !(room.imageCount > 0 || room.airbnbUrl));
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [removing, setRemoving] = useState<Set<string>>(new Set());
+  const [unitPick, setUnitPick] = useState<Record<string, string>>({});
+  const [url, setUrl] = useState("");
+  const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const useGmail = kind === "airbnb" && Boolean(state.hotel?.gmailConnected);
-  const [found, setFound] = useState<DiscoveredListing[] | "loading" | "error">(useGmail ? "loading" : []);
-  const [picks, setPicks] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!useGmail) return;
-    let alive = true;
-    fetch("/api/admin/onboarding/listings")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("search failed"))))
-      .then((data: { listings: DiscoveredListing[] }) => {
-        if (!alive) return;
-        setFound(data.listings);
-        setPicks(defaultPicks(data.listings, state.rooms));
-      })
-      .catch(() => alive && setFound("error"));
-    return () => {
-      alive = false;
-    };
-    // Search once per slide; later state refreshes must not re-scan Gmail.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useGmail]);
+  const created = job.items.filter((item) => item.created && item.roomId).map((item) => item.roomId!);
+  const pickFor = (unit: OnboardingRoom, i: number) =>
+    unitPick[unit.id] ?? (created[i] && listed.some((room) => room.id === created[i]) ? `same:${created[i]}` : "keep");
 
-  async function linkFromGmail() {
-    if (!Array.isArray(found)) return true;
-    const links = found
-      .filter((listing) => !listing.roomId && picks[listing.airbnbId] !== SKIP)
-      .map((listing) => {
-        const pick = picks[listing.airbnbId] ?? NEW_ROOM;
-        return { airbnbId: listing.airbnbId, roomId: pick === NEW_ROOM ? null : pick, title: listing.title ?? undefined };
-      });
-    if (links.length === 0) return true;
-    const { ok, data } = await postJson("/api/admin/onboarding/listings", { links });
-    if (data?.state) setState(data.state);
-    return ok && Array.isArray(data?.results) && data.results.every((r: { ok: boolean }) => r.ok);
+  if (needsScan || isRunning(job)) {
+    const titleOf = (item: ImportItem) => item.title ?? state.rooms.find((room) => room.id === item.roomId)?.title ?? `Airbnb ${item.airbnbId.slice(-4)}`;
+    const label = (item: ImportItem) =>
+      item.status === "ok" ? t("photosImported", { count: item.photoCount }) :
+      item.status === "linked" ? t("importAlready") :
+      item.status === "working" ? t("importWorking") :
+      item.status === "failed" ? t("importFailed") : t("importWaiting");
+    return (
+      <>
+        <ul className="max-h-48 space-y-1.5 overflow-y-auto pr-1 text-sm">
+          {job.items.map((item) => (
+            <li key={item.airbnbId} className="flex items-center justify-between gap-3">
+              <span className={`truncate ${item.status === "waiting" ? "text-muted" : "text-ink"}`}>{titleOf(item)}</span>
+              <span className={`shrink-0 text-xs ${item.status === "ok" || item.status === "linked" ? "text-[#0f766e]" : "text-muted"}`}>{label(item)}</span>
+            </li>
+          ))}
+        </ul>
+        {footer({ busy: false, onSave: () => undefined, error: null, locked: true })}
+      </>
+    );
+  }
+
+  async function addListing() {
+    if (!url.trim()) return;
+    setAdding(true);
+    setError(null);
+    const { ok, data } = await postJson("/api/admin/onboarding/listings", { action: "import", url: url.trim() });
+    if (ok) {
+      setUrl("");
+      setState(await fetch("/api/admin/onboarding").then((r) => r.json()));
+    } else {
+      setError(t(data?.error === "not_airbnb" ? "notAirbnbLink" : "importFailed"));
+    }
+    setAdding(false);
   }
 
   async function save() {
-    if (useGmail && Array.isArray(found) && found.length > 0) {
-      setBusy(true);
-      setError(null);
-      const linked = await linkFromGmail();
-      setBusy(false);
-      if (!linked) return setError(t("error"));
-    }
-    const todo = state.rooms.filter((room) => {
-      const value = values[room.id]?.trim();
-      if (!value) return false;
-      return kind === "airbnb" ? !(isDone(room) && value === room.airbnbUrl) : true;
+    const renames = listed
+      .filter((room) => titles[room.id] != null && titles[room.id].trim() && titles[room.id].trim() !== room.title)
+      .map((room) => ({ roomId: room.id, title: titles[room.id].trim() }));
+    const merges: Array<{ unitId: string; intoRoomId: string }> = [];
+    const removals = [...removing];
+    bare.forEach((unit, i) => {
+      const pick = pickFor(unit, i);
+      if (pick.startsWith("same:")) merges.push({ unitId: unit.id, intoRoomId: pick.slice(5) });
+      if (pick === "remove") removals.push(unit.id);
     });
-    if (todo.length === 0) return next();
-    setBusy(true);
-    setError(null);
-    let failed = false;
-    for (const room of todo) {
-      setStatus((s) => ({ ...s, [room.id]: kind === "airbnb" ? t("importing") : "…" }));
-      const { ok, data } =
-        kind === "airbnb"
-          ? await postJson(`/api/admin/room/${room.id}/import-airbnb`, {
-              airbnbUrl: values[room.id].trim(),
-              importPhotos: true,
-              importDescription: !room.hasDescription,
-            })
-          : await postJson(`/api/admin/room/${room.id}/calendar`, { icalUrl: values[room.id].trim() });
-      failed ||= !ok;
-      setStatus((s) => ({
-        ...s,
-        [room.id]: ok
-          ? kind === "airbnb" ? t("photosImported", { count: data.photoCount ?? 0 }) : t("connected")
-          : "✕",
-      }));
-      if (ok && kind === "calendars") setValues((v) => ({ ...v, [room.id]: "" }));
+    if (renames.length || merges.length || removals.length) {
+      setBusy(true);
+      const { ok, data } = await postJson("/api/admin/onboarding/listings", { action: "review", renames, merges, removals });
+      setBusy(false);
+      if (!ok) return setError(t("error"));
+      setState(data);
     }
-    const refreshed = await fetch("/api/admin/onboarding").then((r) => r.json());
-    setState(refreshed);
-    setBusy(false);
-    if (failed) return setError(t("error"));
+    markReviewed();
     next();
   }
 
   return (
     <>
-      {useGmail ? <GmailListings t={t} rooms={state.rooms} found={found} picks={picks} setPicks={setPicks} /> : null}
-      {useGmail && Array.isArray(found) && found.length > 0 ? null : (
-        <p className="text-sm font-medium text-ink">{t(kind === "airbnb" ? "airbnbAsk" : "calAsk")}</p>
-      )}
-      <div className={`max-h-56 space-y-2 overflow-y-auto pr-1 ${useGmail && found !== "error" && (found === "loading" || found.length > 0) ? "hidden" : ""}`}>
-        {state.rooms.map((room) => (
-          <div key={room.id} className="grid grid-cols-[minmax(0,7rem)_1fr] items-center gap-2 sm:grid-cols-[9rem_1fr]">
-            <span className="truncate text-sm text-ink">
-              {isDone(room) ? <span className="mr-1 text-[#0f766e]">✓</span> : null}
-              {room.title}
-            </span>
-            <div className="relative">
-              <input
-                className={`${inputClass} py-2 pr-20`}
-                value={values[room.id] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [room.id]: e.target.value }))}
-                placeholder={kind === "calendars" && isDone(room) ? t("connected") : t(kind === "airbnb" ? "airbnbPh" : "calPh")}
-                inputMode="url"
-              />
-              {status[room.id] ? (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted">{status[room.id]}</span>
-              ) : null}
-            </div>
+      {job.status === "error" ? (
+        <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-800">
+          {t("importError")}{" "}
+          <button type="button" onClick={start} className="font-semibold underline underline-offset-2">{t("retry")}</button>
+        </p>
+      ) : null}
+      {listed.length ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-ink">{t("reviewFound", { count: listed.length - removing.size })}</p>
+          <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+            {listed.map((room) => {
+              const gone = removing.has(room.id);
+              return (
+                <div key={room.id} className={`flex items-center gap-3 rounded-xl border border-line bg-white p-2 transition ${gone ? "opacity-50" : ""}`}>
+                  <Thumb src={room.cover} />
+                  <div className="min-w-0 flex-1">
+                    <input
+                      aria-label={t("roomName")}
+                      disabled={gone}
+                      value={titles[room.id] ?? room.title}
+                      onChange={(e) => setTitles((v) => ({ ...v, [room.id]: e.target.value }))}
+                      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium text-ink hover:border-line focus:border-aldeitas focus:outline-none"
+                    />
+                    <div className="px-1 text-[11px] text-muted">
+                      {gone ? t("willRemove") : t("photosImported", { count: room.imageCount })}
+                      {!gone && room.airbnbUrl ? (
+                        <a href={room.airbnbUrl} target="_blank" rel="noreferrer" className="ml-2 text-aldeitas hover:underline">Airbnb ↗</a>
+                      ) : null}
+                    </div>
+                  </div>
+                  {room.bookingCount === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRemoving((set) => {
+                          const copy = new Set(set);
+                          if (gone) {
+                            copy.delete(room.id);
+                          } else {
+                            copy.add(room.id);
+                          }
+                          return copy;
+                        })
+                      }
+                      className="shrink-0 rounded-full px-2 py-1 text-xs text-muted hover:bg-surface hover:text-ink"
+                    >
+                      {gone ? t("undo") : t("removeRoom")}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </div>
+      ) : null}
+      {bare.length && listed.length ? (
+        <div className="space-y-2 rounded-xl bg-surface/60 p-3">
+          <p className="text-xs font-medium text-ink">{t("reviewBare")}</p>
+          {bare.map((unit, i) => (
+            <div key={unit.id} className="flex items-center justify-between gap-2">
+              <span className="truncate text-sm text-ink">{unit.title}</span>
+              <select
+                aria-label={unit.title}
+                value={pickFor(unit, i)}
+                onChange={(e) => setUnitPick((v) => ({ ...v, [unit.id]: e.target.value }))}
+                className="max-w-[11rem] shrink-0 rounded-lg border border-line bg-white px-2 py-1.5 text-xs text-ink focus:border-aldeitas focus:outline-none"
+              >
+                {listed.filter((room) => !removing.has(room.id)).map((room) => (
+                  <option key={room.id} value={`same:${room.id}`}>{t("sameAs", { title: titles[room.id] ?? room.title })}</option>
+                ))}
+                <option value="keep">{t("keepRoom")}</option>
+                {unit.bookingCount === 0 ? <option value="remove">{t("removeRoom")}</option> : null}
+              </select>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="space-y-1">
+        <span className="text-xs font-medium text-muted">{t(listed.length ? "reviewMissing" : "airbnbAsk")}</span>
+        <div className="flex gap-2">
+          <input className={`${inputClass} py-2`} value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("airbnbPh")} inputMode="url" />
+          <button type="button" onClick={addListing} disabled={adding || !url.trim()} className="shrink-0 rounded-xl border border-aldeitas/40 px-3 text-sm font-semibold text-aldeitas hover:bg-aldeitas/5 disabled:opacity-50">
+            {adding ? "…" : t("add")}
+          </button>
+        </div>
+        <p className="text-[11px] text-muted">
+          {t("airbnbHint")}
+          {gmail ? (
+            <button type="button" onClick={start} className="ml-2 text-aldeitas hover:underline">{t("rescan")}</button>
+          ) : null}
+        </p>
       </div>
-      {useGmail && found !== "error" && (found === "loading" || found.length > 0) ? null : (
-        <p className="text-xs text-muted">{t(kind === "airbnb" ? "airbnbHint" : "calHint")}</p>
-      )}
       {footer({ busy, onSave: save, error })}
     </>
   );
 }
 
-function InboxStep({ t, state, setState, next, footer }: StepProps) {
+function CalendarStep({ t, state, setState, next, footer }: StepProps) {
+  const [site, setSite] = useState<Site>("airbnb");
+  const [fields, setFields] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(state.rooms.map((room) => [room.id, room.calendarCount === 0 ? [""] : []]))
+  );
+  const [failed, setFailed] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setField = (roomId: string, i: number, value: string) =>
+    setFields((all) => ({ ...all, [roomId]: (all[roomId] ?? []).map((v, j) => (j === i ? value : v)) }));
+  const addField = (roomId: string) => setFields((all) => ({ ...all, [roomId]: [...(all[roomId] ?? []), ""] }));
+
+  async function save() {
+    const todo = state.rooms.flatMap((room) =>
+      (fields[room.id] ?? []).map((value, i) => ({ room, i, value: value.trim() })).filter((f) => f.value)
+    );
+    if (todo.length === 0) return next();
+    const bad = todo.filter((f) => !/^(https?|webcal):\/\//i.test(f.value));
+    if (bad.length) {
+      setFailed(new Set(bad.map((f) => `${f.room.id}:${f.i}`)));
+      return setError(t("calInvalid"));
+    }
+    setBusy(true);
+    setError(null);
+    const broken = new Set<string>();
+    for (const f of todo) {
+      const icalUrl = f.value.replace(/^webcal:/i, "https:");
+      const { ok } = await postJson(`/api/admin/room/${f.room.id}/calendar`, {
+        icalUrl,
+        name: `${siteName(t, siteOf(icalUrl))} - ${f.room.title}`,
+      });
+      if (!ok) broken.add(`${f.room.id}:${f.i}`);
+    }
+    const refreshed: OnboardingState = await fetch("/api/admin/onboarding").then((r) => r.json());
+    setState(refreshed);
+    setBusy(false);
+    setFailed(broken);
+    if (broken.size) return setError(t("error"));
+    setFields(Object.fromEntries(refreshed.rooms.map((room) => [room.id, room.calendarCount === 0 ? [""] : []])));
+    next();
+  }
+
+  return (
+    <>
+      <div className="rounded-xl border border-line bg-surface/50 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-heading">{t("calGuide")}</span>
+          <div role="tablist" className="flex gap-1">
+            {(Object.keys(SITE_GUIDES) as Site[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={site === key}
+                onClick={() => setSite(key)}
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition ${site === key ? "bg-heading text-white" : "text-muted hover:text-ink"}`}
+              >
+                {siteName(t, key)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ol className="mt-2 space-y-1">
+          {SITE_GUIDES[site].map((key, i) => (
+            <li key={key} className="flex items-start gap-2 text-xs text-ink">
+              <span className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-aldeitas text-[10px] font-semibold text-white">{i + 1}</span>
+              {t(key)}
+            </li>
+          ))}
+        </ol>
+      </div>
+      <p className="text-sm font-medium text-ink">{t("calAskOne")}</p>
+      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+        {state.rooms.map((room) => {
+          const values = fields[room.id] ?? [];
+          const last = values[values.length - 1];
+          const canAdd = values.length === 0 || Boolean(last?.trim());
+          return (
+            <div key={room.id} className="rounded-xl border border-line bg-white p-2.5">
+              <div className="flex items-center gap-2">
+                <Thumb src={room.cover} className="h-7 w-7" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{room.title}</span>
+                {room.calendars.map((c, i) => (
+                  <span key={i} className="shrink-0 rounded-full bg-[#0f766e]/10 px-2 py-0.5 text-[10px] font-semibold text-[#0f766e]">
+                    {siteName(t, siteOf(c.host || c.name))} ✓
+                  </span>
+                ))}
+              </div>
+              {values.map((value, i) => (
+                <div key={i} className="relative mt-2">
+                  <input
+                    className={`${inputClass} py-2 pr-24 ${failed.has(room.id + ":" + i) ? "border-red-400" : ""}`}
+                    value={value}
+                    onChange={(e) => setField(room.id, i, e.target.value)}
+                    placeholder={i === 0 && room.calendarCount === 0 ? t("calPh") : t("calPhMore")}
+                    inputMode="url"
+                  />
+                  {value.trim() ? (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-muted">{siteName(t, siteOf(value))}</span>
+                  ) : null}
+                </div>
+              ))}
+              {canAdd ? (
+                <button type="button" onClick={() => addField(room.id)} className="mt-1.5 text-xs font-medium text-aldeitas hover:underline">
+                  {t("addSite")}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <details className="rounded-xl bg-surface/60 px-3 py-2 text-xs text-muted">
+        <summary className="cursor-pointer font-medium text-ink">{t("calBack")}</summary>
+        <p className="mt-1">{t("calBackHint")}</p>
+        <div className="mt-2 space-y-1.5">
+          {state.rooms.map((room) => (
+            <CopyLink key={room.id} t={t} url={room.exportUrl} label={room.title} />
+          ))}
+        </div>
+      </details>
+      {footer({ busy, onSave: save, error })}
+    </>
+  );
+}
+
+function InboxStep({ t, state, setState, next, footer, importer, ensureNext }: StepProps) {
   const hotel = state.hotel;
   const [email, setEmail] = useState(hotel?.gmailEmail ?? "");
   const [password, setPassword] = useState("");
@@ -362,6 +546,8 @@ function InboxStep({ t, state, setState, next, footer }: StepProps) {
     }
     setState(await fetch("/api/admin/onboarding").then((r) => r.json()));
     setBusy(false);
+    importer.start();
+    ensureNext("airbnb");
     next();
   }
   return (
@@ -475,24 +661,32 @@ const STEP_COPY: Record<DemoId, { kicker: OnboardingCopyKey; title: OnboardingCo
   done: { kicker: "doneKicker", title: "doneTitle", body: "doneBody" },
 };
 
-function stepsFor(mode: "full" | "missing", state: OnboardingState): DemoId[] {
+const IMPORT_COPY = { kicker: "importKicker", title: "importTitle", body: "importBody" } as const;
+const REVIEW_COPY = { kicker: "reviewKicker", title: "reviewTitle", body: "reviewBody" } as const;
+
+function stepsFor(mode: "full" | "missing", state: OnboardingState, importer: Pick<Importer, "job" | "reviewed">): DemoId[] {
   const available = (id: DemoId) => id === "you" || id === "done" || Boolean(state.hotel);
   if (mode === "full") return FULL_TOUR.filter(available);
-  return state.missing.filter(available);
+  const wanted = new Set<DemoId>(state.missing);
+  if (isRunning(importer.job) || (importer.job.status === "done" && !importer.reviewed)) wanted.add("airbnb");
+  return FULL_TOUR.filter((id) => wanted.has(id) && available(id));
 }
 
 function Slideshow({
-  t, mode, state, setState, onClose,
+  t, mode, state, setState, onClose, importer,
 }: {
   t: T;
   mode: "full" | "missing";
   state: OnboardingState;
   setState: (state: OnboardingState) => void;
   onClose: () => void;
+  importer: Importer;
 }) {
-  const [steps] = useState(() => stepsFor(mode, state));
-  const [index, setIndex] = useState(0);
+  const [steps, setSteps] = useState(() => stepsFor(mode, state, importer));
+  const [index, setIndex] = useState(() => (isRunning(importer.job) ? Math.max(0, steps.indexOf("airbnb")) : 0));
   const id = steps[index];
+  const ensureNext = (step: DemoId) =>
+    setSteps((list) => (list.includes(step) ? list : [...list.slice(0, index + 1), step, ...list.slice(index + 1)]));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -506,9 +700,12 @@ function Slideshow({
   }, [onClose]);
 
   const next = () => (index + 1 < steps.length ? setIndex(index + 1) : onClose());
-  const copy = STEP_COPY[id];
+  const importing = id === "airbnb" && isRunning(importer.job);
+  const reviewing =
+    id === "airbnb" && !importing && (Boolean(state.hotel?.gmailConnected) || state.rooms.some((room) => room.imageCount > 0));
+  const copy = importing ? IMPORT_COPY : reviewing ? REVIEW_COPY : STEP_COPY[id];
 
-  const footer = ({ busy, onSave, error }: { busy: boolean; onSave: () => void; error: string | null }) => (
+  const footer = ({ busy, onSave, error, locked }: FooterOpts) => (
     <div className="space-y-2 pt-1">
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
       <div className="flex items-center justify-between gap-2">
@@ -520,7 +717,7 @@ function Slideshow({
           {index > 0 ? `← ${t("back")}` : t("later")}
         </button>
         <div className="flex items-center gap-2">
-          {index > 0 ? (
+          {index > 0 && !locked ? (
             <button type="button" onClick={next} className="rounded-full px-3 py-2 text-sm text-muted hover:text-ink">
               {t("later")}
             </button>
@@ -528,17 +725,17 @@ function Slideshow({
           <button
             type="button"
             onClick={onSave}
-            disabled={busy}
+            disabled={busy || locked}
             className="rounded-full bg-aldeitas px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-60"
           >
-            {busy ? t("saving") : t("save")}
+            {locked ? t("importWait") : busy ? t("saving") : t("save")}
           </button>
         </div>
       </div>
     </div>
   );
 
-  const props: StepProps = { t, state, setState, next, footer };
+  const props: StepProps = { t, state, setState, next, footer, importer, ensureNext };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/40 backdrop-blur-sm sm:items-center sm:p-6" onClick={onClose}>
@@ -557,8 +754,12 @@ function Slideshow({
         >
           ×
         </button>
-        <OnboardingDemo key={id} id={id} t={t} />
-        <div className="mt-4 flex items-center gap-1.5" aria-label={t("stepOf", { n: index + 1, total: steps.length })}>
+        {importing ? (
+          <ImportVisual t={t} job={importer.job} rooms={state.rooms} />
+        ) : reviewing ? null : (
+          <OnboardingDemo key={id} id={id} t={t} />
+        )}
+        <div className={`${reviewing ? "mt-1 pr-10" : "mt-4"} flex items-center gap-1.5`} aria-label={t("stepOf", { n: index + 1, total: steps.length })}>
           {steps.map((step, i) => (
             <span key={step} className={`h-1.5 rounded-full transition-all ${i === index ? "w-6 bg-aldeitas" : i < index ? "w-1.5 bg-aldeitas/50" : "w-1.5 bg-line"}`} />
           ))}
@@ -573,8 +774,8 @@ function Slideshow({
             {id === "you" ? <YouStep {...props} /> : null}
             {id === "story" ? <StoryStep {...props} /> : null}
             {id === "map" ? <MapStep {...props} /> : null}
-            {id === "airbnb" ? <RoomLinksStep {...props} kind="airbnb" /> : null}
-            {id === "calendars" ? <RoomLinksStep {...props} kind="calendars" /> : null}
+            {id === "airbnb" ? <RoomsStep {...props} /> : null}
+            {id === "calendars" ? <CalendarStep {...props} /> : null}
             {id === "inbox" ? <InboxStep {...props} /> : null}
             {id === "team" ? <TeamStep {...props} /> : null}
             {id === "done" ? <DoneStep t={t} state={state} close={onClose} /> : null}
@@ -592,6 +793,55 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   const t: T = useCallback((key, vars) => onboardingText(locale, key, vars), [locale]);
   const [state, setState] = useState<OnboardingState | null>(null);
   const [mode, setMode] = useState<"full" | "missing" | null>(null);
+  const [job, setJob] = useState<ImportJob>({ status: "idle", items: [] });
+  const [reviewed, setReviewed] = useState(false);
+  const running = useRef(false);
+
+  const startImport = useCallback(async () => {
+    if (running.current) return;
+    running.current = true;
+    setReviewed(false);
+    setJob({ status: "scanning", items: [] });
+    let items: ImportItem[] = [];
+    try {
+      const res = await fetch("/api/admin/onboarding/listings");
+      if (!res.ok) throw new Error("scan failed");
+      const { listings } = (await res.json()) as { listings: GmailListing[] };
+      items = listings.map((listing) => ({
+        airbnbId: listing.airbnbId,
+        roomId: listing.roomId,
+        title: null,
+        cover: null,
+        photoCount: 0,
+        created: false,
+        status: listing.roomId ? "linked" : "waiting",
+      }));
+      setJob({ status: "importing", items });
+      for (const item of items) {
+        if (item.status === "linked") continue;
+        const patch = (change: Partial<ImportItem>) => {
+          items = items.map((it) => (it.airbnbId === item.airbnbId ? { ...it, ...change } : it));
+          setJob({ status: "importing", items });
+        };
+        patch({ status: "working" });
+        const { ok, data } = await postJson("/api/admin/onboarding/listings", { action: "import", airbnbId: item.airbnbId });
+        patch(
+          ok
+            ? { status: "ok", roomId: data.roomId, title: data.title, cover: data.cover, photoCount: data.photoCount, created: Boolean(data.created) }
+            : { status: "failed" }
+        );
+      }
+      const fresh = await fetch("/api/admin/onboarding").then((r) => r.json());
+      if (Array.isArray(fresh?.missing)) setState(fresh);
+      setJob({ status: "done", items });
+    } catch {
+      setJob({ status: "error", items });
+    } finally {
+      running.current = false;
+    }
+  }, []);
+
+  const importer: Importer = { job, start: startImport, reviewed, markReviewed: () => setReviewed(true) };
 
   useEffect(() => {
     let alive = true;
@@ -623,28 +873,44 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   }, [userId]);
 
   if (!state) return null;
-  const missingSteps = stepsFor("missing", state);
+  const missingSteps = stepsFor("missing", state, { job, reviewed });
+  const progress = importProgress(job);
   const missingCount = missingSteps.length;
   const listingsOnly = missingSteps.every((step) => LISTING_STEPS.has(step));
 
   return (
     <>
-      {missingCount > 0 ? (
+      {missingCount > 0 || isRunning(job) ? (
         <button
           type="button"
           onClick={() => setMode("missing")}
-          aria-label={t("navButtonAria", { count: missingCount })}
+          aria-label={isRunning(job) ? (job.status === "scanning" ? t("importWait") : t("navImporting", { done: progress.done, total: progress.total })) : t("navButtonAria", { count: missingCount })}
           className="group flex items-center gap-2 rounded-full border border-aldeitas/30 bg-aldeitas/5 py-1.5 pl-2 pr-3 text-sm font-semibold text-aldeitas transition hover:border-aldeitas/60 hover:bg-aldeitas/10"
         >
-          <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-aldeitas text-[11px] text-white">
-            {missingCount}
+          {isRunning(job) ? (
+            <svg viewBox="0 0 20 20" className="h-5 w-5 -rotate-90" aria-hidden>
+              <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="3" />
+              <circle
+                cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+                strokeDasharray={50.27} strokeDashoffset={50.27 * (1 - progress.ratio)}
+                className="transition-[stroke-dashoffset] duration-700"
+              />
+            </svg>
+          ) : (
+            <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-aldeitas text-[11px] text-white">
+              {missingCount}
+            </span>
+          )}
+          <span className="hidden md:inline">
+            {isRunning(job)
+              ? (job.status === "scanning" ? t("importWait") : t("navImporting", { done: progress.done, total: progress.total }))
+              : t(listingsOnly ? "navButtonListings" : "navButton")}
           </span>
-          <span className="hidden md:inline">{t(listingsOnly ? "navButtonListings" : "navButton")}</span>
         </button>
       ) : null}
       {mode
         ? createPortal(
-            <Slideshow key={mode} t={t} mode={mode} state={state} setState={setState} onClose={close} />,
+            <Slideshow key={mode} t={t} mode={mode} state={state} setState={setState} onClose={close} importer={importer} />,
             document.body
           )
         : null}
