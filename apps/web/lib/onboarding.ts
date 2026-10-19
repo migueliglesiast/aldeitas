@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getListingIcalExportUrl } from "@/lib/site-url";
 import {
   getHotelCalendarShareUrl,
   getOrCreateHotelCalendarShareToken,
@@ -20,9 +21,13 @@ export type OnboardingRoom = {
   id: string;
   title: string;
   airbnbUrl: string;
+  cover: string | null;
   hasDescription: boolean;
   imageCount: number;
+  bookingCount: number;
   calendarCount: number;
+  calendars: Array<{ name: string; host: string }>;
+  exportUrl: string;
 };
 
 export type OnboardingState = {
@@ -46,12 +51,20 @@ export type OnboardingState = {
   missing: OnboardingStep[];
 };
 
-export function roomHasAirbnb(room: OnboardingRoom) {
-  return Boolean(room.airbnbUrl) && room.imageCount > 0;
+export function roomHasPhotos(room: OnboardingRoom) {
+  return room.imageCount > 0;
 }
 
 export function roomHasCalendar(room: OnboardingRoom) {
   return room.calendarCount > 0;
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 /** The hotel onboarding works on: the first one the user manages. */
@@ -76,7 +89,11 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
         include: {
           listings: {
             orderBy: { createdAt: "asc" },
-            include: { _count: { select: { images: true, calendarSources: true } } },
+            include: {
+              images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+              calendarSources: { orderBy: { createdAt: "asc" }, select: { name: true, icalUrl: true } },
+              _count: { select: { images: true, bookings: true } },
+            },
           },
           contacts: { orderBy: { createdAt: "asc" } },
         },
@@ -87,9 +104,16 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     id: listing.id,
     title: listing.title,
     airbnbUrl: listing.airbnbUrl,
+    cover: listing.images[0]?.url ?? null,
     hasDescription: Boolean(listing.description?.trim()),
     imageCount: listing._count.images,
-    calendarCount: listing._count.calendarSources + (listing.icalUrl ? 1 : 0),
+    bookingCount: listing._count.bookings,
+    calendarCount: listing.calendarSources.length + (listing.icalUrl ? 1 : 0),
+    calendars: [
+      ...(listing.icalUrl ? [{ name: "", icalUrl: listing.icalUrl }] : []),
+      ...listing.calendarSources,
+    ].map((source) => ({ name: source.name, host: hostOf(source.icalUrl) })),
+    exportUrl: getListingIcalExportUrl(listing.id),
   }));
 
   const contact = (type: string) => {
@@ -113,7 +137,7 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
       missing.push("map");
     }
     if (!(hotel.gmailSyncEmail && hotel.gmailSyncPasswordEnc)) missing.push("inbox");
-    if (rooms.length === 0 || rooms.some((room) => !roomHasAirbnb(room))) missing.push("airbnb");
+    if (rooms.length === 0 || rooms.some((room) => !roomHasPhotos(room))) missing.push("airbnb");
     if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!cleaner) missing.push("team");
   }

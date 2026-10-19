@@ -1,9 +1,4 @@
 import { ImapFlow } from "imapflow";
-import {
-  fetchListingPageHtml,
-  scrapeListingImagesFromHtml,
-  scrapeListingTitle,
-} from "@/lib/airbnb";
 import { resolveListingAirbnbId } from "@/lib/airbnb-listing-id";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/secret-crypto";
@@ -12,12 +7,9 @@ const LOOKBACK_DAYS = 540;
 const MAX_EMAILS = 200;
 const MAX_LISTINGS = 20;
 
-export type DiscoveredListing = {
+export type GmailListing = {
   airbnbId: string;
-  airbnbUrl: string;
   bookings: number;
-  title: string | null;
-  photo: string | null;
   /** Room in this hotel already linked to this Airbnb listing. */
   roomId: string | null;
 };
@@ -71,12 +63,8 @@ async function countRoomIdsInGmail(email: string, appPassword: string) {
   return counts;
 }
 
-/**
- * Finds the Airbnb listings that appear in the hotel's booking emails and
- * reads each public listing page for its title and cover photo. Listings that
- * are no longer public are left out.
- */
-export async function discoverHotelAirbnbListings(hotelId: string): Promise<DiscoveredListing[]> {
+/** Airbnb listings that appear in the hotel's booking emails, most-booked first. */
+export async function scanHotelGmailListings(hotelId: string): Promise<GmailListing[]> {
   const hotel = await prisma.hotel.findUnique({
     where: { id: hotelId },
     select: {
@@ -98,23 +86,8 @@ export async function discoverHotelAirbnbListings(hotelId: string): Promise<Disc
     if (airbnbId) linked.set(airbnbId, listing.id);
   }
 
-  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_LISTINGS);
-  const results: DiscoveredListing[] = [];
-  for (const [airbnbId, bookings] of ranked) {
-    const airbnbUrl = `https://www.airbnb.com/rooms/${airbnbId}`;
-    try {
-      const html = await fetchListingPageHtml(airbnbUrl);
-      results.push({
-        airbnbId,
-        airbnbUrl,
-        bookings,
-        title: scrapeListingTitle(html),
-        photo: scrapeListingImagesFromHtml(html)[0] ?? null,
-        roomId: linked.get(airbnbId) ?? null,
-      });
-    } catch {
-      continue;
-    }
-  }
-  return results;
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_LISTINGS)
+    .map(([airbnbId, bookings]) => ({ airbnbId, bookings, roomId: linked.get(airbnbId) ?? null }));
 }
