@@ -7,6 +7,14 @@ function normalizeRecipients(to: string | string[]) {
   return [...new Set(list.map((email) => email.trim()).filter(Boolean))];
 }
 
+/** Swaps the display name of a From header, keeping its address: `"La Arbolita" <reservas@x>`. */
+export function withFromName(from: string, name?: string) {
+  const clean = name?.replace(/["<>\r\n]/g, "").trim();
+  if (!clean) return from;
+  const address = from.match(/<([^>]+)>/)?.[1] ?? from.trim();
+  return `"${clean}" <${address}>`;
+}
+
 function logDisabledEmail(payload: EmailPayload) {
   const recipients = normalizeRecipients(payload.to).join(", ");
   console.log(
@@ -30,7 +38,7 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailSendResult>
 
   try {
     const info = await transport.sendMail({
-      from: config.from,
+      from: withFromName(config.from, payload.fromName),
       to: recipients.join(", "),
       replyTo: payload.replyTo || config.replyTo,
       subject: payload.subject,

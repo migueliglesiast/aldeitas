@@ -4,6 +4,7 @@ export type EmailPayload = {
   text: string;
   html: string;
   replyTo?: string;
+  fromName?: string;
 };
 
 export type EmailSendResult =
