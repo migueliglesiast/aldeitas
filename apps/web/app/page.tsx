@@ -1,7 +1,8 @@
 import { getHotelsWithListings, type HotelWithListings } from "@/lib/data";
 import HotelGrid from "@/components/HotelGrid";
 import SearchForm from "@/components/SearchForm";
-import { HomeHero, HomeSignUpPrompt } from "@/components/HomeHero";
+import { HomeHero } from "@/components/HomeHero";
+import { HomeFaq, HostBand, HowItWorks, StaysHeading } from "@/components/HomeSections";
 import StorefrontHomePage from "@/components/StorefrontHomePage";
 import { getStorefrontFromHeaders } from "@/lib/storefront";
 
@@ -27,7 +28,7 @@ export default async function HomePage() {
     "Espacio Malinxhe",
   ];
   const orderMap = new Map(desiredOrder.map((n, i) => [n, i]));
-  const sorted = [...hotels].sort((a, b) => {
+  const sorted = hotels.filter((h) => h.listings.length > 0).sort((a, b) => {
     const ai = orderMap.get(a.name) ?? Number.MAX_SAFE_INTEGER;
     const bi = orderMap.get(b.name) ?? Number.MAX_SAFE_INTEGER;
     return ai - bi;
@@ -46,6 +47,8 @@ export default async function HomePage() {
     listings: h.listings,
   }));
 
+  const roomCount = sorted.reduce((sum, h) => sum + h.listings.length, 0);
+
   return (
     <div className="space-y-8">
       <HomeHero />
@@ -57,8 +60,16 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <HotelGrid hotels={serializedHotels} />
-      <HomeSignUpPrompt />
+      <section id="stays" className="scroll-mt-36 space-y-6">
+        <StaysHeading hotels={sorted.length} rooms={roomCount} />
+        <HotelGrid hotels={serializedHotels} />
+      </section>
+
+      <div className="space-y-20 pt-12 md:space-y-24 md:pt-16">
+        <HowItWorks />
+        <HomeFaq />
+        <HostBand />
+      </div>
     </div>
   );
 }

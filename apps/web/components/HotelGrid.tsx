@@ -286,7 +286,7 @@ export default function HotelGrid({ hotels }: { hotels: Hotel[] }) {
           ))}
           {filtered.length === 0 && (
             <div className="col-span-full text-center text-muted py-8">
-              No results found. Try adjusting your search.
+              {t("noResults")}
             </div>
           )}
         </div>

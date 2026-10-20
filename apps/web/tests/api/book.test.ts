@@ -9,17 +9,11 @@ const prismaMock = {
 };
 const fetchIcalBlocks = vi.fn();
 const fetchDynamicPricing = vi.fn();
-const sessionsCreate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/airbnb", () => ({
   fetchIcalBlocks: (...args: unknown[]) => fetchIcalBlocks(...args),
   fetchDynamicPricing: (...args: unknown[]) => fetchDynamicPricing(...args),
-}));
-vi.mock("stripe", () => ({
-  default: class {
-    checkout = { sessions: { create: (...args: unknown[]) => sessionsCreate(...args) } };
-  },
 }));
 
 const { POST } = await import("@/app/api/book/route");
@@ -53,7 +47,6 @@ const LISTING = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
-  delete process.env.STRIPE_SECRET_KEY;
   delete process.env.PAYMENT_PROVIDER;
   delete process.env.CONEKTA_PRIVATE_KEY;
   process.env.MERCADOPAGO_ACCESS_TOKEN = "TEST-token";
@@ -64,7 +57,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.STRIPE_SECRET_KEY;
   delete process.env.MERCADOPAGO_ACCESS_TOKEN;
 });
 
@@ -160,7 +152,6 @@ describe("POST /api/book", () => {
         pendingExpiresAt: expect.any(Date),
       }),
     });
-    expect(sessionsCreate).not.toHaveBeenCalled();
   });
 
   it("only counts paid or confirmed bookings as local conflicts", async () => {
@@ -179,23 +170,6 @@ describe("POST /api/book", () => {
     });
   });
 
-  it("uses dynamic pricing and returns a Stripe checkout url", async () => {
-    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
-    fetchDynamicPricing.mockResolvedValue({ nightlyCents: 5000, currency: "MXN" });
-    sessionsCreate.mockResolvedValue({ url: "https://checkout.stripe.com/s/1" });
-
-    const res = await POST(request(VALID_BODY));
-
-    await expect(res.json()).resolves.toEqual({
-      checkoutUrl: "https://checkout.stripe.com/s/1",
-    });
-    expect(prismaMock.booking.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ totalPriceCents: 10000, currency: "MXN" }),
-    });
-  });
-
   it("returns 409 when the legacy icalUrl blocks the dates", async () => {
     prismaMock.listing.findUnique.mockResolvedValue({
       ...LISTING,
@@ -209,51 +183,6 @@ describe("POST /api/book", () => {
 
     expect(res.status).toBe(409);
     expect(prismaMock.booking.create).not.toHaveBeenCalled();
-  });
-
-  it("sends the booking metadata and redirect URLs to Stripe checkout", async () => {
-    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    process.env.NEXT_PUBLIC_SITE_URL = "https://aldeitas.example";
-    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
-    sessionsCreate.mockResolvedValue({ url: "https://checkout.stripe.com/s/2" });
-
-    try {
-      const res = await POST(request(VALID_BODY));
-
-      expect(res.status).toBe(200);
-      expect(sessionsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mode: "payment",
-          line_items: [
-            expect.objectContaining({
-              quantity: 1,
-              price_data: expect.objectContaining({
-                currency: "USD",
-                unit_amount: 20000,
-              }),
-            }),
-          ],
-          success_url: "https://aldeitas.example/listing/l1?success=1",
-          cancel_url: "https://aldeitas.example/listing/l1?canceled=1",
-          metadata: { bookingId: "b1" },
-        })
-      );
-    } finally {
-      delete process.env.NEXT_PUBLIC_SITE_URL;
-    }
-  });
-
-  it("returns a generic 500 when Stripe checkout creation fails", async () => {
-    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
-    process.env.STRIPE_SECRET_KEY = "sk_test_x";
-    prismaMock.listing.findUnique.mockResolvedValue(LISTING);
-    sessionsCreate.mockRejectedValue(new Error("stripe down"));
-
-    const res = await POST(request(VALID_BODY));
-
-    expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toEqual({ error: "Internal server error" });
   });
 
   it("rejects an invalid email with 400 before touching the database", async () => {

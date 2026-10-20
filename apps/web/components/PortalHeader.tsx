@@ -47,7 +47,22 @@ export default function PortalHeader() {
               {t("navLocation")}
             </Link>
           </nav>
-        ) : null}
+        ) : (
+          <nav
+            aria-label="Secciones"
+            className="hidden items-center gap-1 text-sm font-semibold text-ink lg:flex"
+          >
+            <Link href="/#stays" className="rounded-full px-3 py-2 hover:bg-surface">
+              {t("navStays")}
+            </Link>
+            <Link href="/#how" className="rounded-full px-3 py-2 hover:bg-surface">
+              {t("navHowItWorks")}
+            </Link>
+            <Link href="/ayuda" className="rounded-full px-3 py-2 hover:bg-surface">
+              {t("navHelp")}
+            </Link>
+          </nav>
+        )}
         <div className="flex shrink-0 items-center gap-3">
           <LanguageSwitcher />
           {isStorefront ? null : <AuthButton />}
