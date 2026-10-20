@@ -83,6 +83,22 @@ function scheduleBookingReconcile() {
   console.log("[aldeitas] booking reconcile every %s min", minutes);
 }
 
+function scheduleWhatsappTick() {
+  const secret = process.env.BOOKING_RECONCILE_SECRET;
+  if (!secret || !process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) return;
+
+  const url = `${schedulerBaseUrl()}/api/whatsapp/tick`;
+  const run = () =>
+    fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
+      .then((res) => {
+        if (!res.ok) console.error("[aldeitas] whatsapp tick returned %s", res.status);
+      })
+      .catch((error) => logError("whatsapp tick", error));
+
+  setInterval(run, 60 * 1000).unref();
+  console.log("[aldeitas] whatsapp tick every 1 min");
+}
+
 function scheduleAirbnbPriceSync() {
   const secret = process.env.BOOKING_RECONCILE_SECRET;
   const hours = Number(process.env.AIRBNB_PRICE_SYNC_INTERVAL_HOURS || 2);
@@ -132,6 +148,7 @@ app
       .listen(port, hostname, () => {
         console.log("[aldeitas] Ready on http://%s:%s", hostname, port);
         scheduleBookingReconcile();
+        scheduleWhatsappTick();
         scheduleAirbnbPriceSync();
         scheduleAirbnbReviewSync();
       })

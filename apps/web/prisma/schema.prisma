@@ -41,10 +41,10 @@ model Session {
 }
 
 model Hotel {
-  id                   String              @id @default(cuid())
+  id                   String                 @id @default(cuid())
   name                 String
-  slug                 String              @unique
-  customDomain         String?             @unique
+  slug                 String                 @unique
+  customDomain         String?                @unique
   description          String
   descriptionEn        String?
   descriptionEs        String?
@@ -58,9 +58,9 @@ model Hotel {
   logoImageUrl         String?
   mainContactNumber    String?
   ownerId              String?
-  owner                User?               @relation("HotelOwner", fields: [ownerId], references: [id])
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  owner                User?                  @relation("HotelOwner", fields: [ownerId], references: [id])
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
   listings             Listing[]
   contacts             HotelContact[]
   images               HotelImage[]
@@ -70,10 +70,12 @@ model Hotel {
   ghostBookings        GhostBooking[]
   gmailSyncEmail       String?
   gmailSyncPasswordEnc String?
-  gmailSyncEnabled     Boolean             @default(false)
+  gmailSyncEnabled     Boolean                @default(false)
   gmailSyncLastAt      DateTime?
   gmailSyncLastError   String?
-  gmailSyncOffset      Int                 @default(0)
+  gmailSyncOffset      Int                    @default(0)
+  guestAnswers         GuestAnswer[]
+  whatsappChats        WhatsappConversation[]
 }
 
 model HotelCalendarShare {
@@ -255,6 +257,9 @@ model Booking {
   cancelReason           String?
   externalBlocksSnapshot String?
   lastReconciledAt       DateTime?
+  welcomeSentAt          DateTime?
+  checkinInfoSentAt      DateTime?
+  goodbyeSentAt          DateTime?
   status                 BookingStatus @default(PENDING)
   createdAt              DateTime      @default(now())
 }
@@ -263,6 +268,97 @@ enum BookingStatus {
   PENDING
   CONFIRMED
   CANCELED
+}
+
+model WhatsappConversation {
+  id                String              @id @default(cuid())
+  phone             String              @unique
+  locale            String              @default("es")
+  hotelId           String?
+  hotel             Hotel?              @relation(fields: [hotelId], references: [id])
+  listingId         String?
+  bookingId         String?
+  roomVerifiedUntil DateTime?
+  botPaused         Boolean             @default(false)
+  endedAt           DateTime?
+  lastInboundAt     DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  messages          WhatsappMessage[]
+  hostThreads       HostThread[]
+  emergencies       EmergencyDispatch[]
+}
+
+model WhatsappMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      String
+  author         String
+  body           String
+  waMessageId    String?              @unique
+  createdAt      DateTime             @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model GuestAnswer {
+  id           String   @id @default(cuid())
+  hotelId      String
+  hotel        Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  listingId    String?
+  question     String
+  answer       String
+  verifiedOnly Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([hotelId])
+}
+
+model HostThread {
+  id              String               @id @default(cuid())
+  conversationId  String
+  conversation    WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  hostPhone       String
+  kind            String
+  question        String
+  hostWaMessageId String?              @unique
+  status          String               @default("OPEN")
+  answer          String?
+  remindedAt      DateTime?
+  answeredAt      DateTime?
+  createdAt       DateTime             @default(now())
+
+  @@index([hostPhone, status])
+}
+
+model ServiceProvider {
+  id       String  @id @default(cuid())
+  service  String
+  audience String
+  priority Int
+  name     String
+  phone    String
+  notes    String?
+
+  @@unique([service, priority, phone])
+}
+
+model EmergencyDispatch {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  service        String
+  description    String
+  status         String               @default("DISPATCHING")
+  providerId     String?
+  attempt        Int                  @default(0)
+  lastAlertAt    DateTime?
+  acceptedAt     DateTime?
+  createdAt      DateTime             @default(now())
+
+  @@index([status])
 }
 
 model ListingReview {

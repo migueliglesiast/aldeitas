@@ -7,6 +7,7 @@ import HotelContactsSection from "./HotelContactsSection";
 import HotelGmailSync from "./HotelGmailSync";
 import HotelImageUpload from "./HotelImageUpload";
 import HotelMultiCalendar from "./HotelMultiCalendar";
+import HotelWhatsappSection from "./HotelWhatsappSection";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import RoomList from "./RoomList";
 
@@ -36,12 +37,13 @@ type Hotel = {
   }>;
 };
 
-type TabId = "general" | "calendar" | "maintenance";
+type TabId = "general" | "calendar" | "maintenance" | "whatsapp";
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "general", label: "General Info" },
   { id: "calendar", label: "Multi Calendar" },
   { id: "maintenance", label: "Maintenance" },
+  { id: "whatsapp", label: "WhatsApp" },
 ];
 
 export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
@@ -341,6 +343,8 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
           <HotelContactsSection hotelId={hotel.id} initialContacts={hotel.contacts} />
         </div>
       ) : null}
+
+      {tab === "whatsapp" ? <HotelWhatsappSection hotelId={hotel.id} /> : null}
     </div>
   );
 }
