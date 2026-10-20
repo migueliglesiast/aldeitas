@@ -75,10 +75,10 @@ describe("BookingForm", () => {
     await waitFor(() => expect(screen.getByText("$200.00 USD")).toBeInTheDocument());
   });
 
-  it("redirects to Stripe checkout when the booking returns a checkout url", async () => {
+  it("redirects to the Conekta checkout when the booking returns a checkout url", async () => {
     const fetchMock = vi.fn(async (url: string) =>
       url.startsWith("/api/book")
-        ? { ok: true, json: async () => ({ checkoutUrl: "https://checkout.stripe.com/s/1" }) }
+        ? { ok: true, json: async () => ({ checkoutUrl: "https://pay.conekta.com/checkout/1" }) }
         : { ok: true, json: async () => PRICING }
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -89,7 +89,7 @@ describe("BookingForm", () => {
     await fillForm();
     await userEvent.click(screen.getByRole("button", { name: "Reserve" }));
 
-    await waitFor(() => expect(location.href).toBe("https://checkout.stripe.com/s/1"));
+    await waitFor(() => expect(location.href).toBe("https://pay.conekta.com/checkout/1"));
   });
 
   it("redirects to the Mercado Pago payment page when the booking returns a payment url", async () => {
