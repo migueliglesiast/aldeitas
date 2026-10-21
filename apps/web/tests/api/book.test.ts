@@ -23,6 +23,7 @@ vi.mock("stripe", () => ({
 }));
 
 const { POST } = await import("@/app/api/book/route");
+const { clearCalendarCache } = await import("@/lib/external-calendars");
 
 const VALID_BODY = {
   listingId: "l1",
@@ -52,6 +53,7 @@ const LISTING = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearCalendarCache();
   vi.spyOn(console, "error").mockImplementation(() => {});
   delete process.env.STRIPE_SECRET_KEY;
   delete process.env.PAYMENT_PROVIDER;
