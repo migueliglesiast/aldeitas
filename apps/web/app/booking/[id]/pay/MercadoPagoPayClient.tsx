@@ -71,9 +71,12 @@ function AuthorizationNotice() {
           <LockIcon className="h-3.5 w-3.5 text-[#009EE3]" />
         </span>
         <p className="text-sm leading-relaxed text-gray-700">
-          Tu tarjeta se autorizará ahora.{" "}
-          <span className="font-medium text-gray-900">
-            Solo se cobrará cuando tu reserva esté confirmada.
+          Con tarjeta de crédito solo se autoriza ahora y{" "}
+          <span className="font-medium text-gray-900">se cobra al confirmar tu reserva.</span>{" "}
+          Con débito revisamos tus fechas al momento y se cobra al confirmar.
+          <span className="mt-1 block text-xs text-gray-500">
+            Credit cards are only authorized now and charged once your booking is confirmed. Debit cards are charged right
+            away, after we check your dates.
           </span>
         </p>
       </div>
@@ -240,12 +243,16 @@ export default function MercadoPagoPayClient({
               }
             }
           },
-          onSubmit: (cardData: {
-            token?: string;
-            payment_method_id?: string;
-            paymentMethodId?: string;
-            installments?: number | string;
-          }) => {
+          onSubmit: (
+            cardData: {
+              token?: string;
+              payment_method_id?: string;
+              paymentMethodId?: string;
+              payment_type_id?: string;
+              installments?: number | string;
+            },
+            additionalData?: { paymentTypeId?: string }
+          ) => {
             setSubmitting(true);
             setError(null);
             return fetch(`/api/bookings/${bookingId}/pay`, {
@@ -254,6 +261,7 @@ export default function MercadoPagoPayClient({
               body: JSON.stringify({
                 token: cardData.token,
                 payment_method_id: cardData.payment_method_id ?? cardData.paymentMethodId,
+                payment_type_id: cardData.payment_type_id ?? additionalData?.paymentTypeId,
                 installments: cardData.installments ?? 1,
               }),
             })
