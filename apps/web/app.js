@@ -61,6 +61,30 @@ try {
   fatal("cannot require('next') — run npm install in app root", error);
 }
 
+const jobDir = path.join(os.tmpdir(), "aldeitas-jobs");
+
+/**
+ * Hostinger starts several app.js processes; only the first to claim the current
+ * time window runs a scheduled job, so Airbnb sees one sync, not one per process.
+ */
+function claimJobSlot(name, intervalMs) {
+  const slot = Math.floor(Date.now() / intervalMs);
+  try {
+    fs.mkdirSync(jobDir, { recursive: true });
+    fs.writeFileSync(path.join(jobDir, `${name}.${slot}`), String(process.pid), { flag: "wx" });
+  } catch (error) {
+    if (error && error.code === "EEXIST") return false;
+    logError(`job lock ${name}`, error);
+    return true;
+  }
+  for (const file of fs.readdirSync(jobDir)) {
+    if (file.startsWith(`${name}.`) && file !== `${name}.${slot}`) {
+      fs.rmSync(path.join(jobDir, file), { force: true });
+    }
+  }
+  return true;
+}
+
 /** Hostinger's process manager doesn't expose the app on loopback, so scheduled jobs call the public URL. */
 function schedulerBaseUrl() {
   const base = process.env.SCHEDULER_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL;
@@ -73,14 +97,16 @@ function scheduleBookingReconcile() {
   if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
 
   const url = `${schedulerBaseUrl()}/api/bookings/reconcile`;
+  const intervalMs = minutes * 60 * 1000;
   const run = () =>
+    claimJobSlot("booking-reconcile", intervalMs) &&
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
         if (!res.ok) console.error("[aldeitas] booking reconcile returned %s", res.status);
       })
       .catch((error) => logError("booking reconcile", error));
 
-  setInterval(run, minutes * 60 * 1000).unref();
+  setInterval(run, intervalMs).unref();
   console.log("[aldeitas] booking reconcile every %s min", minutes);
 }
 
@@ -90,7 +116,9 @@ function scheduleAirbnbPriceSync() {
   if (!secret || !Number.isFinite(hours) || hours <= 0) return;
 
   const url = `${schedulerBaseUrl()}/api/cron/sync-airbnb-prices`;
+  const intervalMs = hours * 60 * 60 * 1000;
   const run = () =>
+    claimJobSlot("airbnb-price-sync", intervalMs) &&
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
         if (!res.ok) console.error("[aldeitas] airbnb price sync returned %s", res.status);
@@ -98,7 +126,7 @@ function scheduleAirbnbPriceSync() {
       .catch((error) => logError("airbnb price sync", error));
 
   setTimeout(run, 2 * 60 * 1000).unref();
-  setInterval(run, hours * 60 * 60 * 1000).unref();
+  setInterval(run, intervalMs).unref();
   console.log("[aldeitas] airbnb price sync every %s h", hours);
 }
 
@@ -108,7 +136,9 @@ function scheduleAirbnbReviewSync() {
   if (!secret || !Number.isFinite(hours) || hours <= 0) return;
 
   const url = `${schedulerBaseUrl()}/api/cron/sync-airbnb-reviews`;
+  const intervalMs = hours * 60 * 60 * 1000;
   const run = () =>
+    claimJobSlot("airbnb-review-sync", intervalMs) &&
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
       .then((res) => {
         if (!res.ok) console.error("[aldeitas] airbnb review sync returned %s", res.status);
@@ -116,7 +146,7 @@ function scheduleAirbnbReviewSync() {
       .catch((error) => logError("airbnb review sync", error));
 
   setTimeout(run, 5 * 60 * 1000).unref();
-  setInterval(run, hours * 60 * 60 * 1000).unref();
+  setInterval(run, intervalMs).unref();
   console.log("[aldeitas] airbnb review sync every %s h", hours);
 }
 
