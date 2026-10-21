@@ -59,6 +59,7 @@ export async function createMercadoPagoCardAuthorization(params: {
   payerEmail: string;
   cardToken: string;
   paymentMethodId: string;
+  paymentTypeId?: string | null;
   installments?: number;
 }) {
   return createMercadoPagoAuthorizedOrder(params);

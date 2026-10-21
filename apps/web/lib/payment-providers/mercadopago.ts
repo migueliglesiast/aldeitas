@@ -20,14 +20,54 @@ export function resolveMercadoPagoCharge(amountCents: number, _currency: string)
   return { amountCents, currency: "MXN" };
 }
 
+const MANUAL_CAPTURE_BRANDS = new Set(["visa", "master", "amex"]);
+const CARD_TYPES = new Set(["credit_card", "debit_card", "prepaid_card"]);
+
+/**
+ * Mercado Pago can only reserve (manual capture) Visa, Mastercard and Amex credit cards;
+ * debit and prepaid cards must be charged at once.
+ */
+export function resolveCardPaymentMethod(paymentMethodId: string, paymentTypeId?: string | null) {
+  const raw = paymentMethodId.trim().toLowerCase();
+  const id = raw === "mastercard" ? "master" : raw;
+  const type = paymentTypeId && CARD_TYPES.has(paymentTypeId) ? paymentTypeId : id.startsWith("deb") ? "debit_card" : "credit_card";
+  return { id, type, manualCapture: type === "credit_card" && MANUAL_CAPTURE_BRANDS.has(id) };
+}
+
+/** Error whose `guestMessage` is safe and helpful to show at checkout (Spanish / English). */
+export class MercadoPagoPaymentError extends Error {
+  constructor(message: string, readonly guestMessage: string) {
+    super(message);
+  }
+}
+
+/** Turns a Mercado Pago error or rejection detail into a bilingual message for the guest. */
+export function guestPaymentErrorMessage(detail: string | null | undefined) {
+  const code = (detail || "").toLowerCase();
+  if (code.includes("insufficient")) {
+    return "Fondos insuficientes. Prueba con otra tarjeta. / Insufficient funds, please try another card.";
+  }
+  if (code.includes("call_for_authorize")) {
+    return "Tu banco pide autorizar este pago: llámales o usa otra tarjeta. / Your bank needs to approve this payment: call them or use another card.";
+  }
+  if (code.includes("bad_filled") || code.includes("security_code") || code.includes("expiration") || code.includes("card_number")) {
+    return "Revisa el número, la fecha de vencimiento y el CVV. / Please check the card number, expiry date and CVV.";
+  }
+  if (code.includes("duplicated")) {
+    return "Este pago ya se intentó hace un momento. Espera un minuto o usa otra tarjeta. / This payment was just attempted; wait a minute or use another card.";
+  }
+  return "No pudimos procesar el pago con esta tarjeta. Prueba con otra tarjeta o escríbenos por WhatsApp. / We couldn't process this card. Please try another card or message us on WhatsApp.";
+}
+
 function formatMercadoPagoApiError(payload: Record<string, unknown>, status: number) {
   const errors = payload?.errors;
   if (Array.isArray(errors) && errors.length > 0) {
     const details = errors
       .map((entry) => {
         if (!entry || typeof entry !== "object") return "";
-        const item = entry as { code?: string; message?: string };
-        return [item.code, item.message].filter(Boolean).join(": ");
+        const item = entry as { code?: string; message?: string; details?: unknown };
+        const extra = Array.isArray(item.details) ? item.details.filter((d) => typeof d === "string").join(", ") : "";
+        return [item.code, item.message, extra].filter(Boolean).join(": ");
       })
       .filter(Boolean)
       .join("; ");
@@ -110,6 +150,15 @@ export function isMercadoPagoOrderAuthorized(order: MercadoPagoOrder) {
   );
 }
 
+function isMercadoPagoOrderCaptured(order: MercadoPagoOrder) {
+  const payment = getPrimaryPayment(order);
+  return order.status === "processed" || payment?.status === "processed";
+}
+
+/**
+ * Credit cards are reserved and captured once the dates are confirmed; other cards are charged
+ * immediately (`captured: true`), so callers must verify availability before calling this.
+ */
 export async function createMercadoPagoAuthorizedOrder(params: {
   bookingId: string;
   amountCents: number;
@@ -117,6 +166,7 @@ export async function createMercadoPagoAuthorizedOrder(params: {
   payerEmail: string;
   cardToken: string;
   paymentMethodId: string;
+  paymentTypeId?: string | null;
   installments?: number;
 }) {
   if (!isMercadoPagoConfigured()) {
@@ -126,44 +176,55 @@ export async function createMercadoPagoAuthorizedOrder(params: {
   const charge = resolveMercadoPagoCharge(params.amountCents, params.currency);
   const payerEmail = resolveMercadoPagoPayerEmail(params.payerEmail);
   const amount = formatAmount(charge.amountCents);
+  const method = resolveCardPaymentMethod(params.paymentMethodId, params.paymentTypeId);
 
-  const order = await mercadoPagoRequest<MercadoPagoOrder>("/v1/orders", {
-    method: "POST",
-    body: JSON.stringify({
-      capture_mode: "manual",
-      type: "online",
-      external_reference: params.bookingId,
-      processing_mode: "automatic",
-      marketplace: "NONE",
-      total_amount: amount,
-      currency: charge.currency,
-      payer: {
-        email: payerEmail,
-      },
-      transactions: {
-        payments: [
-          {
-            amount,
-            payment_method: {
-              id: params.paymentMethodId,
-              type: "credit_card",
-              token: params.cardToken,
-              installments: params.installments || 1,
+  let order: MercadoPagoOrder;
+  try {
+    order = await mercadoPagoRequest<MercadoPagoOrder>("/v1/orders", {
+      method: "POST",
+      body: JSON.stringify({
+        capture_mode: method.manualCapture ? "manual" : "automatic",
+        type: "online",
+        external_reference: params.bookingId,
+        processing_mode: "automatic",
+        marketplace: "NONE",
+        total_amount: amount,
+        currency: charge.currency,
+        payer: {
+          email: payerEmail,
+        },
+        transactions: {
+          payments: [
+            {
+              amount,
+              payment_method: {
+                id: method.id,
+                type: method.type,
+                token: params.cardToken,
+                installments: params.installments || 1,
+              },
             },
-          },
-        ],
-      },
-    }),
-  });
-
-  if (!isMercadoPagoOrderAuthorized(order)) {
-    throw new Error("Mercado Pago did not authorize the payment");
+          ],
+        },
+      }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new MercadoPagoPaymentError(message, guestPaymentErrorMessage(message));
   }
 
   const payment = getPrimaryPayment(order);
+  const ok = method.manualCapture ? isMercadoPagoOrderAuthorized(order) : isMercadoPagoOrderCaptured(order);
+  if (!ok) {
+    const detail = payment?.status_detail || order.status_detail || order.status || "unknown";
+    if (order.id) await releaseMercadoPagoOrder(order.id);
+    throw new MercadoPagoPaymentError(`Mercado Pago did not accept the payment: ${detail}`, guestPaymentErrorMessage(detail));
+  }
+
   return {
     orderId: order.id,
     referenceId: payment?.id,
+    captured: !method.manualCapture,
   };
 }
 
