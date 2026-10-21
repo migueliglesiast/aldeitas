@@ -16,6 +16,10 @@ type GuestAddon = {
   maxQuantity: number;
 };
 
+function redirectTo(url: string) {
+  window.location.href = url;
+}
+
 type Props = {
   listingId: string;
   basePriceCents: number;
@@ -50,7 +54,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   useEffect(() => {
     fetch(`/api/listings/${listingId}/addons`)
       .then((res) => (res.ok ? res.json() : { addons: [] }))
-      .then((data: { addons: GuestAddon[] }) => setAddons(data.addons))
+      .then((data: { addons?: GuestAddon[] }) => setAddons(Array.isArray(data.addons) ? data.addons : []))
       .catch(() => setAddons([]));
   }, [listingId]);
 
@@ -166,6 +170,9 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     setLoading(true);
     setMessage(null);
     try {
+      const selectedAddons = offeredAddons
+        .filter((addon) => (picked[addon.id] ?? 0) > 0)
+        .map((addon) => ({ addonId: addon.id, quantity: picked[addon.id] }));
       const response = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,9 +182,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
           end,
           email,
           phone,
-          addons: offeredAddons
-            .filter((addon) => (picked[addon.id] ?? 0) > 0)
-            .map((addon) => ({ addonId: addon.id, quantity: picked[addon.id] })),
+          ...(selectedAddons.length > 0 ? { addons: selectedAddons } : {}),
         }),
       });
       let data: any = {};
@@ -190,7 +195,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
       if (!response.ok) throw new Error(data.error || "Booking failed");
       const redirectUrl = data.paymentUrl || data.checkoutUrl;
       if (redirectUrl) {
-        window.location.assign(redirectUrl);
+        redirectTo(redirectUrl);
       } else {
         setMessage("Booking created.");
       }
