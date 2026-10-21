@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const prismaMock = {
   user: { findFirst: vi.fn(), create: vi.fn() },
-  hotel: { create: vi.fn() },
+  hotel: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
+  hotelManager: { upsert: vi.fn() },
 };
 const authMock = {
   hashPassword: vi.fn(async (p: string) => `hashed:${p}`),

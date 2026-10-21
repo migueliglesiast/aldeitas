@@ -2,6 +2,14 @@
 import { useState } from "react";
 import Link from "next/link";
 
+/** Same-site path to return to after signing in; anything else falls back to "/". */
+function safeNextPath() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next || !/^\/(?!\/)/.test(next)) return "/";
+  const target = new URL(next, window.location.origin);
+  return target.origin === window.location.origin ? `${target.pathname}${target.search}${target.hash}` : "/";
+}
+
 export default function SignInPage() {
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -22,8 +30,7 @@ export default function SignInPage() {
       body: JSON.stringify({ email_or_username: emailOrUsername, password }),
     });
     if (res.ok) {
-      const next = new URLSearchParams(window.location.search).get("next");
-      window.location.href = next && /^\/(?!\/)/.test(next) ? next : "/";
+      window.location.href = safeNextPath();
     } else {
       let data: any = {};
       try {
