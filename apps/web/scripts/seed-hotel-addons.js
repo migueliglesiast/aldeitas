@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Adds the default add-on catalog to a hotel, skipping names it already has.
-// Usage: node scripts/seed-hotel-addons.cjs <hotelId>   (PRISMA_CLIENT_PATH overrides @prisma/client)
+// Usage: node scripts/seed-hotel-addons.js <hotelId>   (PRISMA_CLIENT_PATH overrides @prisma/client)
 const path = require("path");
 const catalog = require(path.join(__dirname, "..", "prisma", "addon-catalog.json"));
 const { PrismaClient } = require(process.env.PRISMA_CLIENT_PATH || "@prisma/client");
 
 async function main() {
   const hotelId = process.argv[2];
-  if (!hotelId) throw new Error("Usage: seed-hotel-addons.cjs <hotelId>");
+  if (!hotelId) throw new Error("Usage: seed-hotel-addons.js <hotelId>");
   const prisma = new PrismaClient();
   try {
     const existing = new Set(
