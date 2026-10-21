@@ -1,6 +1,6 @@
-import type { Booking, Listing } from "@prisma/client";
 import { sendEmail } from "@/lib/email/send";
 import { resolveBookingNotifyEmails } from "@/lib/email/notify-admins";
+import { loadEmailBrand, type EmailBrand } from "@/lib/email/hotel-brand";
 import {
   buildAdminBookingCanceledEmail,
   buildAdminBookingConfirmedEmail,
@@ -11,61 +11,53 @@ import {
   type BookingWithListing,
 } from "@/lib/email/templates/booking";
 
-async function notifyAdminsForBooking(
-  booking: BookingWithListing,
-  message: { subject: string; text: string; html: string }
-) {
-  const hotelId = booking.listing.hotelId;
-  const recipients = await resolveBookingNotifyEmails(hotelId);
-  if (recipients.length === 0) return;
+type EmailMessage = { subject: string; text: string; html: string };
 
+async function sendGuestAndAdmins(
+  booking: BookingWithListing,
+  brand: EmailBrand,
+  guestMessage: EmailMessage,
+  adminMessage: EmailMessage
+) {
+  await sendEmail({ to: booking.guestEmail, fromName: brand.hotelName, ...guestMessage });
+
+  const recipients = await resolveBookingNotifyEmails(booking.listing.hotelId);
+  if (recipients.length === 0) return;
   await sendEmail({
     to: recipients,
-    subject: `[Admin] ${message.subject}`,
-    text: message.text,
-    html: message.html,
+    fromName: brand.hotelName,
+    ...adminMessage,
+    subject: `[Admin] ${adminMessage.subject}`,
   });
 }
 
 export async function sendBookingProcessingEmail(booking: BookingWithListing) {
-  const guestMessage = buildBookingProcessingEmail(booking);
-  await sendEmail({
-    to: booking.guestEmail,
-    subject: guestMessage.subject,
-    text: guestMessage.text,
-    html: guestMessage.html,
-  });
-
-  await notifyAdminsForBooking(booking, buildAdminBookingProcessingEmail(booking));
+  const brand = await loadEmailBrand(booking.listingId);
+  await sendGuestAndAdmins(
+    booking,
+    brand,
+    buildBookingProcessingEmail(booking, brand),
+    buildAdminBookingProcessingEmail(booking, brand)
+  );
 }
 
 export async function sendBookingConfirmedEmail(booking: BookingWithListing) {
-  const guestMessage = buildBookingConfirmedEmail(booking);
-  await sendEmail({
-    to: booking.guestEmail,
-    subject: guestMessage.subject,
-    text: guestMessage.text,
-    html: guestMessage.html,
-  });
-
-  await notifyAdminsForBooking(booking, buildAdminBookingConfirmedEmail(booking));
+  const brand = await loadEmailBrand(booking.listingId);
+  await sendGuestAndAdmins(
+    booking,
+    brand,
+    buildBookingConfirmedEmail(booking, brand),
+    buildAdminBookingConfirmedEmail(booking, brand)
+  );
 }
 
-export async function sendBookingCanceledEmail(
-  booking: BookingWithListing,
-  reason: string
-) {
-  const guestMessage = buildBookingCanceledEmail(booking, reason);
-  await sendEmail({
-    to: booking.guestEmail,
-    subject: guestMessage.subject,
-    text: guestMessage.text,
-    html: guestMessage.html,
-  });
-
-  await notifyAdminsForBooking(
+export async function sendBookingCanceledEmail(booking: BookingWithListing, reason: string) {
+  const brand = await loadEmailBrand(booking.listingId);
+  await sendGuestAndAdmins(
     booking,
-    buildAdminBookingCanceledEmail(booking, reason)
+    brand,
+    buildBookingCanceledEmail(booking, reason, brand),
+    buildAdminBookingCanceledEmail(booking, reason, brand)
   );
 }
 

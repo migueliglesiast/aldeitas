@@ -13,6 +13,11 @@ import {
 } from "@/lib/booking-config";
 import { hasLocalDateConflict } from "@/lib/booking-blocks";
 import {
+  CANCEL_REASON_CALENDAR_OUTAGE,
+  CANCEL_REASON_LOCAL_CONFLICT,
+  CANCEL_REASON_OTHER_CHANNEL,
+} from "@/lib/booking-cancel-reasons";
+import {
   fetchListingExternalBlocks,
   hasExternalCalendars,
 } from "@/lib/external-calendars";
@@ -176,7 +181,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
   ) {
     return cancelBooking(
       booking,
-      "Those dates were reserved by another guest while we processed your request. We are sorry for the inconvenience."
+      CANCEL_REASON_LOCAL_CONFLICT
     );
   }
 
@@ -198,7 +203,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
   if (conflictingBlocks.length > 0) {
     return cancelBooking(
       booking,
-      "Those dates were booked on another channel while we processed your request. We are sorry for the inconvenience."
+      CANCEL_REASON_OTHER_CHANNEL
     );
   }
 
@@ -215,7 +220,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
     if (ageMs >= getBookingMaxPendingMs() + getBookingCalendarOutageGraceMs()) {
       return cancelBooking(
         booking,
-        "We couldn't confirm your dates with the property's calendar, so your card was not charged. We are sorry for the inconvenience."
+        CANCEL_REASON_CALENDAR_OUTAGE
       );
     }
     return {

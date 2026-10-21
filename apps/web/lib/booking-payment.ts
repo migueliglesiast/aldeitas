@@ -7,16 +7,13 @@ import {
   serializeBlocks,
 } from "@/lib/booking-reconcile";
 import { hasLocalDateConflict, cancelUnpaidPendingBooking } from "@/lib/booking-blocks";
+import { CANCEL_REASON_DATES_TAKEN, CANCEL_REASON_DATES_UNVERIFIABLE } from "@/lib/booking-cancel-reasons";
 import { checkExternalAvailability } from "@/lib/external-calendars";
 import {
   getProviderAuthorizationState,
 } from "@/lib/payment-providers";
 import type { PaymentProviderId } from "@/lib/payment-providers/types";
 
-const DATES_TAKEN_REASON =
-  "Those dates became unavailable before we could secure your booking. We are sorry for the inconvenience.";
-const DATES_UNVERIFIABLE_REASON =
-  "We couldn't confirm those dates with the property's calendar, so your card was not charged. Please try again in a few minutes.";
 
 async function finalizeAuthorizedBooking(
   bookingId: string,
@@ -78,7 +75,7 @@ async function finalizeAuthorizedBooking(
 
     await cancelBooking(
       conflictBooking,
-      external?.status === "unverifiable" ? DATES_UNVERIFIABLE_REASON : DATES_TAKEN_REASON
+      external?.status === "unverifiable" ? CANCEL_REASON_DATES_UNVERIFIABLE : CANCEL_REASON_DATES_TAKEN
     );
     return conflictBooking;
   }

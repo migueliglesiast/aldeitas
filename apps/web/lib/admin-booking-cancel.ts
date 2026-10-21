@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { releaseAuthorizedBookingPayment } from "@/lib/payment-providers";
 import { sendBookingCanceledEmail } from "@/lib/booking-email";
+import { CANCEL_REASON_ADMIN } from "@/lib/booking-cancel-reasons";
 
 export async function adminCancelBooking(
   bookingId: string,
-  reason = "Canceled by hotel admin."
+  reason = CANCEL_REASON_ADMIN
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
