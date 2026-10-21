@@ -9,6 +9,7 @@ import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
 import { createProviderCheckout } from "@/lib/payment-providers";
 import { AddonError, hotelChargedCents, priceAddonSelection } from "@/lib/addons";
+import { findActiveOffer, offerAddonIds, offerDateKeys, offerPrice } from "@/lib/booking-offers";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-06-20",
@@ -20,6 +21,7 @@ const bodySchema = z.object({
   end: z.string(),
   email: z.string().email(),
   phone: z.string().min(6),
+  offerToken: z.string().min(8).max(64).optional(),
   addons: z
     .array(
       z.object({
@@ -68,7 +70,15 @@ export async function POST(req: NextRequest) {
 async function handleBooking(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  const { listingId, start, end, email, phone, addons: addonSelection = [] } = parsed.data;
+  const { email, phone, offerToken, addons: addonSelection = [] } = parsed.data;
+  let { listingId, start, end } = parsed.data;
+
+  const offer = offerToken ? await findActiveOffer(offerToken) : null;
+  if (offerToken && !offer) return NextResponse.json({ error: "This booking link has expired" }, { status: 410 });
+  if (offer) {
+    listingId = offer.listingId;
+    ({ start, end } = offerDateKeys(offer));
+  }
 
   const paymentProvider = getDefaultPaymentProvider();
   if (!paymentProvider && !process.env.STRIPE_SECRET_KEY) return paymentUnavailable();
@@ -89,22 +99,22 @@ async function handleBooking(req: NextRequest) {
   // Fail closed: an unverifiable calendar must not allow a double booking.
   if (external.status === "unverifiable") return unverifiableAvailability();
 
-  // dynamic pricing attempt
-  const dynamic = await fetchDynamicPricing(listing.airbnbId, start, end);
+  const dynamic = offer ? null : await fetchDynamicPricing(listing.airbnbId, start, end);
 
   const nights = Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24));
   if (nights <= 0) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
-  const nightlyCents = dynamic?.nightlyCents ?? listing.nightlyBasePrice;
-  const currency = dynamic?.currency ?? listing.baseCurrency;
-  const staysCents = Math.round(nightlyCents * nights);
+  const nightlyCents = offer?.nightlyCents ?? dynamic?.nightlyCents ?? listing.nightlyBasePrice;
+  const currency = offer?.currency ?? dynamic?.currency ?? listing.baseCurrency;
+  const staysCents = offer ? offerPrice(offer).totalCents : Math.round(nightlyCents * nights);
 
   let addons: Awaited<ReturnType<typeof priceAddonSelection>> = [];
   if (addonSelection.length > 0) {
     try {
       addons = await priceAddonSelection(
         { hotelId: listing.hotelId, listingId, currency, startDate, endDate, nights, nightlyCents },
-        addonSelection
+        addonSelection,
+        offer ? offerAddonIds(offer) ?? undefined : undefined
       );
     } catch (error) {
       if (error instanceof AddonError) return NextResponse.json({ error: error.message }, { status: 409 });
@@ -118,6 +128,7 @@ async function handleBooking(req: NextRequest) {
       listingId,
       guestEmail: email,
       guestPhone: phone,
+      ...(offer?.guestName ? { guestName: offer.guestName } : {}),
       startDate,
       endDate,
       totalPriceCents: totalCents,
@@ -141,7 +152,7 @@ async function handleBooking(req: NextRequest) {
       customerEmail: email,
       customerPhone: phone,
       successUrl: `${base}/booking/${booking.id}?provider=${paymentProvider}`,
-      failureUrl: `${base}/listing/${listingId}?canceled=1`,
+      failureUrl: offer ? `${base}/offer/${offer.token}?canceled=1` : `${base}/listing/${listingId}?canceled=1`,
     });
 
     if (checkout.provider === "conekta") {

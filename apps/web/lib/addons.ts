@@ -54,11 +54,9 @@ export function adminAddon(addon: HotelAddon) {
   return { ...addon, options: parseAddonOptions(addon.options) };
 }
 
+const PRICED = { OR: [{ priceCents: { gt: 0 } }, { nightPercent: { gt: 0 } }] };
 const OFFERABLE = {
-  AND: [
-    { OR: [{ priceCents: { gt: 0 } }, { nightPercent: { gt: 0 } }] },
-    { OR: [{ kind: { not: "standard" } }, { providerName: { not: null }, providerPhone: { not: null } }] },
-  ],
+  AND: [PRICED, { OR: [{ kind: { not: "standard" } }, { providerName: { not: null }, providerPhone: { not: null } }] }],
 };
 const HALF_DAY_MS = 12 * 60 * 60 * 1000;
 
@@ -92,6 +90,18 @@ export async function listOfferedAddons(hotelId: string, listingId: string, star
   const addons = await listEnabledAddons(hotelId);
   const blocked = startDate && endDate ? await unavailableTurnoverKinds(listingId, startDate, endDate) : null;
   return addons.filter((addon) => addon.kind === "standard" || (blocked !== null && !blocked.has(addon.kind as AddonKind)));
+}
+
+/** Add-ons an owner hand-picked for a private offer; provider details are not required for these. */
+export async function offerAddonCatalog(hotelId: string, listingId: string, startDate: Date, endDate: Date, ids: string[]) {
+  const [addons, blocked] = await Promise.all([
+    prisma.hotelAddon.findMany({
+      where: { id: { in: ids }, hotelId, enabled: true, ...PRICED },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    }),
+    unavailableTurnoverKinds(listingId, startDate, endDate),
+  ]);
+  return addons.filter((addon) => !blocked.has(addon.kind as AddonKind));
 }
 
 export async function listEnabledAddons(hotelId: string) {
@@ -145,15 +155,18 @@ async function assertInStock(addon: HotelAddon, quantity: number, startDate: Dat
 /** Validates a guest's add-on picks against the hotel catalog and stock, and prices them. */
 export async function priceAddonSelection(
   stay: { hotelId: string; listingId: string; currency: string; startDate: Date; endDate: Date; nights: number; nightlyCents: number },
-  selection: AddonSelection[]
+  selection: AddonSelection[],
+  /** Restricts picks to an offer's hand-picked add-ons (which skip the provider-details rule). */
+  allowedIds?: string[]
 ): Promise<PricedAddon[]> {
   const { hotelId, listingId, currency, startDate, endDate, nights, nightlyCents } = stay;
   const picks = selection.filter((item) => item.quantity > 0);
   if (picks.length === 0) return [];
   const ids = [...new Set(picks.map((item) => item.addonId))];
   if (ids.length !== picks.length) throw new AddonError("Duplicate add-on");
+  if (allowedIds && ids.some((id) => !allowedIds.includes(id))) throw new AddonError("Add-on not available");
   const addons = await prisma.hotelAddon.findMany({
-    where: { id: { in: ids }, hotelId, enabled: true, ...OFFERABLE },
+    where: { id: { in: ids }, hotelId, enabled: true, ...(allowedIds ? PRICED : OFFERABLE) },
   });
   const blocked = addons.some((addon) => addon.kind !== "standard")
     ? await unavailableTurnoverKinds(listingId, startDate, endDate)
