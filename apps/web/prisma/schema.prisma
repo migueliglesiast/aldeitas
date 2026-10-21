@@ -210,6 +210,10 @@ model CalendarGuestMeta {
   sourceUid       String?
   yearNeedsReview Boolean  @default(false)
   yearReviewNote  String?
+  /// Airbnb confirmation code (e.g. HM4ABC123) from the booking email.
+  confirmationCode String?
+  /// Set when an Airbnb cancellation email for this stay is seen.
+  canceledAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -315,6 +319,8 @@ model BookingAddon {
   paidTo         String     @default("hotel")
   providerName   String?
   providerPhone  String?
+  /// When staff marked the extra as delivered (cleaner calendar).
+  deliveredAt    DateTime?
   createdAt      DateTime   @default(now())
 
   @@index([bookingId])
