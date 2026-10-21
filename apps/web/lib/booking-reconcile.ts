@@ -21,6 +21,7 @@ import {
   fetchListingExternalBlocks,
   hasExternalCalendars,
 } from "@/lib/external-calendars";
+import { recordBookingEvent, recordBookingEventOnce } from "@/lib/booking-events";
 import {
   sendBookingCanceledEmail,
   sendBookingConfirmedEmail,
@@ -103,7 +104,13 @@ export async function confirmBooking(booking: BookingWithListing) {
     return { action: "skipped" as const, bookingId: booking.id, message: "Not pending" };
   }
 
-  await captureAuthorizedPayment(booking);
+  try {
+    await captureAuthorizedPayment(booking);
+  } catch (error) {
+    await recordBookingEvent(booking.id, "payment_captured", "fail", error instanceof Error ? error.message : "Capture failed");
+    throw error;
+  }
+  await recordBookingEvent(booking.id, "payment_captured", "ok", "Card charged");
 
   const confirmed = await prisma.booking.update({
     where: { id: booking.id },
@@ -115,6 +122,7 @@ export async function confirmBooking(booking: BookingWithListing) {
     include: { listing: true },
   });
 
+  await recordBookingEvent(booking.id, "confirmed", "ok", "Booking confirmed");
   await sendBookingConfirmedEmail(confirmed);
 
   return { action: "confirmed" as const, bookingId: booking.id };
@@ -128,7 +136,15 @@ export async function cancelBooking(
     return { action: "skipped" as const, bookingId: booking.id, message: "Not pending" };
   }
 
-  await releaseAuthorizedPayment(booking);
+  try {
+    await releaseAuthorizedPayment(booking);
+  } catch (error) {
+    await recordBookingEvent(booking.id, "payment_released", "fail", error instanceof Error ? error.message : "Release failed");
+    throw error;
+  }
+  if (booking.authorizedAt) {
+    await recordBookingEvent(booking.id, "payment_released", "ok", "Card hold released; nothing charged");
+  }
 
   const canceled = await prisma.booking.update({
     where: { id: booking.id },
@@ -140,6 +156,7 @@ export async function cancelBooking(
     include: { listing: true },
   });
 
+  await recordBookingEvent(booking.id, "canceled", "fail", reason);
   await sendBookingCanceledEmail(canceled, reason);
 
   return { action: "canceled" as const, bookingId: booking.id, reason };
@@ -201,6 +218,7 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
   });
 
   if (conflictingBlocks.length > 0) {
+    await recordBookingEvent(booking.id, "availability_check", "fail", "Another booking site took these dates during processing");
     return cancelBooking(
       booking,
       CANCEL_REASON_OTHER_CHANNEL
@@ -211,6 +229,9 @@ export async function reconcileBooking(bookingId: string): Promise<ReconcileResu
   const holdLikelySynced = newBlocks.some((block) =>
     blockMatchesBooking(block, booking)
   );
+  if (holdLikelySynced) {
+    await recordBookingEventOnce(bookingId, "channel_synced", "ok", "Airbnb calendar now shows the Aldeitas hold");
+  }
   const minWaitPassed = ageMs >= getBookingMinConfirmMs();
   const timedOut =
     ageMs >= getBookingMaxPendingMs() ||

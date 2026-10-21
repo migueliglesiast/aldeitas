@@ -194,7 +194,7 @@ describe("POST /api/stripe/webhook", () => {
     expect(prismaMock.booking.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "b1" },
-        data: { status: "CONFIRMED", stripePaymentIntentId: "pi_1" },
+        data: { status: "CONFIRMED", paymentProvider: "stripe", paymentReference: "pi_1" },
       })
     );
     expect(sendMail).toHaveBeenCalledWith(

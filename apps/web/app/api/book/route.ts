@@ -9,6 +9,7 @@ import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
 import { createProviderCheckout } from "@/lib/payment-providers";
 import { AddonError, hotelChargedCents, priceAddonSelection } from "@/lib/addons";
+import { recordBookingEvent } from "@/lib/booking-events";
 import { findActiveOffer, offerAddonIds, offerDateKeys, offerPrice } from "@/lib/booking-offers";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
@@ -139,6 +140,14 @@ async function handleBooking(req: NextRequest) {
       ...(addons.length > 0 ? { addons: { create: addons } } : {}),
     },
   });
+
+  await recordBookingEvent(
+    booking.id,
+    "created",
+    "ok",
+    `${listing.title} · ${start} → ${end} · ${(totalCents / 100).toFixed(2)} ${currency}${offer ? " · private link" : ""}`
+  );
+  await recordBookingEvent(booking.id, "availability_initial", "ok", "Aldeitas and all external calendars free at checkout");
 
   const base = siteUrl(req);
 

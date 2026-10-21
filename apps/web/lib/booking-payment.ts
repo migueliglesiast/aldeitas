@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { sendBookingProcessingEmail } from "@/lib/booking-email";
+import { recordBookingEvent } from "@/lib/booking-events";
 import {
   cancelBooking,
   confirmBooking,
@@ -60,6 +61,16 @@ async function finalizeAuthorizedBooking(
       );
 
   if (!external || external.status !== "available") {
+    await recordBookingEvent(
+      bookingId,
+      "availability_check",
+      "fail",
+      hasLocalConflict
+        ? "Dates taken by another Aldeitas booking"
+        : external?.status === "unverifiable"
+          ? "External calendars could not be checked"
+          : "Dates taken on another booking site"
+    );
     const conflictBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
@@ -96,6 +107,8 @@ async function finalizeAuthorizedBooking(
     include: { listing: true },
   });
 
+  await recordBookingEvent(bookingId, "availability_check", "ok", "Aldeitas and all external calendars free after card hold");
+  await recordBookingEvent(bookingId, "dates_blocked", "ok", "Dates held in Aldeitas and in its iCal export to the booking sites");
   await sendBookingProcessingEmail(updated);
   await reconcileBooking(bookingId);
 
@@ -163,6 +176,7 @@ export async function verifyBookingDatesAvailable(bookingId: string) {
   });
   if (!booking || booking.status !== "PENDING") return { ok: false as const, reason: "not_pending" as const };
   if (await hasLocalDateConflict(booking.listingId, booking.startDate, booking.endDate, booking.id)) {
+    await recordBookingEvent(bookingId, "availability_check", "fail", "Before charging: dates taken by another Aldeitas booking");
     return { ok: false as const, reason: "taken" as const };
   }
   const external = await checkExternalAvailability(
@@ -173,8 +187,17 @@ export async function verifyBookingDatesAvailable(bookingId: string) {
     "verify"
   );
   if (external.status !== "available") {
+    await recordBookingEvent(
+      bookingId,
+      "availability_check",
+      "fail",
+      external.status === "unverifiable"
+        ? "Before charging: external calendars could not be checked; nothing charged"
+        : "Before charging: dates taken on another booking site; nothing charged"
+    );
     return { ok: false as const, reason: external.status === "unverifiable" ? ("unverifiable" as const) : ("taken" as const) };
   }
+  await recordBookingEvent(bookingId, "availability_check", "ok", "Before charging: Aldeitas and all external calendars free");
   return { ok: true as const, snapshot: JSON.stringify(serializeBlocks(external.result.blocks)) };
 }
 
@@ -197,6 +220,7 @@ export async function finalizeCapturedBooking(
     },
     include: { listing: { include: { calendarSources: true } } },
   });
+  await recordBookingEvent(bookingId, "dates_blocked", "ok", "Dates held in Aldeitas and in its iCal export to the booking sites");
   return confirmBooking(booking);
 }
 
