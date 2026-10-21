@@ -5,6 +5,8 @@ import { useLocale } from "@/lib/i18n/locale-context";
 import {
   ADDON_UNITS,
   ADDON_UNIT_LABELS,
+  paidByProvider,
+  type AddonOption,
   type AddonUnit,
 } from "@/lib/addon-units";
 
@@ -20,6 +22,12 @@ type Addon = {
   maxQuantity: number;
   stock: number | null;
   nightPercent: number | null;
+  kind: string;
+  options: AddonOption[];
+  depositCents: number | null;
+  note: string | null;
+  providerName: string | null;
+  providerPhone: string | null;
   enabled: boolean;
 };
 
@@ -35,6 +43,12 @@ const EMPTY: Draft = {
   maxQuantity: 10,
   stock: null,
   nightPercent: null,
+  kind: "standard",
+  options: [],
+  depositCents: null,
+  note: null,
+  providerName: null,
+  providerPhone: null,
   enabled: true,
 };
 
@@ -42,7 +56,7 @@ const COPY = {
   es: {
     title: "Extras para huéspedes",
     intro:
-      "Lo que tus huéspedes pueden agregar al reservar. Se cobra junto con la estancia y te llega en el correo de la reserva.",
+      "Lo que tus huéspedes pueden agregar al reservar. El huésped le paga directo al proveedor (y él te paga tu comisión); check-in temprano y check-out tarde se cobran con la estancia. Un extra sin proveedor no aparece en el checkout.",
     price: "Precio (MXN)",
     percent: "% de la noche",
     percentHint: "vacío = precio fijo",
@@ -66,11 +80,18 @@ const COPY = {
     units: "disponibles",
     ideas: "Más ideas (apagadas)",
     newTitle: "Crear uno nuevo",
+    providerName: "Proveedor",
+    providerPhone: "WhatsApp del proveedor",
+    needsProvider: "Falta proveedor: no se muestra",
+    deposit: "Depósito (MXN)",
+    note: "Texto del botón ?",
+    options: "Tipos (el huésped elige uno)",
+    addOption: "+ tipo",
   },
   en: {
     title: "Guest add-ons",
     intro:
-      "Extras guests can add when booking. Charged with the stay and listed in the booking email.",
+      "Extras guests can add when booking. The guest pays the provider directly (who then pays you your fee); early check-in and late check-out are charged with the stay. An add-on without a provider is hidden at checkout.",
     price: "Price (MXN)",
     percent: "% of nightly rate",
     percentHint: "empty = fixed price",
@@ -94,6 +115,13 @@ const COPY = {
     units: "available",
     ideas: "More ideas (off)",
     newTitle: "Create a new one",
+    providerName: "Provider",
+    providerPhone: "Provider WhatsApp",
+    needsProvider: "Missing provider: hidden",
+    deposit: "Deposit (MXN)",
+    note: "\"?\" button text",
+    options: "Types (guest picks one)",
+    addOption: "+ type",
   },
 };
 
@@ -191,6 +219,7 @@ function AddonRow({
                 ? `${draft.nightPercent}% ${t.ofNight}`
                 : `$${(draft.priceCents / 100).toFixed(0)} ${ADDON_UNIT_LABELS[draft.unit][lang]}`}
               {draft.stock !== null ? ` · ${draft.stock} ${t.units}` : ""}
+              {draft.providerName ? ` · ${draft.providerName}` : ""}
             </span>
           </button>
           <button
@@ -318,6 +347,95 @@ function AddonRow({
               />
             </div>
           </div>
+          {paidByProvider(draft.kind) && (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div>
+                <label className={label}>{t.providerName}</label>
+                <input
+                  value={draft.providerName ?? ""}
+                  onChange={(e) => set("providerName", e.target.value || null)}
+                  className={input}
+                />
+              </div>
+              <div>
+                <label className={label}>{t.providerPhone}</label>
+                <input
+                  type="tel"
+                  placeholder="+52 954 123 4567"
+                  value={draft.providerPhone ?? ""}
+                  onChange={(e) => set("providerPhone", e.target.value || null)}
+                  className={input}
+                />
+              </div>
+              <div>
+                <label className={label}>{t.deposit}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={draft.depositCents === null ? "" : draft.depositCents / 100}
+                  onChange={(e) =>
+                    set("depositCents", e.target.value === "" ? null : Math.round(Number(e.target.value) * 100))
+                  }
+                  className={input}
+                />
+              </div>
+            </div>
+          )}
+          <div className="mt-3">
+            <label className={label}>{t.note}</label>
+            <input
+              value={draft.note ?? ""}
+              onChange={(e) => set("note", e.target.value || null)}
+              className={input}
+            />
+          </div>
+          <div className="mt-3 space-y-1.5">
+            <label className={label}>{t.options}</label>
+            {draft.options.map((option, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  aria-label={`${t.name} ${index + 1}`}
+                  value={option.name}
+                  onChange={(e) =>
+                    set("options", draft.options.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))
+                  }
+                  className={input}
+                />
+                <input
+                  aria-label={`${t.price} ${index + 1}`}
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={option.priceCents / 100}
+                  onChange={(e) =>
+                    set(
+                      "options",
+                      draft.options.map((item, i) =>
+                        i === index ? { ...item, priceCents: Math.round(Number(e.target.value) * 100) } : item,
+                      ),
+                    )
+                  }
+                  className={`${input} w-28`}
+                />
+                <button
+                  type="button"
+                  aria-label={`${t.remove} ${option.name}`}
+                  onClick={() => set("options", draft.options.filter((_, i) => i !== index))}
+                  className="px-2 text-gray-500 hover:text-red-700"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => set("options", [...draft.options, { name: "", nameEn: null, priceCents: draft.priceCents }])}
+              className="text-xs font-medium text-gray-600 hover:text-gray-900"
+            >
+              {t.addOption}
+            </button>
+          </div>
           <div className="mt-3 flex items-center gap-3 text-sm">
             <button
               type="button"
@@ -340,6 +458,9 @@ function AddonRow({
               <span className="text-emerald-700">{t.saved}</span>
             )}
             {status === "error" && <span className="text-red-700">Error</span>}
+            {draft.enabled && paidByProvider(draft.kind) && (!draft.providerName || !draft.providerPhone) && (
+              <span className="text-amber-700">{t.needsProvider}</span>
+            )}
             {draft.enabled && draft.priceCents === 0 && !draft.nightPercent && draft.name && (
               <span className="text-amber-700">{t.needsPrice}</span>
             )}

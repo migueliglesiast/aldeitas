@@ -16,7 +16,8 @@ async function main() {
     let created = 0;
     for (const [index, item] of catalog.entries()) {
       if (existing.has(item.name)) continue;
-      await prisma.hotelAddon.create({ data: { ...item, hotelId, sortOrder: index } });
+      const options = item.options ? JSON.stringify(item.options) : null;
+      await prisma.hotelAddon.create({ data: { ...item, options, hotelId, sortOrder: index } });
       created += 1;
     }
     console.log(`Created ${created} add-ons (${catalog.length - created} already present)`);
