@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import HotelAdminPanel from "@/components/HotelAdminPanel";
 import ReviewsPanel from "@/components/ReviewsPanel";
+import AddonsPanel from "@/components/AddonsPanel";
 import { getHotelReviewInsights } from "@/lib/review-insights";
 import { Suspense } from "react";
 
@@ -64,6 +65,8 @@ export default async function HotelEditPage({ params: paramsPromise }: { params:
       </div>
 
       <HotelAdminPanel hotel={hotel} />
+
+      <AddonsPanel hotelId={hotel.id} />
 
       <Suspense fallback={null}>
         <HotelReviews hotelId={hotel.id} />

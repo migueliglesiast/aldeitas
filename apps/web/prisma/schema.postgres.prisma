@@ -75,6 +75,7 @@ model Hotel {
   gmailSyncLastAt      DateTime?
   gmailSyncLastError   String?
   gmailSyncOffset      Int                 @default(0)
+  addons               HotelAddon[]
 }
 
 model HotelCalendarShare {
@@ -258,6 +259,51 @@ model Booking {
   lastReconciledAt       DateTime?
   status                 BookingStatus @default(PENDING)
   createdAt              DateTime      @default(now())
+  addons                 BookingAddon[]
+}
+
+/// Extras a hotel sells with a stay (moto rental, beer in the fridge, tours...).
+model HotelAddon {
+  id          String         @id @default(cuid())
+  hotelId     String
+  hotel       Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name        String
+  nameEn      String?
+  description String?
+  emoji       String?
+  priceCents  Int
+  currency    String         @default("MXN")
+  /// "item" | "night" | "person" | "person_night"
+  unit        String         @default("item")
+  kind        String         @default("standard")
+  nightPercent Int?
+  maxQuantity Int            @default(10)
+  /// Units the hotel owns at once (e.g. 2 motos); null means unlimited.
+  stock       Int?
+  enabled     Boolean        @default(true)
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  bookings    BookingAddon[]
+
+  @@index([hotelId])
+}
+
+model BookingAddon {
+  id             String     @id @default(cuid())
+  bookingId      String
+  booking        Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  addonId        String
+  addon          HotelAddon @relation(fields: [addonId], references: [id])
+  name           String
+  unit           String
+  quantity       Int
+  unitPriceCents Int
+  totalCents     Int
+  createdAt      DateTime   @default(now())
+
+  @@index([bookingId])
+  @@index([addonId])
 }
 
 enum BookingStatus {

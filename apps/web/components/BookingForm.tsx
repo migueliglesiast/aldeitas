@@ -1,6 +1,25 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useHotel } from "@/lib/hotel-context";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { ADDON_UNIT_LABELS, addonLineTotal, addonUnitPriceCents, type AddonUnit } from "@/lib/addon-units";
+
+type GuestAddon = {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  description: string | null;
+  emoji: string | null;
+  priceCents: number;
+  currency: string;
+  unit: AddonUnit;
+  maxQuantity: number;
+  nightPercent: number | null;
+};
+
+function redirectTo(url: string) {
+  window.location.href = url;
+}
 
 type Props = {
   listingId: string;
@@ -28,6 +47,18 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   const [message, setMessage] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
+  const [addons, setAddons] = useState<GuestAddon[]>([]);
+  const [picked, setPicked] = useState<Record<string, number>>({});
+  const { locale } = useLocale();
+  const lang = locale === "en" ? "en" : "es";
+
+  useEffect(() => {
+    const stay = start && end ? `?start=${start}&end=${end}` : "";
+    fetch(`/api/listings/${listingId}/addons${stay}`)
+      .then((res) => (res.ok ? res.json() : { addons: [] }))
+      .then((data: { addons?: GuestAddon[] }) => setAddons(Array.isArray(data.addons) ? data.addons : []))
+      .catch(() => setAddons([]));
+  }, [listingId, start, end]);
 
   // Update dates when search params change (from calendar or external source)
   useEffect(() => {
@@ -124,19 +155,39 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     : 0;
   
   // Use pricing from API if available, otherwise calculate from base price
-  const totalCents = pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
+  const staysCents = pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
   const displayCurrency = pricing?.currency ?? currency;
   const nightlyCents = pricing?.nightlyCents ?? basePriceCents;
+  const offeredAddons = addons
+    .filter((addon) => addon.currency === displayCurrency)
+    .map((addon) => ({ ...addon, priceCents: addonUnitPriceCents(addon, nightlyCents) }));
+  const addonsCents = offeredAddons.reduce(
+    (sum, addon) => sum + addonLineTotal(addon, picked[addon.id] ?? 0, nights),
+    0
+  );
+  const totalCents = staysCents + addonsCents;
+  const setQuantity = (addon: { id: string; maxQuantity: number }, quantity: number) =>
+    setPicked((prev) => ({ ...prev, [addon.id]: Math.max(0, Math.min(addon.maxQuantity, quantity)) }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
     try {
+      const selectedAddons = offeredAddons
+        .filter((addon) => (picked[addon.id] ?? 0) > 0)
+        .map((addon) => ({ addonId: addon.id, quantity: picked[addon.id] }));
       const response = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listingId, start, end, email, phone }),
+        body: JSON.stringify({
+          listingId,
+          start,
+          end,
+          email,
+          phone,
+          ...(selectedAddons.length > 0 ? { addons: selectedAddons } : {}),
+        }),
       });
       let data: any = {};
       try {
@@ -148,7 +199,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
       if (!response.ok) throw new Error(data.error || "Booking failed");
       const redirectUrl = data.paymentUrl || data.checkoutUrl;
       if (redirectUrl) {
-        window.location.href = redirectUrl;
+        redirectTo(redirectUrl);
       } else {
         setMessage("Booking created.");
       }
@@ -202,7 +253,43 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         <label className="block text-sm font-medium text-ink">Phone</label>
         <input type="tel" aria-label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
       </div>
+      {offeredAddons.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-ink">{lang === "en" ? "Add to your stay" : "Agrega a tu estancia"}</legend>
+          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
+            {offeredAddons.map((addon) => {
+              const quantity = picked[addon.id] ?? 0;
+              const name = lang === "en" && addon.nameEn ? addon.nameEn : addon.name;
+              return (
+                <li key={addon.id} className={`flex items-center gap-3 p-3 ${quantity > 0 ? "bg-brand/5" : ""}`}>
+                  <span className="text-xl" aria-hidden>{addon.emoji || "✨"}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-ink">{name}</div>
+                    <div className="text-xs text-muted">
+                      {addon.nightPercent
+                        ? `${addon.nightPercent}% ${lang === "en" ? "of the nightly rate" : "de la noche"} · $${(addon.priceCents / 100).toFixed(0)}`
+                        : `$${(addon.priceCents / 100).toFixed(0)} ${ADDON_UNIT_LABELS[addon.unit][lang]}`}
+                      {addon.description ? ` · ${addon.description}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button type="button" aria-label={`- ${name}`} disabled={quantity === 0} onClick={() => setQuantity(addon, quantity - 1)} className="h-7 w-7 rounded-full border border-line text-ink disabled:opacity-30">−</button>
+                    <span className="w-5 text-center text-sm tabular-nums" aria-live="polite">{quantity}</span>
+                    <button type="button" aria-label={`+ ${name}`} disabled={quantity >= addon.maxQuantity} onClick={() => setQuantity(addon, quantity + 1)} className="h-7 w-7 rounded-full border border-line text-ink disabled:opacity-30">+</button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </fieldset>
+      )}
       <div className="space-y-2 text-sm">
+        {addonsCents > 0 && (
+          <div className="flex items-center justify-between text-gray-600">
+            <span>{lang === "en" ? "Add-ons" : "Extras"}</span>
+            <span>${(addonsCents / 100).toFixed(2)} {displayCurrency}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between text-gray-600">
           <span>{nights} {nights === 1 ? 'night' : 'nights'}</span>
           {loadingPricing ? (

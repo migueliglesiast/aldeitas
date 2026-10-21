@@ -1,4 +1,5 @@
-import type { Booking, Listing } from "@prisma/client";
+import type { Booking, BookingAddon, Listing } from "@prisma/client";
+import { describeBookingAddonLine } from "@/lib/addon-units";
 import { formatMoney } from "@/lib/currency";
 import { BOOKING_MAX_PENDING_MINUTES, BOOKING_MIN_CONFIRM_MINUTES } from "@/lib/booking-config";
 import { describeCancelReason } from "@/lib/booking-cancel-reasons";
@@ -12,7 +13,19 @@ import {
   type StayTicket,
 } from "@/lib/email/templates/branded-layout";
 
-export type BookingWithListing = Booking & { listing: Listing };
+export type BookingWithListing = Booking & { listing: Listing; addons?: BookingAddon[] };
+
+function addonFacts(booking: BookingWithListing, label: string): StayFact[] {
+  const nights = countNights(booking);
+  return (booking.addons ?? []).map((item) => ({
+    label,
+    value: `${describeBookingAddonLine(item, nights)} · ${formatMoney(item.totalCents, booking.currency)}`,
+  }));
+}
+
+function addonTextLines(booking: BookingWithListing) {
+  return addonFacts(booking, "Extra").map((fact) => `Extra: ${fact.value}`);
+}
 
 type EmailMessage = { subject: string; text: string; html: string };
 
@@ -115,6 +128,7 @@ function stayTicket(booking: BookingWithListing, totalLabel: string): StayTicket
     room: booking.listing.title,
     details,
     facts: [
+      ...addonFacts(booking, "Extra · Add-on"),
       { label: totalLabel, value: formatTotal(booking) },
       { label: "Referencia · Ref", value: booking.id },
     ],
@@ -143,6 +157,7 @@ function adminFacts(booking: BookingWithListing): StayFact[] {
   return [
     { label: "Habitación", value: booking.listing.title },
     { label: "Fechas", value: `${formatStayDates(booking)} (${countNights(booking)} noches)` },
+    ...addonFacts(booking, "Extra (preparar)"),
     { label: "Total", value: formatTotal(booking) },
     ...(booking.guestName ? [{ label: "Huésped", value: booking.guestName }] : []),
     { label: "Correo", value: booking.guestEmail },
@@ -188,6 +203,7 @@ export function buildBookingProcessingEmail(booking: BookingWithListing, brand: 
     es,
     "",
     `Fechas / Dates: ${formatStayDates(booking)} (${countNights(booking)} noches)`,
+    ...addonTextLines(booking),
     `Total autorizado / Authorized: ${formatTotal(booking)}`,
     `Referencia / Reference: ${booking.id}`,
     "",
@@ -233,6 +249,7 @@ export function buildBookingConfirmedEmail(booking: BookingWithListing, brand: E
     es,
     "",
     `Fechas / Dates: ${formatStayDates(booking)} (${countNights(booking)} noches)`,
+    ...addonTextLines(booking),
     `Total pagado / Total paid: ${formatTotal(booking)}`,
     `Referencia / Reference: ${booking.id}`,
     "",

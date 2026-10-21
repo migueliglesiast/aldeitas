@@ -5,6 +5,7 @@ import { withFromName } from "@/lib/email/send";
 import { CANCEL_REASON_OTHER_CHANNEL } from "@/lib/booking-cancel-reasons";
 import {
   buildAdminBookingCanceledEmail,
+  buildAdminBookingProcessingEmail,
   buildBookingCanceledEmail,
   buildBookingConfirmedEmail,
   buildBookingProcessingEmail,
@@ -129,5 +130,16 @@ describe("email brand helpers", () => {
     expect(refunded.subject).toBe("Tu reserva en La Arbolita fue cancelada");
     expect(refunded.html).toContain("reembolsar");
     expect(refunded.html).not.toContain("No se hizo ningún cargo");
+  });
+
+  it("lists booked add-ons for the guest and the hotel", () => {
+    const withAddons = {
+      ...booking,
+      addons: [
+        { id: "a1", bookingId: booking.id, addonId: "x", name: "Renta de moto", unit: "night", quantity: 1, unitPriceCents: 60000, totalCents: 120000, createdAt: new Date() },
+      ],
+    } as BookingWithListing;
+    expect(buildBookingProcessingEmail(withAddons, brand).html).toContain("Renta de moto × 1 · 2 noches");
+    expect(buildAdminBookingProcessingEmail(withAddons, brand).text).toContain("Extra (preparar): Renta de moto");
   });
 });

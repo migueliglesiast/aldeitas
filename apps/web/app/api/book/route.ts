@@ -8,6 +8,7 @@ import { checkExternalAvailability } from "@/lib/external-calendars";
 import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
 import { createProviderCheckout } from "@/lib/payment-providers";
+import { AddonError, priceAddonSelection } from "@/lib/addons";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-06-20",
@@ -19,6 +20,10 @@ const bodySchema = z.object({
   end: z.string(),
   email: z.string().email(),
   phone: z.string().min(6),
+  addons: z
+    .array(z.object({ addonId: z.string().min(1), quantity: z.number().int().min(0).max(50) }))
+    .max(30)
+    .optional(),
 });
 
 function datesUnavailable() {
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest) {
 async function handleBooking(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  const { listingId, start, end, email, phone } = parsed.data;
+  const { listingId, start, end, email, phone, addons: addonSelection = [] } = parsed.data;
 
   const paymentProvider = getDefaultPaymentProvider();
   if (!paymentProvider && !process.env.STRIPE_SECRET_KEY) return paymentUnavailable();
@@ -84,7 +89,21 @@ async function handleBooking(req: NextRequest) {
 
   const nightlyCents = dynamic?.nightlyCents ?? listing.nightlyBasePrice;
   const currency = dynamic?.currency ?? listing.baseCurrency;
-  const totalCents = Math.round(nightlyCents * nights);
+  const staysCents = Math.round(nightlyCents * nights);
+
+  let addons: Awaited<ReturnType<typeof priceAddonSelection>> = [];
+  if (addonSelection.length > 0) {
+    try {
+      addons = await priceAddonSelection(
+        { hotelId: listing.hotelId, listingId, currency, startDate, endDate, nights, nightlyCents },
+        addonSelection
+      );
+    } catch (error) {
+      if (error instanceof AddonError) return NextResponse.json({ error: error.message }, { status: 409 });
+      throw error;
+    }
+  }
+  const totalCents = staysCents + addons.reduce((sum, item) => sum + item.totalCents, 0);
 
   const booking = await prisma.booking.create({
     data: {
@@ -98,6 +117,7 @@ async function handleBooking(req: NextRequest) {
       status: "PENDING",
       paymentProvider: paymentProvider ?? "stripe",
       pendingExpiresAt: new Date(Date.now() + getBookingMaxPendingMs()),
+      ...(addons.length > 0 ? { addons: { create: addons } } : {}),
     },
   });
 

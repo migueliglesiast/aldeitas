@@ -1,4 +1,5 @@
 import { sendEmail } from "@/lib/email/send";
+import { prisma } from "@/lib/prisma";
 import { resolveBookingNotifyEmails } from "@/lib/email/notify-admins";
 import { loadEmailBrand, type EmailBrand } from "@/lib/email/hotel-brand";
 import {
@@ -12,6 +13,12 @@ import {
 } from "@/lib/email/templates/booking";
 
 type EmailMessage = { subject: string; text: string; html: string };
+
+async function withAddons(booking: BookingWithListing): Promise<BookingWithListing> {
+  if (booking.addons) return booking;
+  const addons = await prisma.bookingAddon.findMany({ where: { bookingId: booking.id }, orderBy: { createdAt: "asc" } });
+  return { ...booking, addons };
+}
 
 async function sendGuestAndAdmins(
   booking: BookingWithListing,
@@ -31,7 +38,8 @@ async function sendGuestAndAdmins(
   });
 }
 
-export async function sendBookingProcessingEmail(booking: BookingWithListing) {
+export async function sendBookingProcessingEmail(input: BookingWithListing) {
+  const booking = await withAddons(input);
   const brand = await loadEmailBrand(booking.listingId);
   await sendGuestAndAdmins(
     booking,
@@ -41,7 +49,8 @@ export async function sendBookingProcessingEmail(booking: BookingWithListing) {
   );
 }
 
-export async function sendBookingConfirmedEmail(booking: BookingWithListing) {
+export async function sendBookingConfirmedEmail(input: BookingWithListing) {
+  const booking = await withAddons(input);
   const brand = await loadEmailBrand(booking.listingId);
   await sendGuestAndAdmins(
     booking,
@@ -51,7 +60,8 @@ export async function sendBookingConfirmedEmail(booking: BookingWithListing) {
   );
 }
 
-export async function sendBookingCanceledEmail(booking: BookingWithListing, reason: string) {
+export async function sendBookingCanceledEmail(input: BookingWithListing, reason: string) {
+  const booking = await withAddons(input);
   const brand = await loadEmailBrand(booking.listingId);
   await sendGuestAndAdmins(
     booking,
