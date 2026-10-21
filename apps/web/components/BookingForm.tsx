@@ -352,7 +352,10 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 text-sm font-medium text-ink">
-                        <span>{optionName ? `${name} · ${optionName}` : name}</span>
+                        <span>
+                          {name}
+                          {optionName && <b className="font-semibold"> {optionName}</b>}
+                        </span>
                         {addon.note && (
                           <button
                             type="button"
