@@ -9,6 +9,15 @@ import {
 import { resolveListingAirbnbId } from "@/lib/airbnb-listing-id";
 import { fetchIcalBlocks } from "@/lib/airbnb";
 import { parseDateKey, toDateKey } from "@/lib/calendar-dates";
+import {
+  findAlteredStay,
+  findCanceledStay,
+  normalizeGuestName,
+  parseReservationChangeEmail,
+  reservationChangeKind,
+  sameReservation,
+  type ParsedReservationChange,
+} from "@/lib/airbnb-reservation-changes";
 
 export type GmailSyncResult = {
   hotelId: string;
@@ -437,6 +446,105 @@ function alignToIcalBlock(args: {
   };
 }
 
+/**
+ * Cancellation: mark the matching saved stay canceled. Accepted change without
+ * dates (Airbnb's current format): move the stay to its new iCal block.
+ */
+async function applyReservationChange(args: {
+  change: ParsedReservationChange;
+  listings: ListingWithSources[];
+  emailDate: Date;
+  blocksFor: (listingId: string) => Promise<ExternalBlock[]>;
+}) {
+  const { change } = args;
+  const listingIds = args.listings.map((listing) => listing.id);
+  const listingId = change.airbnbListingId
+    ? args.listings.find((listing) => resolveListingAirbnbId(listing) === change.airbnbListingId)
+        ?.id ?? null
+    : null;
+  const metas = await prisma.calendarGuestMeta.findMany({
+    where: { listingId: { in: listingIds } },
+  });
+  const facts = {
+    confirmationCode: change.confirmationCode,
+    guestName: change.guestName,
+    checkIn: change.checkIn,
+    checkOut: change.checkOut,
+    listingId,
+  };
+
+  if (change.kind === "canceled") {
+    const meta = findCanceledStay(metas, facts);
+    if (!meta) return { meta: null, reason: "cancellation: stay not found" };
+    const updated = await prisma.calendarGuestMeta.update({
+      where: { id: meta.id },
+      data: {
+        canceledAt: new Date(),
+        confirmationCode: meta.confirmationCode || change.confirmationCode,
+      },
+    });
+    return { meta: updated, reason: "canceled on Airbnb" };
+  }
+
+  const recent = args.emailDate.getTime() - 2 * 24 * 60 * 60 * 1000;
+  const open = metas.filter((meta) => !meta.canceledAt && meta.endDate.getTime() >= recent);
+  const byCode = change.confirmationCode
+    ? open.filter(
+        (meta) => meta.confirmationCode?.toUpperCase() === change.confirmationCode!.toUpperCase()
+      )
+    : [];
+  const firstName = normalizeGuestName(change.guestName).split(" ")[0];
+  const byName = firstName
+    ? open.filter((meta) => normalizeGuestName(meta.guestName).split(" ")[0] === firstName)
+    : [];
+  const candidates = byCode.length ? byCode : byName;
+  if (candidates.length !== 1) {
+    return { meta: null, reason: "change accepted: stay not found" };
+  }
+  const meta = candidates[0];
+  const blocks = await args.blocksFor(meta.listingId);
+  const covered = (block: ExternalBlock) =>
+    metas.some(
+      (other) =>
+        other.id !== meta.id &&
+        !other.canceledAt &&
+        other.listingId === meta.listingId &&
+        datesClose(other.startDate, block.start, 1)
+    );
+  const sameUid = meta.sourceUid ? blocks.find((block) => block.uid === meta.sourceUid) : undefined;
+  const stillThere = blocks.some(
+    (block) => datesClose(block.start, meta.startDate, 0) && datesClose(block.end, meta.endDate, 0)
+  );
+  const orphans = stillThere
+    ? []
+    : blocks.filter(
+        (block) =>
+          !covered(block) &&
+          block.end.getTime() >= recent &&
+          Math.abs(block.start.getTime() - meta.startDate.getTime()) <= 60 * 24 * 60 * 60 * 1000
+      );
+  const target = sameUid || (orphans.length === 1 ? orphans[0] : undefined);
+  if (!target) return { meta: null, reason: "change accepted: new dates not in iCal yet" };
+
+  const startDate = normalizeStayDate(target.start);
+  const endDate = normalizeStayDate(target.end);
+  await prisma.calendarGuestMeta.deleteMany({
+    where: { listingId: meta.listingId, startDate, endDate, NOT: { id: meta.id } },
+  });
+  const updated = await prisma.calendarGuestMeta.update({
+    where: { id: meta.id },
+    data: {
+      startDate,
+      endDate,
+      sourceUid: target.uid || meta.sourceUid,
+      confirmationCode: meta.confirmationCode || change.confirmationCode,
+      yearNeedsReview: false,
+      yearReviewNote: null,
+    },
+  });
+  return { meta: updated, reason: "changed on Airbnb" };
+}
+
 function summarizeSkipReasons(
   samples: GmailSyncResult["samples"]
 ): string | null {
@@ -628,6 +736,18 @@ export async function syncHotelGmailBookings(
           { since, from: "airbnb.com", subject: "Reserva confirmada" },
           { since, from: "airbnb.mx", subject: "Reserva confirmada" },
         ];
+        for (const from of ["airbnb.com", "airbnb.mx"]) {
+          for (const subject of [
+            "canceled",
+            "cancelled",
+            "cancelada",
+            "altered",
+            "alteraci",
+            "change was accepted",
+          ]) {
+            subjectQueries.push({ since, from, subject });
+          }
+        }
         // Also hunt directly for gap check-in dates in the subject line.
         const gapDateLabels = [...gapArrivesKeys].slice(0, 40);
         for (const label of gapDateLabels) {
@@ -661,6 +781,7 @@ export async function syncHotelGmailBookings(
         // Always keep a small newest slice too (brand-new bookings not yet on iCal).
         const gapSeqs: number[] = [];
         const newestSeqs: number[] = [];
+        const changeSeqs: number[] = [];
         const envelopeScan = allSeqs.slice(0, Math.min(allSeqs.length, 280));
         if (envelopeScan.length && timeLeft() > 8_000) {
           for await (const msg of client.fetch(envelopeScan, {
@@ -668,6 +789,13 @@ export async function syncHotelGmailBookings(
           })) {
             if (timeLeft() < 6_000) break;
             const subject = msg.envelope?.subject || "";
+            if (reservationChangeKind(subject)) {
+              const changeSeq = Number(msg.seq);
+              if (Number.isFinite(changeSeq) && changeSeqs.length < 30) {
+                changeSeqs.push(changeSeq);
+              }
+              continue;
+            }
             if (
               !/reservation confirmed|reserva confirmada|booking confirmed|new booking confirmed/i.test(
                 subject
@@ -703,7 +831,11 @@ export async function syncHotelGmailBookings(
           options.restart === true || !offset || gapSeqs.length > 0
             ? 0
             : Math.min(offset, Math.max(0, prioritized.length - 1));
-        const uids = prioritized.slice(startAt, startAt + limit);
+        const confirmationUids = prioritized
+          .filter((seq) => !changeSeqs.includes(seq))
+          .slice(startAt, startAt + limit);
+        // Cancellations/alterations run last, oldest first, so the newest state wins.
+        const uids = [...confirmationUids, ...[...changeSeqs].sort((a, b) => a - b)];
         result.batchOffset = startAt;
         const priorityUids = prioritized;
         const fetchByUid = false;
@@ -719,6 +851,7 @@ export async function syncHotelGmailBookings(
             startDate: true,
             endDate: true,
             guestName: true,
+            canceledAt: true,
           },
         });
 
@@ -752,8 +885,10 @@ export async function syncHotelGmailBookings(
               continue;
             }
 
-            // Only process confirmation / alteration reservation emails.
+            const changeKind = reservationChangeKind(envelopeSubject);
+            // Only process confirmation / alteration / cancellation emails.
             const looksLikeReservation =
+              changeKind != null ||
               /reservation confirmed|reserva confirmada|booking confirmed|new booking confirmed|nueva reserva|reservation altered|alteraci[oó]n de la reserva|pending reservation/i.test(
                 envelopeSubject
               );
@@ -767,7 +902,7 @@ export async function syncHotelGmailBookings(
             const hitsGap =
               gapArrivesKeys.size === 0 ||
               subjectMatchesGaps(envelopeSubject, gapArrivesKeys);
-            if (gaps.length > 0 && !hitsGap && !newestSeqs.includes(uid)) {
+            if (gaps.length > 0 && !hitsGap && !newestSeqs.includes(uid) && !changeKind) {
               result.skipped += 1;
               continue;
             }
@@ -778,6 +913,49 @@ export async function syncHotelGmailBookings(
             // Always keep HTML for /rooms/{id} links (often missing from plain text).
             const html =
               typeof parsedMail.html === "string" ? parsedMail.html : "";
+            const change = changeKind
+              ? parseReservationChangeEmail({
+                  subject,
+                  text: textBody,
+                  html,
+                  referenceDate: parsedMail.date || msg.envelope?.date || null,
+                })
+              : null;
+            if (change && (change.kind === "canceled" || !change.checkIn)) {
+              result.scanned += 1;
+              const outcome = await applyReservationChange({
+                change,
+                listings,
+                emailDate: parsedMail.date || msg.envelope?.date || new Date(),
+                blocksFor,
+              });
+              if (outcome.meta) {
+                result.updated += 1;
+                const known = knownMetas.find(
+                  (meta) =>
+                    meta.listingId === outcome.meta!.listingId &&
+                    datesClose(meta.startDate, outcome.meta!.startDate, 0)
+                );
+                if (known && change.kind === "canceled") known.canceledAt = new Date();
+              } else {
+                result.skipped += 1;
+              }
+              if (result.samples.length < 12) {
+                result.samples.push({
+                  subject,
+                  guestName: outcome.meta?.guestName ?? change.guestName,
+                  guestCount: null,
+                  checkIn: outcome.meta ? toDateKey(outcome.meta.startDate) : null,
+                  checkOut: outcome.meta ? toDateKey(outcome.meta.endDate) : null,
+                  listingTitle: outcome.meta
+                    ? listingById.get(outcome.meta.listingId)?.title
+                    : undefined,
+                  reason: outcome.reason,
+                });
+              }
+              continue;
+            }
+
             const parsed = parseAirbnbBookingEmail({
               subject,
               text: textBody,
@@ -806,6 +984,7 @@ export async function syncHotelGmailBookings(
             const checkOut = parsed.checkOut
               ? parseDateKey(parsed.checkOut)
               : null;
+
 
             let match = findListingByName({
               listings,
@@ -860,6 +1039,8 @@ export async function syncHotelGmailBookings(
             // Already have a named guest on this stay — skip (gap-fill mode).
             const alreadyNamed = knownMetas.find(
               (meta) =>
+                changeKind !== "altered" &&
+                !meta.canceledAt &&
                 meta.listingId === match.listingId &&
                 meta.guestName?.trim() &&
                 datesClose(meta.startDate, checkIn, 2)
@@ -936,7 +1117,13 @@ export async function syncHotelGmailBookings(
             const existing = await prisma.calendarGuestMeta.findMany({
               where: { listingId: match.listingId },
             });
-            const overlap = existing.find(
+            const facts = {
+              confirmationCode: parsed.confirmationCode,
+              guestName: parsed.guestName,
+              checkIn: stay.startDate,
+              listingId: match.listingId,
+            };
+            const dateOverlap = existing.find(
               (meta) =>
                 datesClose(meta.startDate, stay.startDate, 2) ||
                 rangesOverlap(
@@ -946,6 +1133,18 @@ export async function syncHotelGmailBookings(
                   stay.endDate
                 )
             );
+            const overlap =
+              (changeKind === "altered" ? findAlteredStay(existing, facts) : null) ||
+              dateOverlap;
+
+            // A confirmation for a stay Airbnb later canceled or moved: keep the newer state.
+            const staleCanceled =
+              overlap?.canceledAt && changeKind !== "altered" && sameReservation(overlap, facts);
+            const moved = !overlap && changeKind == null ? findAlteredStay(existing, facts) : null;
+            if (staleCanceled || moved) {
+              result.skipped += 1;
+              continue;
+            }
 
             const guestName = parsed.guestName;
             const guestCount = parsed.guestCount;
@@ -954,6 +1153,15 @@ export async function syncHotelGmailBookings(
             const sourceUid = stay.sourceUid || overlap?.sourceUid || null;
 
             if (overlap) {
+              const clash = existing.find(
+                (meta) =>
+                  meta.id !== overlap.id &&
+                  meta.startDate.getTime() === stay.startDate.getTime() &&
+                  meta.endDate.getTime() === stay.endDate.getTime()
+              );
+              if (clash) {
+                await prisma.calendarGuestMeta.delete({ where: { id: clash.id } });
+              }
               await prisma.calendarGuestMeta.update({
                 where: { id: overlap.id },
                 data: {
@@ -966,6 +1174,8 @@ export async function syncHotelGmailBookings(
                   sourceUid,
                   yearNeedsReview,
                   yearReviewNote,
+                  confirmationCode: parsed.confirmationCode || overlap.confirmationCode,
+                  canceledAt: null,
                 },
               });
             } else {
@@ -985,6 +1195,7 @@ export async function syncHotelGmailBookings(
                   sourceUid: sourceUid || undefined,
                   yearNeedsReview,
                   yearReviewNote,
+                  confirmationCode: parsed.confirmationCode || undefined,
                 },
                 create: {
                   listingId: match.listingId,
@@ -997,6 +1208,7 @@ export async function syncHotelGmailBookings(
                   sourceUid,
                   yearNeedsReview,
                   yearReviewNote,
+                  confirmationCode: parsed.confirmationCode,
                 },
               });
             }
@@ -1037,6 +1249,7 @@ export async function syncHotelGmailBookings(
                 startDate: stay.startDate,
                 endDate: stay.endDate,
                 guestName,
+                canceledAt: null,
               });
             }
             if (result.samples.length < 12) {
@@ -1048,9 +1261,13 @@ export async function syncHotelGmailBookings(
                 checkOut: toDateKey(stay.endDate),
                 listingTitle: listings.find((l) => l.id === match.listingId)?.title,
                 payoutCents,
-                reason: yearNeedsReview
-                  ? `${match.reason} · year needs review`
-                  : match.reason,
+                reason: [
+                  changeKind === "altered" ? "changed on Airbnb" : null,
+                  match.reason,
+                  yearNeedsReview ? "year needs review" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
               });
             }
           } catch (error: any) {

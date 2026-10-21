@@ -6,6 +6,7 @@ import { formatMoneyShort } from "@/lib/currency";
 import type {
   CalendarCell,
   CalendarSpan,
+  CalendarSpanAddon,
   HotelCalendarPayload,
 } from "@/lib/hotel-calendar-data";
 
@@ -64,6 +65,25 @@ function spanBarClass(span: CalendarSpan) {
     default:
       return "bg-slate-500 text-white";
   }
+}
+
+function markAddonDelivered(span: CalendarSpan, addonId: string, delivered: boolean): CalendarSpan {
+  if (!span.addons?.some((addon) => addon.id === addonId)) return span;
+  return {
+    ...span,
+    addons: span.addons.map((addon) =>
+      addon.id === addonId ? { ...addon, delivered } : addon
+    ),
+  };
+}
+
+function addonDays(addon: CalendarSpanAddon) {
+  if (!addon.rentalStart) return null;
+  const fmt = (key: string) =>
+    new Date(`${key}T12:00:00`).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+  return addon.rentalEnd && addon.rentalEnd !== addon.rentalStart
+    ? `${fmt(addon.rentalStart)} – ${fmt(addon.rentalEnd)}`
+    : fmt(addon.rentalStart);
 }
 
 function spanTitle(span: CalendarSpan) {
@@ -218,6 +238,41 @@ export default function HotelMultiCalendar({
   const [pastDays, setPastDays] = useState(DEFAULT_PAST_DAYS);
   const compact = useCompactCalendarLayout();
   const isShareView = Boolean(shareToken);
+  const [addonBusy, setAddonBusy] = useState<string | null>(null);
+
+  const setAddonDelivered = useCallback(
+    async (addonId: string, delivered: boolean) => {
+      if (!shareToken) return;
+      setAddonBusy(addonId);
+      try {
+        const res = await fetch(`/api/calendar/share/${shareToken}/addons`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ addonId, delivered }),
+        });
+        if (!res.ok) throw new Error("No se pudo guardar / Could not save");
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                rooms: prev.rooms.map((room) => ({
+                  ...room,
+                  spans: room.spans.map((span) => markAddonDelivered(span, addonId, delivered)),
+                })),
+              }
+            : prev
+        );
+        setSelected((prev) =>
+          prev?.span ? { ...prev, span: markAddonDelivered(prev.span, addonId, delivered) } : prev
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save");
+      } finally {
+        setAddonBusy(null);
+      }
+    },
+    [shareToken]
+  );
   const canSeeHistory = !shareToken || showPrices;
   const showingHistory = pastDays > DEFAULT_PAST_DAYS;
   // Share / phone: tighter columns so more nights fit on screen.
@@ -990,6 +1045,21 @@ export default function HotelMultiCalendar({
                               {countText}
                             </span>
                           ) : null}
+                          {span.addons?.length ? (
+                            <span
+                              data-testid="addon-badge"
+                              aria-label={`${span.addons.length} extras`}
+                              className={[
+                                "shrink-0 whitespace-nowrap rounded-full px-1 font-semibold leading-tight",
+                                span.addons.every((addon) => addon.delivered)
+                                  ? "bg-white/90 text-[#0f766e]"
+                                  : "bg-white text-[#9a3412]",
+                              ].join(" ")}
+                            >
+                              {span.addons.every((addon) => addon.delivered) ? "✓" : "🎁"}
+                              {span.addons.length}
+                            </span>
+                          ) : null}
                         </button>
                       </td>
                     );
@@ -1108,6 +1178,48 @@ export default function HotelMultiCalendar({
                   </div>
                 ) : null}
               </div>
+              {selected.span?.addons?.length ? (
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    Extras · {selected.span.addons.filter((addon) => addon.delivered).length}/
+                    {selected.span.addons.length} entregados / delivered
+                  </div>
+                  <ul className="space-y-2">
+                    {selected.span.addons.map((addon) => {
+                      const days = addonDays(addon);
+                      return (
+                        <li key={addon.id}>
+                          <label className="flex items-start gap-2 text-sm text-gray-800">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 h-4 w-4 accent-[#0f766e]"
+                              checked={addon.delivered}
+                              disabled={!shareToken || addonBusy === addon.id}
+                              onChange={(event) =>
+                                void setAddonDelivered(addon.id, event.target.checked)
+                              }
+                            />
+                            <span>
+                              <span className={addon.delivered ? "text-gray-500 line-through" : "font-medium"}>
+                                {addon.quantity > 1 ? `${addon.quantity}× ` : ""}
+                                {addon.name}
+                                {addon.option ? ` · ${addon.option}` : ""}
+                              </span>
+                              {days || addon.providerName ? (
+                                <span className="block text-xs text-gray-600">
+                                  {[days, [addon.providerName, addon.providerPhone].filter(Boolean).join(" ")]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
               {!readOnly ? (
                 <div className="flex flex-wrap items-end gap-2">
                   <div>

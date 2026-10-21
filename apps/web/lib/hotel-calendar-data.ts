@@ -34,6 +34,19 @@ export type CalendarCell = {
   label?: string;
 };
 
+export type CalendarSpanAddon = {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  option: string | null;
+  rentalStart: string | null;
+  rentalEnd: string | null;
+  providerName: string | null;
+  providerPhone: string | null;
+  delivered: boolean;
+};
+
 export type CalendarSpan = {
   id: string;
   kind: "booking" | "external" | "manual_block" | "ghost";
@@ -55,6 +68,8 @@ export type CalendarSpan = {
   blockId?: string;
   ghostId?: string;
   sourceUid?: string;
+  /** Guest extras to prepare (direct bookings only); no prices. */
+  addons?: CalendarSpanAddon[];
   /** Where the stay comes from; "blocked" = closed with no guest. */
   source?: "aldeitas" | "airbnb" | "vrbo" | "blocked" | "ghost";
 };
@@ -349,7 +364,7 @@ export async function buildHotelCalendarData(
         orderBy: { createdAt: "asc" },
         include: {
           calendarSources: true,
-          guestMetas: true,
+          guestMetas: { where: { canceledAt: null } },
           bookings: {
             where: {
               NOT: [
@@ -359,6 +374,7 @@ export async function buildHotelCalendarData(
               status: { in: ["PENDING", "CONFIRMED"] },
             },
             orderBy: { startDate: "asc" },
+            include: { addons: { orderBy: { createdAt: "asc" } } },
           },
           manualBlocks: {
             where: {
@@ -426,6 +442,18 @@ export async function buildHotelCalendarData(
         source: "aldeitas",
         bookingId: booking.id,
         bookingStatus: booking.status,
+        addons: booking.addons.map((addon) => ({
+          id: addon.id,
+          name: addon.name,
+          quantity: addon.quantity,
+          unit: addon.unit,
+          option: addon.option,
+          rentalStart: addon.rentalStart ? toDateKey(addon.rentalStart) : null,
+          rentalEnd: addon.rentalEnd ? toDateKey(addon.rentalEnd) : null,
+          providerName: addon.providerName,
+          providerPhone: addon.providerPhone,
+          delivered: addon.deliveredAt != null,
+        })),
         checkoutDay: toDateKey(booking.endDate),
         rangeStartDay: toDateKey(booking.startDate),
       });

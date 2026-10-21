@@ -119,7 +119,7 @@ export async function buildGmailReservationSheet(
         orderBy: { createdAt: "asc" },
         include: {
           calendarSources: true,
-          guestMetas: { orderBy: { startDate: "desc" } },
+          guestMetas: { where: { canceledAt: null }, orderBy: { startDate: "desc" } },
         },
       },
     },
