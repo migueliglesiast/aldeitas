@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import { addDays, format, parseISO } from "date-fns";
 import { SITE_CURRENCY } from "@/lib/currency";
 import { resolveListingAirbnbId } from "@/lib/airbnb-listing-id";
@@ -223,11 +223,18 @@ export async function fetchAirbnbStayPrice(
       const parsed = extractNightlyFromPriceDetails(priceDetails || []);
       if (parsed) return parsed;
     }
-  } catch {
+  } catch (error) {
+    // Airbnb is throttling this server: stop the whole run instead of piling on.
+    if (isAirbnbThrottle(error)) throw error;
     return null;
   }
 
   return null;
+}
+
+export function isAirbnbThrottle(error: unknown) {
+  const status = isAxiosError(error) ? error.response?.status : undefined;
+  return status === 401 || status === 403 || status === 429;
 }
 
 function addDaysKey(dateKey: string, days: number) {
