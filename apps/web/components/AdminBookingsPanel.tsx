@@ -256,6 +256,12 @@ export default function AdminBookingsPanel() {
                       >
                         Guest view
                       </Link>
+                      <Link
+                        href={`/admin/bookings/${booking.id}`}
+                        className="text-[#00a19c] hover:underline"
+                      >
+                        Progreso en vivo / Live progress
+                      </Link>
                       {booking.isProcessing && (
                         <button
                           type="button"

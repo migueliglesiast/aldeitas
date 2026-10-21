@@ -6,6 +6,7 @@ import {
   markBookingAuthorizedForBooking,
   verifyBookingDatesAvailable,
 } from "@/lib/booking-payment";
+import { recordBookingEvent } from "@/lib/booking-events";
 import { isMercadoPagoConfigured } from "@/lib/payment-providers/config";
 import { createMercadoPagoCardAuthorization } from "@/lib/payment-providers";
 import {
@@ -60,6 +61,13 @@ export async function POST(
     return NextResponse.json({ error: "Booking is not awaiting payment" }, { status: 409 });
   }
 
+  await recordBookingEvent(
+    booking.id,
+    "payment_submitted",
+    "info",
+    `${method.id} ${method.type.replace("_", " ")} — ${method.manualCapture ? "hold now, charge after calendar check" : "charge now after a live calendar check"}`
+  );
+
   // Cards that can't be reserved are charged at once, so the dates are re-checked first.
   let snapshot: string | null = null;
   if (!method.manualCapture) {
@@ -94,8 +102,16 @@ export async function POST(
     console.error("[bookings/pay]", { bookingId: booking.id, paymentMethodId, paymentTypeId }, error);
     const guestMessage =
       error instanceof MercadoPagoPaymentError ? error.guestMessage : guestPaymentErrorMessage(null);
+    await recordBookingEvent(booking.id, "payment_failed", "fail", guestMessage);
     return NextResponse.json({ error: guestMessage }, { status: 402 });
   }
+
+  await recordBookingEvent(
+    booking.id,
+    authorization.captured ? "payment_charged" : "payment_held",
+    "ok",
+    `Mercado Pago order ${authorization.orderId}`
+  );
 
   try {
     if (authorization.captured) {

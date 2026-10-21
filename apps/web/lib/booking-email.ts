@@ -1,4 +1,5 @@
 import { sendEmail } from "@/lib/email/send";
+import { recordBookingEvent, type BookingEventStep } from "@/lib/booking-events";
 import { prisma } from "@/lib/prisma";
 import { resolveBookingNotifyEmails } from "@/lib/email/notify-admins";
 import { loadEmailBrand, type EmailBrand } from "@/lib/email/hotel-brand";
@@ -24,18 +25,34 @@ async function sendGuestAndAdmins(
   booking: BookingWithListing,
   brand: EmailBrand,
   guestMessage: EmailMessage,
-  adminMessage: EmailMessage
+  adminMessage: EmailMessage,
+  step: BookingEventStep
 ) {
-  await sendEmail({ to: booking.guestEmail, fromName: brand.hotelName, ...guestMessage });
+  const guest = await sendEmail({ to: booking.guestEmail, fromName: brand.hotelName, ...guestMessage });
 
   const recipients = await resolveBookingNotifyEmails(booking.listing.hotelId);
-  if (recipients.length === 0) return;
-  await sendEmail({
-    to: recipients,
-    fromName: brand.hotelName,
-    ...adminMessage,
-    subject: `[Admin] ${adminMessage.subject}`,
-  });
+  const admin =
+    recipients.length === 0
+      ? null
+      : await sendEmail({
+          to: recipients,
+          fromName: brand.hotelName,
+          ...adminMessage,
+          subject: `[Admin] ${adminMessage.subject}`,
+        });
+
+  const sentTo = [guest.sent ? booking.guestEmail : null, admin?.sent ? `${recipients.length} admin` : null]
+    .filter(Boolean)
+    .join(" + ");
+  const adminFailure = admin && !admin.sent ? admin : null;
+  const failure = guest.sent ? adminFailure : guest;
+  if (!failure) {
+    await recordBookingEvent(booking.id, step, "ok", `${guestMessage.subject} → ${sentTo}`);
+    return;
+  }
+  const why = failure.reason === "disabled" ? "email not configured" : "send failed";
+  const partial = sentTo ? ` (sent: ${sentTo})` : "";
+  await recordBookingEvent(booking.id, step, "fail", `${guestMessage.subject} — ${why}${partial}`);
 }
 
 export async function sendBookingProcessingEmail(input: BookingWithListing) {
@@ -45,7 +62,8 @@ export async function sendBookingProcessingEmail(input: BookingWithListing) {
     booking,
     brand,
     buildBookingProcessingEmail(booking, brand),
-    buildAdminBookingProcessingEmail(booking, brand)
+    buildAdminBookingProcessingEmail(booking, brand),
+    "email_processing"
   );
 }
 
@@ -56,7 +74,8 @@ export async function sendBookingConfirmedEmail(input: BookingWithListing) {
     booking,
     brand,
     buildBookingConfirmedEmail(booking, brand),
-    buildAdminBookingConfirmedEmail(booking, brand)
+    buildAdminBookingConfirmedEmail(booking, brand),
+    "email_confirmed"
   );
 }
 
@@ -67,7 +86,8 @@ export async function sendBookingCanceledEmail(input: BookingWithListing, reason
     booking,
     brand,
     buildBookingCanceledEmail(booking, reason, brand),
-    buildAdminBookingCanceledEmail(booking, reason, brand)
+    buildAdminBookingCanceledEmail(booking, reason, brand),
+    "email_canceled"
   );
 }
 
