@@ -1,10 +1,13 @@
 import type { Booking, Listing } from "@prisma/client";
 import { formatMoney } from "@/lib/currency";
+import { BOOKING_MAX_PENDING_MINUTES, BOOKING_MIN_CONFIRM_MINUTES } from "@/lib/booking-config";
+import { describeCancelReason } from "@/lib/booking-cancel-reasons";
 import type { EmailBrand } from "@/lib/email/hotel-brand";
 import {
   renderBrandedEmail,
   whatsappLink,
   type EmailTip,
+  type ProgressStep,
   type StayFact,
   type StayTicket,
 } from "@/lib/email/templates/branded-layout";
@@ -51,6 +54,46 @@ function excerpt(text: string | null, max = 240) {
   if (clean.length <= max) return clean;
   const cut = clean.slice(0, max);
   return `${cut.slice(0, cut.lastIndexOf(" ")).replace(/[,.;:]$/, "")}…`;
+}
+
+function formatMinutes(minutes: number, lang: "es" | "en") {
+  if (minutes >= 60 && minutes % 60 === 0) {
+    const hours = minutes / 60;
+    if (lang === "es") return `${hours} ${hours === 1 ? "hora" : "horas"}`;
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  return `${minutes} min`;
+}
+
+const CONFIRM_WINDOW_ES = `normalmente en unos ${formatMinutes(BOOKING_MIN_CONFIRM_MINUTES, "es")}, máximo ${formatMinutes(BOOKING_MAX_PENDING_MINUTES, "es")}`;
+const CONFIRM_WINDOW_EN = `usually about ${formatMinutes(BOOKING_MIN_CONFIRM_MINUTES, "en")}, ${formatMinutes(BOOKING_MAX_PENDING_MINUTES, "en")} at most`;
+
+function processingSteps(): ProgressStep[] {
+  return [
+    { state: "done", title: "Tarjeta autorizada", text: "Apartamos el monto en tu tarjeta. Todavía no hay cargo." },
+    {
+      state: "active",
+      title: "Revisando calendarios",
+      text: "Cruzamos tus fechas con Airbnb y las demás plataformas donde se anuncia el cuarto.",
+    },
+    { state: "todo", title: "Confirmación y cargo", text: `Te llega la confirmación (${CONFIRM_WINDOW_ES}).` },
+  ];
+}
+
+function confirmedSteps(booking: Booking): ProgressStep[] {
+  return [
+    { state: "done", title: "Tarjeta autorizada", text: "Todo en orden con tu pago." },
+    { state: "done", title: "Fechas aseguradas", text: "Tus noches quedaron bloqueadas en todas las plataformas." },
+    { state: "done", title: "Cargo realizado", text: `Cobramos ${formatTotal(booking)}. ¡Listo!` },
+  ];
+}
+
+function canceledSteps(reasonEs: string): ProgressStep[] {
+  return [
+    { state: "done", title: "Tarjeta autorizada", text: "Apartamos el monto, sin cargo." },
+    { state: "failed", title: "Revisión de calendarios", text: reasonEs },
+    { state: "done", title: "Autorización liberada", text: "No se hizo ningún cargo a tu tarjeta." },
+  ];
 }
 
 export function countdownLine(booking: Booking, now = new Date()) {
@@ -116,22 +159,21 @@ export function buildBookingProcessingEmail(booking: BookingWithListing, brand: 
   const statusUrl = bookingStatusUrl(brand, booking.id);
   const name = firstName(booking);
   const subject = `Recibimos tu reserva en ${brand.hotelName} · ${booking.listing.title}`;
-  const es =
-    "Tu tarjeta quedó autorizada, pero todavía no se ha hecho ningún cargo. Estamos asegurando tus fechas en todos nuestros canales; toma hasta 2 horas y te escribimos en cuanto quede confirmada.";
-  const en =
-    "Your card is authorized but not charged yet. We're securing your dates across all our channels. It takes up to 2 hours, and we'll email you as soon as it's confirmed.";
+  const es = `Tu tarjeta quedó autorizada y todavía no te cobramos nada. Como ${booking.listing.title} también se anuncia en otras plataformas, estamos asegurándonos de que nadie más se quede con tus noches.`;
+  const en = `Your card is authorized and nothing has been charged yet. ${booking.listing.title} is also listed on other platforms, so we're checking their calendars to make sure your nights are yours. You'll get the confirmation as soon as everything lines up: ${CONFIRM_WINDOW_EN}.`;
 
   const html = renderBrandedEmail({
     brand,
     title: subject,
-    preheader: "Tarjeta autorizada, sin cargo todavía. Estamos confirmando tus fechas.",
+    preheader: `Tarjeta autorizada, sin cargo todavía. Estamos revisando calendarios: ${CONFIRM_WINDOW_ES}.`,
     badge: "Solicitud recibida",
     headline: name ? `¡Ya casi, ${name}!` : `¡Ya casi estás en ${brand.hotelName}!`,
     countdown: countdownLine(booking),
     paragraphs: [es],
     englishNote: en,
+    steps: processingSteps(),
     heroPhoto: brand.roomPhotos[0],
-    stay: stayTicket(booking, "Total estimado · Est. total"),
+    stay: stayTicket(booking, "Total autorizado · Authorized"),
     ctaLabel: "Ver mi reserva",
     ctaUrl: statusUrl,
     galleryPhotos: brand.roomPhotos.slice(1, 3),
@@ -146,7 +188,7 @@ export function buildBookingProcessingEmail(booking: BookingWithListing, brand: 
     es,
     "",
     `Fechas / Dates: ${formatStayDates(booking)} (${countNights(booking)} noches)`,
-    `Total estimado / Estimated total: ${formatTotal(booking)}`,
+    `Total autorizado / Authorized: ${formatTotal(booking)}`,
     `Referencia / Reference: ${booking.id}`,
     "",
     en,
@@ -162,8 +204,8 @@ export function buildBookingConfirmedEmail(booking: BookingWithListing, brand: E
   const statusUrl = bookingStatusUrl(brand, booking.id);
   const name = firstName(booking);
   const subject = `Reserva confirmada en ${brand.hotelName} · ${formatStayDates(booking)}`;
-  const es = `Tu reserva está confirmada y el cargo ya se realizó. ${booking.listing.title} te está esperando: ya puedes empezar a contar los días.`;
-  const en = `Your booking is confirmed and your card has been charged. ${booking.listing.title} is waiting for you, so start counting the days.`;
+  const es = `Revisamos todos los calendarios, tus noches son tuyas y el cargo ya se realizó. ${booking.listing.title} te está esperando: ya puedes empezar a contar los días.`;
+  const en = `We checked every calendar, your nights are locked in and your card has been charged. ${booking.listing.title} is waiting for you, so start counting the days.`;
 
   const html = renderBrandedEmail({
     brand,
@@ -174,6 +216,7 @@ export function buildBookingConfirmedEmail(booking: BookingWithListing, brand: E
     countdown: countdownLine(booking),
     paragraphs: [es],
     englishNote: en,
+    steps: confirmedSteps(booking),
     heroPhoto: brand.roomPhotos[0],
     stay: stayTicket(booking, "Total pagado · Paid"),
     ctaLabel: "Ver mi reserva",
@@ -207,19 +250,29 @@ export function buildBookingCanceledEmail(
   reason: string,
   brand: EmailBrand
 ): EmailMessage {
-  const subject = `Actualización de tu reserva en ${brand.hotelName}`;
-  const es =
-    "No se hizo ningún cargo a tu tarjeta. La autorización temporal desaparecerá según los tiempos de tu banco.";
-  const en = "Your card was not charged. The temporary hold will disappear according to your bank's timeline.";
+  const charged = Boolean(booking.confirmedAt);
+  const name = firstName(booking);
+  const why = describeCancelReason(reason);
+  const subject = charged
+    ? `Tu reserva en ${brand.hotelName} fue cancelada`
+    : `No pudimos confirmar tu reserva en ${brand.hotelName}`;
+  const money = charged
+    ? "Vamos a reembolsar el cargo a tu tarjeta; según tu banco, puede tardar de 5 a 10 días hábiles en verse."
+    : "No se hizo ningún cargo a tu tarjeta. La autorización temporal desaparece según los tiempos de tu banco.";
+  const moneyEn = charged
+    ? "We're refunding the charge to your card; depending on your bank it can take 5–10 business days to show."
+    : "Your card was not charged. The temporary hold disappears according to your bank's timeline.";
+  const en = [why.en, moneyEn, "We'd love to host you on other dates."].filter(Boolean).join(" ");
 
   const html = renderBrandedEmail({
     brand,
     title: subject,
-    preheader: "No pudimos confirmar tu reserva. No se hizo ningún cargo.",
-    badge: "Actualización",
-    headline: "No pudimos confirmar tu reserva",
-    paragraphs: [reason, es],
-    englishNote: `We couldn't confirm your booking at ${brand.hotelName}. ${en}`,
+    preheader: charged ? "Tu reserva fue cancelada. Te reembolsamos el cargo." : "No se hizo ningún cargo a tu tarjeta.",
+    badge: charged ? "Reserva cancelada" : "Fechas no disponibles",
+    headline: name ? `Lo sentimos, ${name}` : "Lo sentimos mucho",
+    paragraphs: [why.es, money, "Nos encantaría recibirte en otras fechas: aquí te esperamos. 🌿"],
+    englishNote: en,
+    ...(charged ? {} : { steps: canceledSteps(why.es) }),
     facts: [
       { label: "Habitación · Room", value: booking.listing.title },
       { label: "Fechas · Dates", value: formatStayDates(booking) },
@@ -227,20 +280,22 @@ export function buildBookingCanceledEmail(
     ],
     ctaLabel: "Buscar otras fechas",
     ctaUrl: brand.siteUrl,
-    tips: guestTips(brand).filter((tip) => tip.icon === "💬"),
+    tips: guestTips(brand)
+      .filter((tip) => tip.icon === "💬")
+      .map((tip) => ({ ...tip, text: "Te ayudamos a encontrar noches libres." })),
     tipsTitle: "¿Te ayudamos a encontrar otras fechas?",
   });
 
   const text = plainText([
     `${brand.hotelName} — ${booking.listing.title}`,
     "",
-    "No pudimos confirmar tu reserva / We couldn't confirm your booking.",
-    reason,
+    subject,
+    why.es,
+    money,
     "",
     `Fechas / Dates: ${formatStayDates(booking)}`,
     `Referencia / Reference: ${booking.id}`,
     "",
-    es,
     en,
     "",
     `Buscar otras fechas / Find other dates: ${brand.siteUrl}`,
@@ -284,7 +339,7 @@ export function buildAdminBookingProcessingEmail(booking: BookingWithListing, br
     badge: `${brand.hotelName} · Nueva reserva`,
     headline: `Nueva reserva en ${booking.listing.title}`,
     paragraphs: [
-      "El huésped autorizó el pago. Aldeitas está revisando los calendarios y cobrará automáticamente en cuanto confirme las fechas.",
+      `El huésped autorizó el pago (sin cargo todavía). Aldeitas está cruzando las fechas con el calendario de Airbnb y las demás plataformas, y cobrará automáticamente en cuanto confirme (${CONFIRM_WINDOW_ES}). Si otra plataforma vende esas noches antes, se cancela sola y se libera la tarjeta.`,
     ],
     withCta: true,
   });
@@ -305,7 +360,12 @@ export function buildAdminBookingCanceledEmail(booking: BookingWithListing, reas
     subject: `Reserva cancelada: ${booking.listing.title} · ${formatStayDates(booking)}`,
     badge: `${brand.hotelName} · Cancelada`,
     headline: `Reserva cancelada en ${booking.listing.title}`,
-    paragraphs: ["La reserva se canceló antes del cobro; no se hizo ningún cargo al huésped.", `Motivo: ${reason}`],
+    paragraphs: [
+      booking.confirmedAt
+        ? "La reserva confirmada se canceló; revisa que el reembolso al huésped se haya procesado."
+        : "La reserva se canceló antes del cobro; no se hizo ningún cargo al huésped.",
+      `Motivo: ${describeCancelReason(reason).es}`,
+    ],
     withCta: false,
   });
 }

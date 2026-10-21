@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { EmailBrand } from "@/lib/email/hotel-brand";
 import { absoluteUrl, hotelSiteUrl, isUsableBrandColor, mixColor } from "@/lib/email/hotel-brand";
 import { withFromName } from "@/lib/email/send";
+import { CANCEL_REASON_OTHER_CHANNEL } from "@/lib/booking-cancel-reasons";
 import {
   buildAdminBookingCanceledEmail,
   buildBookingCanceledEmail,
@@ -108,5 +109,25 @@ describe("email brand helpers", () => {
     expect(html).toContain("https://maps.google.com/?q=La+Arbolita");
     expect(html).toContain('name="viewport"');
     expect(html).toContain("@media only screen and (max-width: 520px)");
+  });
+
+  it("walks the guest through the calendar check and explains cancellations in Spanish", () => {
+    const processing = buildBookingProcessingEmail(booking, brand).html;
+    expect(processing).toContain("Revisando calendarios");
+    expect(processing).toContain("todavía no te cobramos nada");
+
+    const canceled = buildBookingCanceledEmail(booking, CANCEL_REASON_OTHER_CHANNEL, brand);
+    expect(canceled.html).toContain("Esas fechas se reservaron en otra plataforma");
+    expect(canceled.html).toContain("No se hizo ningún cargo");
+    expect(canceled.text).toContain(CANCEL_REASON_OTHER_CHANNEL);
+
+    const refunded = buildBookingCanceledEmail(
+      { ...booking, confirmedAt: new Date("2026-11-01T00:00:00Z") } as BookingWithListing,
+      "Canceled by hotel admin.",
+      brand
+    );
+    expect(refunded.subject).toBe("Tu reserva en La Arbolita fue cancelada");
+    expect(refunded.html).toContain("reembolsar");
+    expect(refunded.html).not.toContain("No se hizo ningún cargo");
   });
 });

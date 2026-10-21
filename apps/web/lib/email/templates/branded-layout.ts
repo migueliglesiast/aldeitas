@@ -18,6 +18,8 @@ export type StayTicket = {
   facts: StayFact[];
 };
 
+export type ProgressStep = { state: "done" | "active" | "todo" | "failed"; title: string; text: string };
+
 export type EmailTip = { icon: string; title: string; text: string; url?: string };
 
 export type BrandedEmailOptions = {
@@ -39,6 +41,7 @@ export type BrandedEmailOptions = {
   quote?: string | null;
   tips?: EmailTip[];
   tipsTitle?: string;
+  steps?: ProgressStep[];
 };
 
 export function whatsappLink(phone: string | null) {
@@ -165,6 +168,39 @@ function quote(brand: EmailBrand, text: string) {
   return `<div style="margin:20px 0 0;padding:18px 20px;border-radius:14px;background:${brand.colorSoft};font-family:${SERIF};font-style:italic;font-size:16px;line-height:1.6;color:${INK};">“${escapeHtml(text)}”</div>`;
 }
 
+function stepsBlock(brand: EmailBrand, steps: ProgressStep[]) {
+  const dot = (state: ProgressStep["state"]) => {
+    if (state === "done") return { bg: brand.color, fg: "#ffffff", mark: "✓" };
+    if (state === "failed") return { bg: "#b4533a", fg: "#ffffff", mark: "✕" };
+    if (state === "active") return { bg: brand.colorSoft, fg: brand.colorDark, mark: "⋯" };
+    return { bg: "#ffffff", fg: MUTED, mark: "" };
+  };
+  const rows = steps
+    .map((step, index) => {
+      const { bg, fg, mark } = dot(step.state);
+      const border = step.state === "todo" ? `border:2px solid ${LINE};width:24px;height:24px;line-height:24px;` : "width:28px;height:28px;line-height:28px;";
+      const line =
+        index < steps.length - 1
+          ? `<div style="width:2px;height:26px;margin:4px auto 0;background:${step.state === "done" ? brand.color : LINE};"></div>`
+          : "";
+      const titleColor = step.state === "todo" ? MUTED : INK;
+      return `<tr>
+        <td width="40" style="vertical-align:top;padding:0;">
+          <div style="${border}margin:0 auto;border-radius:16px;background:${bg};color:${fg};text-align:center;font-family:${SANS};font-size:14px;font-weight:700;">${mark}</div>
+          ${line}
+        </td>
+        <td style="vertical-align:top;padding:2px 0 14px 10px;font-family:${SANS};">
+          <div style="font-size:15px;font-weight:700;color:${titleColor};">${escapeHtml(step.title)}</div>
+          <div style="margin-top:2px;font-size:14px;line-height:1.5;color:${MUTED};">${escapeHtml(step.text)}</div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:24px 0 0;background:#ffffff;border-radius:18px;"><tr><td style="padding:18px 18px 4px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows}</table>
+  </td></tr></table>`;
+}
+
 function tipsBlock(brand: EmailBrand, tips: EmailTip[], title: string) {
   const rows = tips
     .map((tip) => {
@@ -222,6 +258,7 @@ export function renderBrandedEmail(options: BrandedEmailOptions) {
             ${countdown}
             ${paragraphs}
             ${english}
+            ${options.steps?.length ? stepsBlock(brand, options.steps) : ""}
             ${options.stay ? stayTicket(brand, options.stay) : ""}
             ${options.facts?.length ? factsList(options.facts) : ""}
             ${options.ctaLabel && options.ctaUrl ? button(brand, options.ctaLabel, options.ctaUrl) : ""}
