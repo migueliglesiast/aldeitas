@@ -50,16 +50,21 @@ function pinToBuiltVersions(pkg) {
   return { ...pkg, dependencies: deps };
 }
 
-if (fs.existsSync(path.join(appModules, "next"))) {
-  console.log("[runtime-deps] apps/web/node_modules/next already present");
+const appPkg = JSON.parse(fs.readFileSync(path.join(appDir, "package.json"), "utf8"));
+const missing = Object.keys(appPkg.dependencies || {}).filter(
+  (name) => !fs.existsSync(path.join(appModules, name, "package.json"))
+);
+if (missing.length === 0) {
+  console.log("[runtime-deps] every dependency already in apps/web/node_modules");
   process.exit(0);
 }
+console.log("[runtime-deps] not in apps/web/node_modules: %s", missing.join(", "));
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "aldeitas-runtime-deps-"));
 try {
   fs.writeFileSync(
     path.join(scratch, "package.json"),
-    JSON.stringify(pinToBuiltVersions(JSON.parse(fs.readFileSync(path.join(appDir, "package.json"), "utf8"))), null, 2)
+    JSON.stringify(pinToBuiltVersions(appPkg), null, 2)
   );
   runNode([npmCli, "install", "--omit=dev", "--no-audit", "--no-fund", "--no-package-lock", "--ignore-scripts"], scratch);
   fs.mkdirSync(appModules, { recursive: true });
@@ -70,7 +75,7 @@ try {
 
 runNode([path.join(__dirname, "prisma-generate-for-env.js")], appDir);
 
-for (const required of ["next", ".prisma/client", "@prisma/client"]) {
+for (const required of ["next", "react", "react-dom", ".prisma/client", "@prisma/client"]) {
   const target = path.join(appModules, required);
   if (!fs.existsSync(target)) {
     console.error("[runtime-deps] FATAL: %s missing", target);
