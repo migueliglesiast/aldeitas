@@ -13,6 +13,7 @@ export type EmailBrand = {
   tagline: string | null;
   location: string | null;
   contactPhone: string | null;
+  mapsUrl: string | null;
   roomPhotos: string[];
   roomDescription: string | null;
   roomCapacity: number | null;
@@ -100,7 +101,7 @@ export async function loadEmailBrand(listingId: string): Promise<EmailBrand> {
       description: true,
       guestsInBeds: true,
       guestsInBedsAndSofas: true,
-      images: { orderBy: { position: "asc" }, take: 3, select: { url: true } },
+      images: { orderBy: { position: "asc" }, take: 4, select: { url: true } },
       hotel: {
         select: {
           name: true,
@@ -109,6 +110,7 @@ export async function loadEmailBrand(listingId: string): Promise<EmailBrand> {
           storefrontTagline: true,
           location: true,
           mainContactNumber: true,
+          googleMapsUrl: true,
         },
       },
     },
@@ -128,6 +130,7 @@ export async function loadEmailBrand(listingId: string): Promise<EmailBrand> {
     tagline: hotel?.storefrontTagline?.trim() || null,
     location: hotel?.location?.trim() || null,
     contactPhone: hotel?.mainContactNumber?.trim() || null,
+    mapsUrl: absoluteUrl(hotel?.googleMapsUrl?.trim(), siteUrl),
     roomPhotos: (listing?.images ?? [])
       .map((image) => absoluteUrl(image.url, siteUrl))
       .filter((url): url is string => Boolean(url)),

@@ -1,7 +1,13 @@
 import type { Booking, Listing } from "@prisma/client";
 import { formatMoney } from "@/lib/currency";
 import type { EmailBrand } from "@/lib/email/hotel-brand";
-import { renderBrandedEmail, type StayFact } from "@/lib/email/templates/branded-layout";
+import {
+  renderBrandedEmail,
+  whatsappLink,
+  type EmailTip,
+  type StayFact,
+  type StayTicket,
+} from "@/lib/email/templates/branded-layout";
 
 export type BookingWithListing = Booking & { listing: Listing };
 
@@ -47,21 +53,47 @@ function excerpt(text: string | null, max = 240) {
   return `${cut.slice(0, cut.lastIndexOf(" ")).replace(/[,.;:]$/, "")}…`;
 }
 
-function stayHighlights(booking: Booking): StayFact[] {
-  const nights = countNights(booking);
-  return [
-    { label: "Llegada · In", value: formatDay(booking.startDate, "es-MX") },
-    { label: "Salida · Out", value: formatDay(booking.endDate, "es-MX") },
-    { label: "Noches · Nights", value: String(nights) },
-  ];
+export function countdownLine(booking: Booking, now = new Date()) {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const days = Math.round((booking.startDate.getTime() - today) / DAY_MS);
+  if (days < 0) return null;
+  if (days === 0) return "¡Llegas hoy! ☀️";
+  if (days === 1) return "¡Llegas mañana! 🌴";
+  return `Faltan ${days} días para tu llegada 🌴`;
 }
 
-function guestFacts(booking: BookingWithListing, totalLabel: string): StayFact[] {
-  const facts: StayFact[] = [{ label: "Habitación · Room", value: booking.listing.title }];
-  if (booking.guestCount) facts.push({ label: "Huéspedes · Guests", value: String(booking.guestCount) });
-  facts.push({ label: totalLabel, value: formatTotal(booking) });
-  facts.push({ label: "Referencia · Reference", value: booking.id });
-  return facts;
+function stayTicket(booking: BookingWithListing, totalLabel: string): StayTicket {
+  const nights = countNights(booking);
+  const details = [`${nights} ${nights === 1 ? "noche" : "noches"}`];
+  if (booking.guestCount) details.push(`${booking.guestCount} ${booking.guestCount === 1 ? "huésped" : "huéspedes"}`);
+  return {
+    checkIn: booking.startDate,
+    checkOut: booking.endDate,
+    room: booking.listing.title,
+    details,
+    facts: [
+      { label: totalLabel, value: formatTotal(booking) },
+      { label: "Referencia · Ref", value: booking.id },
+    ],
+  };
+}
+
+function guestTips(brand: EmailBrand): EmailTip[] {
+  const tips: EmailTip[] = [];
+  const whatsapp = whatsappLink(brand.contactPhone);
+  if (whatsapp) {
+    tips.push({
+      icon: "💬",
+      title: "Escríbenos por WhatsApp",
+      text: "Coordina tu hora de llegada o pregúntanos lo que quieras.",
+      url: whatsapp,
+    });
+  }
+  if (brand.mapsUrl) {
+    tips.push({ icon: "📍", title: "Cómo llegar", text: brand.location ?? "Abre la ubicación en tu mapa.", url: brand.mapsUrl });
+  }
+  tips.push({ icon: "🧳", title: "Guarda este correo", text: "Tu referencia agiliza el check-in." });
+  return tips;
 }
 
 function adminFacts(booking: BookingWithListing): StayFact[] {
@@ -93,18 +125,19 @@ export function buildBookingProcessingEmail(booking: BookingWithListing, brand: 
     brand,
     title: subject,
     preheader: "Tarjeta autorizada, sin cargo todavía. Estamos confirmando tus fechas.",
-    eyebrow: "Solicitud recibida · Request received",
+    badge: "Solicitud recibida",
     headline: name ? `¡Ya casi, ${name}!` : `¡Ya casi estás en ${brand.hotelName}!`,
-    subline: `Your stay at ${brand.hotelName} is almost booked.`,
-    paragraphs: [es, en],
+    countdown: countdownLine(booking),
+    paragraphs: [es],
+    englishNote: en,
     heroPhoto: brand.roomPhotos[0],
-    highlights: stayHighlights(booking),
-    facts: guestFacts(booking, "Total estimado · Estimated total"),
-    ctaLabel: "Ver mi reserva · View booking",
+    stay: stayTicket(booking, "Total estimado · Est. total"),
+    ctaLabel: "Ver mi reserva",
     ctaUrl: statusUrl,
     galleryPhotos: brand.roomPhotos.slice(1, 3),
+    galleryCaption: `Tu rincón · ${booking.listing.title}`,
     quote: excerpt(brand.roomDescription),
-    showContact: true,
+    tips: guestTips(brand),
   });
 
   const text = plainText([
@@ -136,18 +169,19 @@ export function buildBookingConfirmedEmail(booking: BookingWithListing, brand: E
     brand,
     title: subject,
     preheader: `Tu estancia en ${brand.hotelName} está confirmada.`,
-    eyebrow: "Reserva confirmada · Booking confirmed",
+    badge: "✓ Reserva confirmada",
     headline: name ? `¡Nos vemos pronto, ${name}!` : "¡Nos vemos pronto!",
-    subline: `Your stay at ${brand.hotelName} is confirmed.`,
-    paragraphs: [es, en],
+    countdown: countdownLine(booking),
+    paragraphs: [es],
+    englishNote: en,
     heroPhoto: brand.roomPhotos[0],
-    highlights: stayHighlights(booking),
-    facts: guestFacts(booking, "Total pagado · Total paid"),
-    ctaLabel: "Ver mi reserva · View booking",
+    stay: stayTicket(booking, "Total pagado · Paid"),
+    ctaLabel: "Ver mi reserva",
     ctaUrl: statusUrl,
     galleryPhotos: brand.roomPhotos.slice(1, 3),
+    galleryCaption: `Tu rincón · ${booking.listing.title}`,
     quote: excerpt(brand.roomDescription),
-    showContact: true,
+    tips: guestTips(brand),
   });
 
   const text = plainText([
@@ -182,18 +216,19 @@ export function buildBookingCanceledEmail(
     brand,
     title: subject,
     preheader: "No pudimos confirmar tu reserva. No se hizo ningún cargo.",
-    eyebrow: "Actualización · Update",
+    badge: "Actualización",
     headline: "No pudimos confirmar tu reserva",
-    subline: `We couldn't confirm your booking at ${brand.hotelName}.`,
-    paragraphs: [reason, es, en],
+    paragraphs: [reason, es],
+    englishNote: `We couldn't confirm your booking at ${brand.hotelName}. ${en}`,
     facts: [
       { label: "Habitación · Room", value: booking.listing.title },
       { label: "Fechas · Dates", value: formatStayDates(booking) },
       { label: "Referencia · Reference", value: booking.id },
     ],
-    ctaLabel: "Buscar otras fechas · Find other dates",
+    ctaLabel: "Buscar otras fechas",
     ctaUrl: brand.siteUrl,
-    showContact: true,
+    tips: guestTips(brand).filter((tip) => tip.icon === "💬"),
+    tipsTitle: "¿Te ayudamos a encontrar otras fechas?",
   });
 
   const text = plainText([
@@ -217,7 +252,7 @@ export function buildBookingCanceledEmail(
 function adminMessage(
   booking: BookingWithListing,
   brand: EmailBrand,
-  opts: { subject: string; eyebrow: string; headline: string; paragraphs: string[]; withCta: boolean }
+  opts: { subject: string; badge: string; headline: string; paragraphs: string[]; withCta: boolean }
 ): EmailMessage {
   const statusUrl = bookingStatusUrl(brand, booking.id);
   const facts = adminFacts(booking);
@@ -225,7 +260,7 @@ function adminMessage(
     brand,
     title: opts.subject,
     preheader: opts.headline,
-    eyebrow: opts.eyebrow,
+    badge: opts.badge,
     headline: opts.headline,
     paragraphs: opts.paragraphs,
     heroPhoto: brand.roomPhotos[0],
@@ -246,7 +281,7 @@ function adminMessage(
 export function buildAdminBookingProcessingEmail(booking: BookingWithListing, brand: EmailBrand) {
   return adminMessage(booking, brand, {
     subject: `Nueva reserva directa: ${booking.listing.title} · ${formatStayDates(booking)}`,
-    eyebrow: `${brand.hotelName} · Nueva reserva`,
+    badge: `${brand.hotelName} · Nueva reserva`,
     headline: `Nueva reserva en ${booking.listing.title}`,
     paragraphs: [
       "El huésped autorizó el pago. Aldeitas está revisando los calendarios y cobrará automáticamente en cuanto confirme las fechas.",
@@ -258,7 +293,7 @@ export function buildAdminBookingProcessingEmail(booking: BookingWithListing, br
 export function buildAdminBookingConfirmedEmail(booking: BookingWithListing, brand: EmailBrand) {
   return adminMessage(booking, brand, {
     subject: `Reserva confirmada: ${booking.listing.title} · ${formatStayDates(booking)}`,
-    eyebrow: `${brand.hotelName} · Confirmada`,
+    badge: `${brand.hotelName} · Confirmada`,
     headline: `Reserva confirmada en ${booking.listing.title}`,
     paragraphs: ["Las fechas quedaron confirmadas y el pago se cobró."],
     withCta: true,
@@ -268,7 +303,7 @@ export function buildAdminBookingConfirmedEmail(booking: BookingWithListing, bra
 export function buildAdminBookingCanceledEmail(booking: BookingWithListing, reason: string, brand: EmailBrand) {
   return adminMessage(booking, brand, {
     subject: `Reserva cancelada: ${booking.listing.title} · ${formatStayDates(booking)}`,
-    eyebrow: `${brand.hotelName} · Cancelada`,
+    badge: `${brand.hotelName} · Cancelada`,
     headline: `Reserva cancelada en ${booking.listing.title}`,
     paragraphs: ["La reserva se canceló antes del cobro; no se hizo ningún cargo al huésped.", `Motivo: ${reason}`],
     withCta: false,

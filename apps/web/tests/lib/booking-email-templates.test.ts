@@ -8,6 +8,7 @@ import {
   buildBookingConfirmedEmail,
   buildBookingProcessingEmail,
   countNights,
+  countdownLine,
   type BookingWithListing,
 } from "@/lib/email/templates/booking";
 
@@ -21,6 +22,7 @@ const brand: EmailBrand = {
   tagline: "Estudios y casas del árbol",
   location: "Zicatela",
   contactPhone: "+52 961 555 8958",
+  mapsUrl: "https://maps.google.com/?q=La+Arbolita",
   roomPhotos: ["https://img/1.jpg", "https://img/2.jpg", "https://img/3.jpg"],
   roomDescription: "Un rinconcito entre los árboles <con> aire acondicionado.",
   roomCapacity: 2,
@@ -96,5 +98,15 @@ describe("email brand helpers", () => {
     );
     expect(withFromName("reservas@aldeitas.io", 'Bad"\r\nName')).toBe('"BadName" <reservas@aldeitas.io>');
     expect(withFromName("reservas@aldeitas.io")).toBe("reservas@aldeitas.io");
+  });
+
+  it("counts down to arrival and links directions, mobile-first", () => {
+    expect(countdownLine(booking, new Date("2026-11-01T18:00:00Z"))).toBe("Faltan 30 días para tu llegada 🌴");
+    expect(countdownLine(booking, new Date("2026-11-30T05:00:00Z"))).toBe("¡Llegas mañana! 🌴");
+    expect(countdownLine(booking, new Date("2026-12-02T00:00:00Z"))).toBeNull();
+    const { html } = buildBookingConfirmedEmail(booking, brand);
+    expect(html).toContain("https://maps.google.com/?q=La+Arbolita");
+    expect(html).toContain('name="viewport"');
+    expect(html).toContain("@media only screen and (max-width: 520px)");
   });
 });
