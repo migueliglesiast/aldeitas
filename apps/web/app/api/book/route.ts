@@ -8,7 +8,7 @@ import { checkExternalAvailability } from "@/lib/external-calendars";
 import { getBookingMaxPendingMs } from "@/lib/booking-config";
 import { getDefaultPaymentProvider } from "@/lib/payment-providers/config";
 import { createProviderCheckout } from "@/lib/payment-providers";
-import { AddonError, priceAddonSelection } from "@/lib/addons";
+import { AddonError, hotelChargedCents, priceAddonSelection } from "@/lib/addons";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-06-20",
@@ -21,7 +21,15 @@ const bodySchema = z.object({
   email: z.string().email(),
   phone: z.string().min(6),
   addons: z
-    .array(z.object({ addonId: z.string().min(1), quantity: z.number().int().min(0).max(50) }))
+    .array(
+      z.object({
+        addonId: z.string().min(1),
+        quantity: z.number().int().min(0).max(50),
+        option: z.string().max(40).optional(),
+        from: z.string().max(10).optional(),
+        to: z.string().max(10).optional(),
+      })
+    )
     .max(30)
     .optional(),
 });
@@ -103,7 +111,7 @@ async function handleBooking(req: NextRequest) {
       throw error;
     }
   }
-  const totalCents = staysCents + addons.reduce((sum, item) => sum + item.totalCents, 0);
+  const totalCents = staysCents + hotelChargedCents(addons);
 
   const booking = await prisma.booking.create({
     data: {

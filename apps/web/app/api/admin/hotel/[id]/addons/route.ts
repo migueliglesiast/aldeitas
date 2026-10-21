@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireHotelManager } from "@/lib/admin-hotel-auth";
+import { adminAddon } from "@/lib/addons";
 import { addonInputSchema } from "@/lib/addon-admin";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     where: { hotelId: id },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  return NextResponse.json({ addons });
+  return NextResponse.json({ addons: addons.map(adminAddon) });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,5 +24,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const parsed = addonInputSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   const addon = await prisma.hotelAddon.create({ data: { ...parsed.data, hotelId: id } });
-  return NextResponse.json({ addon }, { status: 201 });
+  return NextResponse.json({ addon: adminAddon(addon) }, { status: 201 });
 }

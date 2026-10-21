@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireHotelManager } from "@/lib/admin-hotel-auth";
+import { adminAddon } from "@/lib/addons";
 import { addonPatchSchema } from "@/lib/addon-admin";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const parsed = addonPatchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   const addon = await prisma.hotelAddon.update({ where: { id: addonId }, data: parsed.data });
-  return NextResponse.json({ addon });
+  return NextResponse.json({ addon: adminAddon(addon) });
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
@@ -30,7 +31,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const sold = await prisma.bookingAddon.count({ where: { addonId } });
   if (sold > 0) {
     const addon = await prisma.hotelAddon.update({ where: { id: addonId }, data: { enabled: false } });
-    return NextResponse.json({ addon, archived: true });
+    return NextResponse.json({ addon: adminAddon(addon), archived: true });
   }
   await prisma.hotelAddon.delete({ where: { id: addonId } });
   return NextResponse.json({ deleted: true });

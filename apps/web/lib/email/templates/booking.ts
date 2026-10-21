@@ -15,12 +15,17 @@ import {
 
 export type BookingWithListing = Booking & { listing: Listing; addons?: BookingAddon[] };
 
-function addonFacts(booking: BookingWithListing, label: string): StayFact[] {
+function addonFacts(booking: BookingWithListing, label: string, forHotel = false): StayFact[] {
   const nights = countNights(booking);
-  return (booking.addons ?? []).map((item) => ({
-    label,
-    value: `${describeBookingAddonLine(item, nights)} · ${formatMoney(item.totalCents, booking.currency)}`,
-  }));
+  return (booking.addons ?? []).map((item) => {
+    const parts = [describeBookingAddonLine(item, nights), formatMoney(item.totalCents, booking.currency)];
+    if (item.paidTo === "provider") {
+      parts.push(item.depositCents > 0 ? `+ depósito ${formatMoney(item.depositCents, booking.currency)}` : "");
+      parts.push("se paga al proveedor");
+      if (forHotel && item.providerName) parts.push([item.providerName, item.providerPhone].filter(Boolean).join(" "));
+    }
+    return { label, value: parts.filter(Boolean).join(" · ") };
+  });
 }
 
 function addonTextLines(booking: BookingWithListing) {
@@ -157,7 +162,7 @@ function adminFacts(booking: BookingWithListing): StayFact[] {
   return [
     { label: "Habitación", value: booking.listing.title },
     { label: "Fechas", value: `${formatStayDates(booking)} (${countNights(booking)} noches)` },
-    ...addonFacts(booking, "Extra (preparar)"),
+    ...addonFacts(booking, "Extra (preparar)", true),
     { label: "Total", value: formatTotal(booking) },
     ...(booking.guestName ? [{ label: "Huésped", value: booking.guestName }] : []),
     { label: "Correo", value: booking.guestEmail },

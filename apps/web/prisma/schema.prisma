@@ -276,6 +276,14 @@ model HotelAddon {
   unit        String         @default("item")
   kind        String         @default("standard")
   nightPercent Int?
+  /// JSON [{ "name", "nameEn", "priceCents" }]; the guest picks one (e.g. moto / ATV / scooter).
+  options       String?
+  depositCents  Int?
+  /// Shown behind the "?" button at checkout.
+  note          String?
+  /// Third-party add-ons are only offered once their provider is set; the guest pays the provider directly.
+  providerName  String?
+  providerPhone String?
   maxQuantity Int            @default(10)
   /// Units the hotel owns at once (e.g. 2 motos); null means unlimited.
   stock       Int?
@@ -299,6 +307,14 @@ model BookingAddon {
   quantity       Int
   unitPriceCents Int
   totalCents     Int
+  option         String?
+  rentalStart    DateTime?
+  rentalEnd      DateTime?
+  depositCents   Int        @default(0)
+  /// "hotel" = charged with the room; "provider" = the guest pays the provider directly.
+  paidTo         String     @default("hotel")
+  providerName   String?
+  providerPhone  String?
   createdAt      DateTime   @default(now())
 
   @@index([bookingId])
