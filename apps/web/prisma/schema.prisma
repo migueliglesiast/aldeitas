@@ -195,6 +195,7 @@ model Listing {
   guestMetas           CalendarGuestMeta[]
   reviews              ListingReview[]
   ratingSummary        ListingRatingSummary?
+  offers               BookingOffer[]
 }
 
 model CalendarGuestMeta {
@@ -263,6 +264,27 @@ model Booking {
   status                 BookingStatus @default(PENDING)
   createdAt              DateTime      @default(now())
   addons                 BookingAddon[]
+}
+
+/// Private checkout link with owner-set terms for one room and dates (quote for a specific guest).
+model BookingOffer {
+  id               String    @id @default(cuid())
+  token            String    @unique
+  listingId        String
+  listing          Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  startDate        DateTime
+  endDate          DateTime
+  nightlyCents     Int
+  cleaningFeeCents Int       @default(0)
+  discountPercent  Int       @default(0)
+  currency         String    @default("MXN")
+  /// JSON array of HotelAddon ids offered at checkout; null = the hotel's usual extras.
+  addonIds         String?
+  guestName        String?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([listingId])
 }
 
 /// Extras a hotel sells with a stay (moto rental, beer in the fridge, tours...).

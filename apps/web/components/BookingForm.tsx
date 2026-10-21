@@ -11,7 +11,7 @@ import {
   type AddonUnit,
 } from "@/lib/addon-units";
 
-type GuestAddon = {
+export type GuestAddon = {
   id: string;
   name: string;
   nameEn: string | null;
@@ -50,10 +50,25 @@ function redirectTo(url: string) {
   window.location.href = url;
 }
 
+/** Owner-set terms of a private booking link: fixed dates and price, chosen extras. */
+export type OfferCheckout = {
+  token: string;
+  start: string;
+  end: string;
+  nights: number;
+  nightlyCents: number;
+  cleaningFeeCents: number;
+  discountPercent: number;
+  discountCents: number;
+  totalCents: number;
+  addons: GuestAddon[];
+};
+
 type Props = {
   listingId: string;
   basePriceCents: number;
   currency: string;
+  offer?: OfferCheckout;
 };
 
 type PricingData = {
@@ -66,17 +81,17 @@ type PricingData = {
   isDynamic: boolean;
 };
 
-export default function BookingForm({ listingId, basePriceCents, currency }: Props) {
+export default function BookingForm({ listingId, basePriceCents, currency, offer }: Props) {
   const { searchParams, setSearchParams } = useHotel();
-  const [start, setStart] = useState<string>(searchParams?.checkIn || "");
-  const [end, setEnd] = useState<string>(searchParams?.checkOut || "");
+  const [start, setStart] = useState<string>(offer?.start ?? (searchParams?.checkIn || ""));
+  const [end, setEnd] = useState<string>(offer?.end ?? (searchParams?.checkOut || ""));
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
-  const [addons, setAddons] = useState<GuestAddon[]>([]);
+  const [addons, setAddons] = useState<GuestAddon[]>(offer?.addons ?? []);
   const [picked, setPicked] = useState<Record<string, number>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [ranges, setRanges] = useState<Record<string, DayRange>>({});
@@ -85,15 +100,17 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   const lang = locale === "en" ? "en" : "es";
 
   useEffect(() => {
+    if (offer) return;
     const stay = start && end ? `?start=${start}&end=${end}` : "";
     fetch(`/api/listings/${listingId}/addons${stay}`)
       .then((res) => (res.ok ? res.json() : { addons: [] }))
       .then((data: { addons?: GuestAddon[] }) => setAddons(Array.isArray(data.addons) ? data.addons : []))
       .catch(() => setAddons([]));
-  }, [listingId, start, end]);
+  }, [listingId, start, end, offer]);
 
   // Update dates when search params change (from calendar or external source)
   useEffect(() => {
+    if (offer) return;
     if (searchParams?.checkIn) {
       setStart(searchParams.checkIn);
     } else if (!searchParams) {
@@ -104,10 +121,11 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     } else {
       setEnd("");
     }
-  }, [searchParams]);
+  }, [searchParams, offer]);
 
   // Fetch pricing when dates change
   useEffect(() => {
+    if (offer) return;
     if (start && end) {
       setLoadingPricing(true);
       fetch(`/api/listings/${listingId}/pricing?checkIn=${start}&checkOut=${end}`)
@@ -130,7 +148,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     } else {
       setPricing(null);
     }
-  }, [start, end, listingId]);
+  }, [start, end, listingId, offer]);
 
   const minDate = new Date().toISOString().split('T')[0];
   
@@ -187,9 +205,9 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
     : 0;
   
   // Use pricing from API if available, otherwise calculate from base price
-  const staysCents = pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
+  const staysCents = offer?.totalCents ?? pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
   const displayCurrency = pricing?.currency ?? currency;
-  const nightlyCents = pricing?.nightlyCents ?? basePriceCents;
+  const nightlyCents = offer?.nightlyCents ?? pricing?.nightlyCents ?? basePriceCents;
   const days = stayDays(start, end);
   const offeredAddons = addons
     .filter((addon) => addon.currency === displayCurrency)
@@ -251,6 +269,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
           end,
           email,
           phone,
+          ...(offer ? { offerToken: offer.token } : {}),
           ...(selectedAddons.length > 0 ? { addons: selectedAddons } : {}),
         }),
       });
@@ -290,6 +309,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
               aria-label="Check-in"
               value={start} 
               onChange={(e) => handleStartChange(e.target.value)} 
+              readOnly={Boolean(offer)}
               min={minDate}
               className="w-full bg-transparent text-sm text-ink focus:outline-none" 
               required 
@@ -303,6 +323,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
               value={end} 
               onChange={(e) => handleEndChange(e.target.value)} 
               min={getMinCheckoutDate()}
+              readOnly={Boolean(offer)}
               disabled={!start}
               className="w-full bg-transparent text-sm text-ink focus:outline-none disabled:cursor-not-allowed disabled:text-muted" 
               required 
@@ -312,7 +333,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-ink">Email</label>
-        <input type="email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
+        <input type="email" aria-label="Email" autoFocus={Boolean(offer)} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-line px-3 py-2.5 text-sm focus:border-ink focus:outline-none" required />
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-ink">Phone</label>
@@ -429,6 +450,32 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
             <span>${(addonsCents / 100).toFixed(2)} {displayCurrency}</span>
           </div>
         )}
+        {offer ? (
+          <>
+            <div className="flex items-center justify-between text-gray-600">
+              <span>
+                {offer.nights} {lang === "en" ? (offer.nights === 1 ? "night" : "nights") : offer.nights === 1 ? "noche" : "noches"} × {money(offer.nightlyCents)}
+              </span>
+              <span className="tabular-nums">{money(offer.nights * offer.nightlyCents)}</span>
+            </div>
+            {offer.cleaningFeeCents > 0 && (
+              <div className="flex items-center justify-between text-gray-600">
+                <span>{lang === "en" ? "Cleaning fee" : "Limpieza"}</span>
+                <span className="tabular-nums">{money(offer.cleaningFeeCents)}</span>
+              </div>
+            )}
+            {offer.discountCents > 0 && (
+              <div className="flex items-center justify-between text-brand">
+                <span>{lang === "en" ? `${offer.discountPercent}% discount` : `Descuento ${offer.discountPercent}%`}</span>
+                <span className="tabular-nums">−{money(offer.discountCents)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-line pt-2 font-semibold text-gray-900">
+              <span>Total</span>
+              <span className="tabular-nums">{money(totalCents)} {displayCurrency}</span>
+            </div>
+          </>
+        ) : (
         <div className="flex items-center justify-between text-gray-600">
           <span>{nights} {nights === 1 ? 'night' : 'nights'}</span>
           {loadingPricing ? (
@@ -450,6 +497,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
             </span>
           )}
         </div>
+        )}
         {providerLines.length > 0 && (
           <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-ink">
             <div className="flex items-center justify-between font-medium">
@@ -474,7 +522,7 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
         )}
       </div>
       <button disabled={loading} className="w-full rounded-xl bg-brand py-3 font-semibold text-white transition-colors hover:bg-brand-dark disabled:opacity-50">
-        {loading ? "Processing..." : "Reserve"}
+        {loading ? "Processing..." : offer ? (lang === "en" ? "Book and pay" : "Reservar y pagar") : "Reserve"}
       </button>
       {message && <p className="text-sm text-red-600">{message}</p>}
     </form>
