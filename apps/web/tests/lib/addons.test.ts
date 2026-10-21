@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addonLineTotal, addonUnit, describeBookingAddonLine } from "@/lib/addon-units";
+import { addonLineTotal, addonUnit, addonUnitPriceCents, describeBookingAddonLine } from "@/lib/addon-units";
 import { addonInputSchema } from "@/lib/addon-admin";
 
 describe("add-on pricing", () => {
@@ -7,6 +7,11 @@ describe("add-on pricing", () => {
     expect(addonLineTotal({ priceCents: 60000, unit: "night" }, 2, 3)).toBe(360000);
     expect(addonLineTotal({ priceCents: 25000, unit: "item" }, 2, 3)).toBe(50000);
     expect(addonLineTotal({ priceCents: 50000, unit: "person" }, 4, 3)).toBe(200000);
+  });
+
+  it("prices percent-of-night add-ons from the stay's nightly rate", () => {
+    expect(addonUnitPriceCents({ priceCents: 0, nightPercent: 20 }, 150000)).toBe(30000);
+    expect(addonUnitPriceCents({ priceCents: 25000, nightPercent: null }, 150000)).toBe(25000);
   });
 
   it("falls back to per-item for unknown units", () => {

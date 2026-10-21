@@ -7,6 +7,17 @@ export const ADDON_UNIT_LABELS: Record<AddonUnit, { es: string; en: string }> = 
   person: { es: "por persona", en: "per person" },
 };
 
+export const ADDON_KINDS = ["standard", "early_checkin", "late_checkout"] as const;
+export type AddonKind = (typeof ADDON_KINDS)[number];
+
+/** Price of one unit; add-ons with `nightPercent` cost that share of the stay's nightly rate. */
+export function addonUnitPriceCents(
+  addon: { priceCents: number; nightPercent?: number | null },
+  nightlyCents: number
+) {
+  return addon.nightPercent ? Math.round((nightlyCents * addon.nightPercent) / 100) : addon.priceCents;
+}
+
 export function addonUnit(unit: string): AddonUnit {
   return (ADDON_UNITS as readonly string[]).includes(unit) ? (unit as AddonUnit) : "item";
 }

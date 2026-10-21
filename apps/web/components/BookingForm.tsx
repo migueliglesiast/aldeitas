@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useHotel } from "@/lib/hotel-context";
 import { useLocale } from "@/lib/i18n/locale-context";
-import { ADDON_UNIT_LABELS, addonLineTotal, type AddonUnit } from "@/lib/addon-units";
+import { ADDON_UNIT_LABELS, addonLineTotal, addonUnitPriceCents, type AddonUnit } from "@/lib/addon-units";
 
 type GuestAddon = {
   id: string;
@@ -14,6 +14,7 @@ type GuestAddon = {
   currency: string;
   unit: AddonUnit;
   maxQuantity: number;
+  nightPercent: number | null;
 };
 
 function redirectTo(url: string) {
@@ -52,11 +53,12 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   const lang = locale === "en" ? "en" : "es";
 
   useEffect(() => {
-    fetch(`/api/listings/${listingId}/addons`)
+    const stay = start && end ? `?start=${start}&end=${end}` : "";
+    fetch(`/api/listings/${listingId}/addons${stay}`)
       .then((res) => (res.ok ? res.json() : { addons: [] }))
       .then((data: { addons?: GuestAddon[] }) => setAddons(Array.isArray(data.addons) ? data.addons : []))
       .catch(() => setAddons([]));
-  }, [listingId]);
+  }, [listingId, start, end]);
 
   // Update dates when search params change (from calendar or external source)
   useEffect(() => {
@@ -155,15 +157,17 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
   // Use pricing from API if available, otherwise calculate from base price
   const staysCents = pricing?.totalCents ?? (nights > 0 ? Math.round(nights * basePriceCents) : 0);
   const displayCurrency = pricing?.currency ?? currency;
-  const offeredAddons = addons.filter((addon) => addon.currency === displayCurrency);
+  const nightlyCents = pricing?.nightlyCents ?? basePriceCents;
+  const offeredAddons = addons
+    .filter((addon) => addon.currency === displayCurrency)
+    .map((addon) => ({ ...addon, priceCents: addonUnitPriceCents(addon, nightlyCents) }));
   const addonsCents = offeredAddons.reduce(
     (sum, addon) => sum + addonLineTotal(addon, picked[addon.id] ?? 0, nights),
     0
   );
   const totalCents = staysCents + addonsCents;
-  const setQuantity = (addon: GuestAddon, quantity: number) =>
+  const setQuantity = (addon: { id: string; maxQuantity: number }, quantity: number) =>
     setPicked((prev) => ({ ...prev, [addon.id]: Math.max(0, Math.min(addon.maxQuantity, quantity)) }));
-  const nightlyCents = pricing?.nightlyCents ?? basePriceCents;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -262,7 +266,9 @@ export default function BookingForm({ listingId, basePriceCents, currency }: Pro
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-ink">{name}</div>
                     <div className="text-xs text-muted">
-                      ${(addon.priceCents / 100).toFixed(0)} {ADDON_UNIT_LABELS[addon.unit][lang]}
+                      {addon.nightPercent
+                        ? `${addon.nightPercent}% ${lang === "en" ? "of the nightly rate" : "de la noche"} · $${(addon.priceCents / 100).toFixed(0)}`
+                        : `$${(addon.priceCents / 100).toFixed(0)} ${ADDON_UNIT_LABELS[addon.unit][lang]}`}
                       {addon.description ? ` · ${addon.description}` : ""}
                     </div>
                   </div>

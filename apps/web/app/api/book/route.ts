@@ -94,7 +94,10 @@ async function handleBooking(req: NextRequest) {
   let addons: Awaited<ReturnType<typeof priceAddonSelection>> = [];
   if (addonSelection.length > 0) {
     try {
-      addons = await priceAddonSelection(listing.hotelId, currency, addonSelection, startDate, endDate, nights);
+      addons = await priceAddonSelection(
+        { hotelId: listing.hotelId, listingId, currency, startDate, endDate, nights, nightlyCents },
+        addonSelection
+      );
     } catch (error) {
       if (error instanceof AddonError) return NextResponse.json({ error: error.message }, { status: 409 });
       throw error;

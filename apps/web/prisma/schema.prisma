@@ -274,6 +274,8 @@ model HotelAddon {
   currency    String         @default("MXN")
   /// "item" | "night" | "person" | "person_night"
   unit        String         @default("item")
+  kind        String         @default("standard")
+  nightPercent Int?
   maxQuantity Int            @default(10)
   /// Units the hotel owns at once (e.g. 2 motos); null means unlimited.
   stock       Int?

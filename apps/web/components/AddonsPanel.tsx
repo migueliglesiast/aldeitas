@@ -19,6 +19,7 @@ type Addon = {
   unit: AddonUnit;
   maxQuantity: number;
   stock: number | null;
+  nightPercent: number | null;
   enabled: boolean;
 };
 
@@ -33,6 +34,7 @@ const EMPTY: Draft = {
   unit: "item",
   maxQuantity: 10,
   stock: null,
+  nightPercent: null,
   enabled: true,
 };
 
@@ -42,6 +44,9 @@ const COPY = {
     intro:
       "Lo que tus huéspedes pueden agregar al reservar. Se cobra junto con la estancia y te llega en el correo de la reserva.",
     price: "Precio (MXN)",
+    percent: "% de la noche",
+    percentHint: "vacío = precio fijo",
+    ofNight: "de la noche",
     unit: "Cobro",
     max: "Máx. por reserva",
     stock: "Disponibles a la vez",
@@ -67,6 +72,9 @@ const COPY = {
     intro:
       "Extras guests can add when booking. Charged with the stay and listed in the booking email.",
     price: "Price (MXN)",
+    percent: "% of nightly rate",
+    percentHint: "empty = fixed price",
+    ofNight: "of the nightly rate",
     unit: "Charge",
     max: "Max per booking",
     stock: "Available at once",
@@ -179,8 +187,9 @@ function AddonRow({
               {draft.name}
             </span>
             <span className="block text-xs text-gray-600">
-              ${(draft.priceCents / 100).toFixed(0)}{" "}
-              {ADDON_UNIT_LABELS[draft.unit][lang]}
+              {draft.nightPercent
+                ? `${draft.nightPercent}% ${t.ofNight}`
+                : `$${(draft.priceCents / 100).toFixed(0)} ${ADDON_UNIT_LABELS[draft.unit][lang]}`}
               {draft.stock !== null ? ` · ${draft.stock} ${t.units}` : ""}
             </span>
           </button>
@@ -236,16 +245,31 @@ function AddonRow({
               />
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div>
               <label className={label}>{t.price}</label>
               <input
                 type="number"
                 min={0}
                 step={10}
+                disabled={draft.nightPercent !== null}
                 value={draft.priceCents / 100}
                 onChange={(e) =>
                   set("priceCents", Math.round(Number(e.target.value) * 100))
+                }
+                className={`${input} disabled:bg-gray-100 disabled:text-gray-400`}
+              />
+            </div>
+            <div>
+              <label className={label}>{t.percent}</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                placeholder={t.percentHint}
+                value={draft.nightPercent ?? ""}
+                onChange={(e) =>
+                  set("nightPercent", e.target.value === "" ? null : Math.round(Number(e.target.value)))
                 }
                 className={input}
               />
@@ -316,7 +340,7 @@ function AddonRow({
               <span className="text-emerald-700">{t.saved}</span>
             )}
             {status === "error" && <span className="text-red-700">Error</span>}
-            {draft.enabled && draft.priceCents === 0 && draft.name && (
+            {draft.enabled && draft.priceCents === 0 && !draft.nightPercent && draft.name && (
               <span className="text-amber-700">{t.needsPrice}</span>
             )}
           </div>
