@@ -4,6 +4,7 @@ const fetchIcalBlocks = vi.fn();
 vi.mock("@/lib/airbnb", () => ({ fetchIcalBlocks: (url: string) => fetchIcalBlocks(url) }));
 
 import {
+  cachedExternalAvailability,
   checkExternalAvailability,
   clearCalendarCache,
   fetchListingExternalBlocks,
@@ -123,5 +124,19 @@ describe("external calendar fetching", () => {
     expect(booked.status).toBe("booked");
     const free = await checkExternalAvailability(listing, new Date("2027-02-01"), new Date("2027-02-03"), "[t]", "verify");
     expect(free.status).toBe("available");
+  });
+
+  it("checks a stay against cached copies only, without downloading", async () => {
+    expect(cachedExternalAvailability(listing, new Date("2027-02-01"), new Date("2027-02-03")).status).toBe("unverifiable");
+    fetchIcalBlocks.mockResolvedValueOnce([block]);
+    await fetchListingExternalBlocks(listing);
+    vi.setSystemTime(new Date("2026-10-05T00:20:00Z"));
+    const free = cachedExternalAvailability(listing, new Date("2027-02-01"), new Date("2027-02-03"));
+    expect(free.status).toBe("available");
+    expect(free.oldestFetchedAt).toEqual(new Date("2026-10-05T00:00:00Z"));
+    expect(cachedExternalAvailability(listing, new Date("2027-01-11"), new Date("2027-01-13")).status).toBe("booked");
+    vi.setSystemTime(new Date("2026-10-05T00:31:00Z"));
+    expect(cachedExternalAvailability(listing, new Date("2027-02-01"), new Date("2027-02-03")).status).toBe("unverifiable");
+    expect(fetchIcalBlocks).toHaveBeenCalledTimes(1);
   });
 });

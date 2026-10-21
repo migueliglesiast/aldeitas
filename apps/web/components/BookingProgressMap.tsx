@@ -40,7 +40,8 @@ function last(events: ProgressEvent[], ...steps: string[]) {
 
 function fromEvent(event: ProgressEvent | undefined, fallback: StepState): Pick<MapStep, "state" | "at" | "detail"> {
   if (!event) return { state: fallback };
-  return { state: event.status === "fail" ? "failed" : "done", at: event.createdAt, detail: event.detail };
+  const state: StepState = event.status === "fail" ? "failed" : event.status === "wait" ? "active" : "done";
+  return { state, at: event.createdAt, detail: event.detail };
 }
 
 export function buildProgressSteps(booking: ProgressBooking, events: ProgressEvent[]): MapStep[] {
@@ -93,6 +94,8 @@ export function buildProgressSteps(booking: ProgressBooking, events: ProgressEve
     en: "Calendar check (Airbnb, Booking, Vrbo)",
     ...fromEvent(availability, next(paid)),
     ...(availability || !booking.lastReconciledAt ? {} : { state: "done" as const, at: booking.lastReconciledAt }),
+    ...(availability?.status === "wait" && confirmed ? { state: "done" as const } : {}),
+    ...(availability?.status === "wait" && canceled ? { state: "failed" as const } : {}),
   });
 
   const blocked = last(events, "dates_blocked");

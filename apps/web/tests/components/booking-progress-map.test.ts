@@ -98,4 +98,11 @@ describe("buildProgressSteps", () => {
     );
     expect(states).toMatchObject({ availability_check: "failed", payment_final: "done", outcome: "failed" });
   });
+
+  it("shows the calendar check as still running while it waits on a fresh copy", () => {
+    const events = [event("created"), event("payment_held"), event("availability_check", "wait", "copy from 10 min ago")];
+    const held = { ...base, authorizedAt: "2026-10-21T20:01:00.000Z" };
+    expect(stateOf(buildProgressSteps(held, events)).availability_check).toBe("active");
+    expect(stateOf(buildProgressSteps({ ...held, status: "CONFIRMED" as const }, events)).availability_check).toBe("done");
+  });
 });
