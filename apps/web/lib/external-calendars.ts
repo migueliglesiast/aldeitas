@@ -241,6 +241,36 @@ export async function checkExternalAvailability(
   return { status: result.complete ? "available" : "unverifiable", result };
 }
 
+/**
+ * Same check as `checkExternalAvailability`, but from the newest cached copies only
+ * (no download). A calendar without a copy from the last `maxAgeMs` is unverifiable.
+ */
+export function cachedExternalAvailability(
+  listing: ListingCalendars,
+  startDate: Date,
+  endDate: Date,
+  maxAgeMs = STALE_IF_ERROR_MS
+): { status: ExternalAvailability; result: ExternalBlocksResult; oldestFetchedAt: Date | null } {
+  const sources: SourceFetchResult[] = listingCalendarSources(listing).map((source) => {
+    const cached = cachedCopy(source.icalUrl);
+    if (!cached || Date.now() - cached.fetchedAt > maxAgeMs) {
+      return { ...source, ok: false, error: "no recent copy" };
+    }
+    return { ...source, ok: true, blocks: cached.blocks, fetchedAt: new Date(cached.fetchedAt), stale: true };
+  });
+  const result: ExternalBlocksResult = {
+    blocks: sources.flatMap((source) => (source.ok ? source.blocks : [])),
+    sources,
+    complete: sources.every((source) => source.ok),
+  };
+  const fetchedTimes = sources.flatMap((source) => (source.ok ? [source.fetchedAt.getTime()] : []));
+  const oldestFetchedAt = fetchedTimes.length ? new Date(Math.min(...fetchedTimes)) : null;
+  if (blocksOverlapRange(result.blocks, startDate, endDate)) {
+    return { status: "booked", result, oldestFetchedAt };
+  }
+  return { status: result.complete ? "available" : "unverifiable", result, oldestFetchedAt };
+}
+
 /** Test helper: forget cached calendars. */
 export function clearCalendarCache() {
   lastGood.clear();

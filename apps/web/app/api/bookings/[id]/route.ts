@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   markBookingAuthorizedFromPaymentOrder,
 } from "@/lib/booking-payment";
 import { reconcileBooking } from "@/lib/booking-reconcile";
+import { fetchListingExternalBlocks } from "@/lib/external-calendars";
 import type { PaymentProviderId } from "@/lib/payment-providers/types";
 import {
   isMercadoPagoSandbox,
@@ -127,6 +128,19 @@ export async function GET(
 
   if (!booking) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  }
+
+  if (booking.status === "PENDING" && !booking.authorizedAt) {
+    const listingId = booking.listing.id;
+    // Warm the calendar cache while the guest types their card, so the
+    // check after the card hold has a recent copy if the feed throttles.
+    after(async () => {
+      const listing = await prisma.listing.findUnique({
+        where: { id: listingId },
+        select: { icalUrl: true, calendarSources: { select: { name: true, icalUrl: true } } },
+      });
+      if (listing) await fetchListingExternalBlocks(listing, "[pay-page]");
+    });
   }
 
   const mercadoPagoCharge = resolveMercadoPagoCharge(

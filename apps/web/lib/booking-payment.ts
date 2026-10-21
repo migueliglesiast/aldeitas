@@ -10,7 +10,7 @@ import {
 } from "@/lib/booking-reconcile";
 import { hasLocalDateConflict, cancelUnpaidPendingBooking } from "@/lib/booking-blocks";
 import { CANCEL_REASON_DATES_TAKEN, CANCEL_REASON_DATES_UNVERIFIABLE } from "@/lib/booking-cancel-reasons";
-import { checkExternalAvailability } from "@/lib/external-calendars";
+import { cachedExternalAvailability, checkExternalAvailability } from "@/lib/external-calendars";
 import {
   getProviderAuthorizationState,
 } from "@/lib/payment-providers";
@@ -50,7 +50,7 @@ async function finalizeAuthorizedBooking(
     booking.endDate,
     booking.id
   );
-  const external = hasLocalConflict
+  let external = hasLocalConflict
     ? null
     : await checkExternalAvailability(
         booking.listing,
@@ -59,6 +59,17 @@ async function finalizeAuthorizedBooking(
         "[booking-payment]",
         "verify"
       );
+
+  // A held card is not charged until reconcile gets a fresh calendar download,
+  // so a calendar outage right now keeps the hold instead of losing the guest.
+  let usedCachedCopyFrom: Date | null = null;
+  if (external?.status === "unverifiable") {
+    const cached = cachedExternalAvailability(booking.listing, booking.startDate, booking.endDate);
+    if (cached.status !== "unverifiable") {
+      external = cached;
+      usedCachedCopyFrom = cached.oldestFetchedAt;
+    }
+  }
 
   if (!external || external.status !== "available") {
     await recordBookingEvent(
@@ -107,7 +118,17 @@ async function finalizeAuthorizedBooking(
     include: { listing: true },
   });
 
-  await recordBookingEvent(bookingId, "availability_check", "ok", "Aldeitas and all external calendars free after card hold");
+  if (usedCachedCopyFrom) {
+    const minutes = Math.max(1, Math.round((Date.now() - usedCachedCopyFrom.getTime()) / 60000));
+    await recordBookingEvent(
+      bookingId,
+      "availability_check",
+      "wait",
+      `Booking sites unreachable after card hold; free in their copy from ${minutes} min ago. Nothing is charged until a fresh check`
+    );
+  } else {
+    await recordBookingEvent(bookingId, "availability_check", "ok", "Aldeitas and all external calendars free after card hold");
+  }
   await recordBookingEvent(bookingId, "dates_blocked", "ok", "Dates held in Aldeitas and in its iCal export to the booking sites");
   await sendBookingProcessingEmail(updated);
   await reconcileBooking(bookingId);
