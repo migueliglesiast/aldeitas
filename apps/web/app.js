@@ -4,6 +4,7 @@
  */
 const fs = require("node:fs");
 const http = require("node:http");
+const os = require("node:os");
 const path = require("node:path");
 const { parse } = require("node:url");
 
@@ -119,6 +120,8 @@ function scheduleAirbnbReviewSync() {
   console.log("[aldeitas] airbnb review sync every %s h", hours);
 }
 
+// Lets every server process reuse recent Airbnb/iCal downloads (fewer 429s).
+process.env.ICAL_CACHE_DIR ||= path.join(os.tmpdir(), "aldeitas-ical-cache");
 const app = next({ dev: false, dir: appDir, hostname, port });
 const handle = app.getRequestHandler();
 

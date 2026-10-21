@@ -95,7 +95,7 @@ async function handleBooking(req: NextRequest) {
 
   if (await hasLocalDateConflict(listingId, startDate, endDate)) return datesUnavailable();
 
-  const external = await checkExternalAvailability(listing, startDate, endDate, "[Book]", "verify");
+  const external = await checkExternalAvailability(listing, startDate, endDate, "[Book]", "browse");
   if (external.status === "booked") return datesUnavailable();
   // Fail closed: an unverifiable calendar must not allow a double booking.
   if (external.status === "unverifiable") return unverifiableAvailability();

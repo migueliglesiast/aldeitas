@@ -102,4 +102,26 @@ describe("external calendar fetching", () => {
     );
     expect(result.status).toBe("booked");
   });
+
+  it("retries a rate-limited (429) download before giving up", async () => {
+    const rateLimited = Object.assign(new Error("Request failed with status code 429"), {
+      isAxiosError: true,
+      response: { status: 429, headers: { "retry-after": "0" } },
+    });
+    fetchIcalBlocks.mockRejectedValueOnce(rateLimited).mockRejectedValueOnce(rateLimited).mockResolvedValueOnce([block]);
+    const result = await fetchListingExternalBlocks(listing, "[t]", "verify");
+    expect(result.complete).toBe(true);
+    expect(fetchIcalBlocks).toHaveBeenCalledTimes(3);
+  });
+
+  it("lets verify use a copy from the last 5 minutes when the feed is down", async () => {
+    fetchIcalBlocks.mockResolvedValueOnce([block]);
+    await fetchListingExternalBlocks(listing);
+    vi.setSystemTime(new Date("2026-10-05T00:04:00Z"));
+    fetchIcalBlocks.mockRejectedValue(new Error("429"));
+    const booked = await checkExternalAvailability(listing, new Date("2027-01-11"), new Date("2027-01-13"), "[t]", "verify");
+    expect(booked.status).toBe("booked");
+    const free = await checkExternalAvailability(listing, new Date("2027-02-01"), new Date("2027-02-03"), "[t]", "verify");
+    expect(free.status).toBe("available");
+  });
 });
