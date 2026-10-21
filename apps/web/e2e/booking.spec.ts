@@ -6,8 +6,6 @@ import {
   E2E_BLOCKED_LISTING as BLOCKED_LISTING,
   E2E_HOTEL as HOTEL,
   E2E_LISTING as FREE_LISTING,
-  FREE_END,
-  FREE_START,
   freeBookingRange,
 } from "./fixtures";
 
@@ -29,7 +27,8 @@ test("searching filters the grid by the availability API response", async ({ pag
   await page.goto("/");
   await expect(page.getByText(HOTEL, { exact: true })).toBeVisible();
 
-  await setDates(page, FREE_START, FREE_END);
+  // The booked suite has a confirmed booking on these dates; the free suite has no calendar, so it stays bookable.
+  await setDates(page, BLOCKED_MIDDLE, BLOCKED_END);
   const availability = page.waitForResponse((res) =>
     res.url().includes("/api/search/availability")
   );
@@ -37,11 +36,13 @@ test("searching filters the grid by the availability API response", async ({ pag
   const response = await availability;
 
   expect(response.status()).toBe(200);
-  // The seeded rooms have no iCal source, so the API reports them as unavailable.
-  await expect(page.getByText("No results found. Try adjusting your search.")).toBeVisible();
+  expect((await response.json()).listingIds).toHaveLength(1);
+  await expect(page.getByText("1 room available")).toBeVisible();
+  await expect(page.getByText(FREE_LISTING, { exact: true })).toBeVisible();
+  await expect(page.getByText(BLOCKED_LISTING, { exact: true })).toHaveCount(0);
 });
 
-test("a guest can book available dates and gets a PENDING booking", async ({ page }, testInfo) => {
+test("a guest can book available dates and lands on the card payment page", async ({ page }, testInfo) => {
   await openListing(page, FREE_LISTING);
 
   const { start, end } = freeBookingRange(testInfo.project.name);
@@ -56,7 +57,13 @@ test("a guest can book available dates and gets a PENDING booking", async ({ pag
   const response = await bookingResponse;
 
   expect(response.status()).toBe(200);
-  await expect(page.getByText("Booking created.")).toBeVisible();
+  await page.waitForURL(/\/booking\/[^/]+\/pay$/);
+  const bookingId = new URL(page.url()).pathname.split("/")[2];
+  await expect(page.getByRole("heading", { name: FREE_LISTING })).toBeVisible();
+  await expect(page.getByText("Total a autorizar")).toBeVisible();
+
+  const status = await page.request.get(`/api/bookings/${bookingId}`);
+  expect((await status.json()).status).toBe("PENDING");
 });
 
 test("booking blocked dates returns 409 and surfaces the error", async ({ page }) => {

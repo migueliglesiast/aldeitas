@@ -21,6 +21,10 @@ async function signUp(page: import("@playwright/test").Page, user: ReturnType<ty
   }
   await page.getByRole("button", { name: "Finish" }).click();
   await page.waitForURL("**/");
+  // New hosts get the onboarding slideshow on their first visit.
+  const onboarding = page.getByRole("dialog");
+  await onboarding.getByRole("button", { name: "Close" }).click();
+  await expect(onboarding).toBeHidden();
 }
 
 test("a host can sign up, stay signed in, sign out and sign back in", async ({ page }) => {
@@ -30,7 +34,7 @@ test("a host can sign up, stay signed in, sign out and sign back in", async ({ p
   await expect(page.getByText(`Hi, ${user.username}`)).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Hosting portal" })).toBeVisible();
 
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email or username").fill(user.username);
@@ -45,7 +49,7 @@ test("sign in rejects a wrong password", async ({ page }) => {
   const user = uniqueUser();
   await signUp(page, user);
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Hosting portal" })).toBeVisible();
 
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email or username").fill(user.username);
