@@ -84,6 +84,58 @@ describe("createMercadoPagoAuthorizedOrder", () => {
     expect(result.captured).toBe(true);
   });
 
+  it("sends the device fingerprint, stay details and 3DS-on-risk to Mercado Pago", async () => {
+    fetchMock.mockReturnValue(
+      reply(201, { id: "o3", status: "processed", status_detail: "accredited", transactions: { payments: [{ id: "p3", status: "processed" }] } })
+    );
+
+    await createMercadoPagoAuthorizedOrder({
+      ...PARAMS,
+      paymentMethodId: "debmaster",
+      deviceId: "dev-123",
+      payerName: "David Cullinane",
+      item: { title: "Forest Studio 3 · La Arbolita", description: "Estancia", pictureUrl: "https://x/p.jpg" },
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(init.headers["X-meli-session-id"]).toBe("dev-123");
+    expect(body.payer).toEqual({ email: "guest@example.com", first_name: "David", last_name: "Cullinane" });
+    expect(body.items[0]).toMatchObject({ title: "Forest Studio 3 · La Arbolita", quantity: 1, unit_price: "2700.00", picture_url: "https://x/p.jpg" });
+    expect(body.config.online.transaction_security).toEqual({ validation: "on_fraud_risk", liability_shift: "required" });
+  });
+
+  it("returns the bank verification page instead of failing when Mercado Pago asks for 3DS", async () => {
+    fetchMock.mockReturnValue(
+      reply(201, {
+        id: "o4",
+        status: "action_required",
+        status_detail: "pending_challenge",
+        transactions: {
+          payments: [
+            {
+              id: "p4",
+              status: "action_required",
+              status_detail: "pending_challenge",
+              payment_method: { transaction_security: { url: "https://mp/challenge" } },
+            },
+          ],
+        },
+      })
+    );
+
+    const result = await createMercadoPagoAuthorizedOrder({ ...PARAMS, paymentMethodId: "debvisa" });
+
+    expect(result).toEqual({ orderId: "o4", referenceId: "p4", captured: false, challengeUrl: "https://mp/challenge" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains a fraud-check decline instead of a generic card error", () => {
+    const message = guestPaymentErrorMessage("PAY01: high_risk");
+    expect(message).toContain("antifraude");
+    expect(message).toContain("nothing was charged");
+  });
+
   it("turns an API rejection into a guest-friendly error", async () => {
     fetchMock.mockReturnValue(
       reply(400, {
