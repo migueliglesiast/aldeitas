@@ -11,17 +11,21 @@ import { getStorefrontFromHeaders } from "../lib/storefront";
 import StorefrontFooter from "../components/storefront/StorefrontFooter";
 import StorefrontTheme from "../components/storefront/StorefrontTheme";
 import type { Metadata } from "next";
-import { Fraunces, Inter, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  weight: ["400", "900"],
+const inter = localFont({
+  src: "./fonts/inter-latin-var.woff2",
+  weight: "100 900",
+  variable: "--font-sans",
+});
+const fraunces = localFont({
+  src: "./fonts/fraunces-latin-var.woff2",
+  weight: "100 900",
   variable: "--font-poster",
 });
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+const jakarta = localFont({
+  src: "./fonts/plus-jakarta-sans-latin-var.woff2",
+  weight: "200 800",
   variable: "--font-display",
 });
 
