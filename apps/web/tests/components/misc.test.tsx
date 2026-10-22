@@ -33,21 +33,56 @@ describe("AuthButton", () => {
     expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
   });
 
-  it("greets the signed-in user and signs them out", async () => {
+  it("shows a dashboard shortcut and an account menu with sign out for signed-in users", async () => {
     const reload = vi.fn();
     vi.stubGlobal("location", { reload } as unknown as Location);
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ user: { username: "owner" } }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ user: { id: "u1", username: "owner", email: "owner@example.com" } }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<AuthButton />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("link", { name: "Open host dashboard" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByText("Hi, owner")).not.toBeInTheDocument();
 
-    expect(screen.getByText("Hi, owner")).toBeInTheDocument();
+    const account = screen.getByRole("button", { name: "Account menu for owner" });
+    expect(account).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(account);
+    expect(account).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menuitem", { name: "Bookings" })).toHaveAttribute("href", "/admin/bookings");
+    expect(screen.getByRole("menuitem", { name: "Calendars" })).toHaveAttribute("href", "/admin/calendars");
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith("/api/auth/sign-out", { method: "POST" })
     );
     expect(reload).toHaveBeenCalled();
+  });
+
+  it("closes the account menu on Escape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ user: { id: "u1", username: "owner", email: "o@e.com" } }))
+    );
+
+    render(<AuthButton />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Account menu for owner" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing for anonymous visitors when hidden while signed out", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ user: null }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<AuthButton hideWhenSignedOut />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(screen.queryByRole("link", { name: "Hosting portal" })).not.toBeInTheDocument();
   });
 
   it.each([

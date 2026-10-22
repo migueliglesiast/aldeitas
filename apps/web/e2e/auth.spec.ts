@@ -27,13 +27,18 @@ async function signUp(page: import("@playwright/test").Page, user: ReturnType<ty
   await expect(onboarding).toBeHidden();
 }
 
+async function signOut(page: import("@playwright/test").Page, user: ReturnType<typeof uniqueUser>) {
+  await page.getByRole("button", { name: `Account menu for ${user.username}` }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+}
+
 test("a host can sign up, stay signed in, sign out and sign back in", async ({ page }) => {
   const user = uniqueUser();
 
   await signUp(page, user);
-  await expect(page.getByText(`Hi, ${user.username}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open host dashboard" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page, user);
   await expect(page.getByRole("link", { name: "Hosting portal" })).toBeVisible();
 
   await page.goto("/sign-in");
@@ -42,13 +47,13 @@ test("a host can sign up, stay signed in, sign out and sign back in", async ({ p
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/");
 
-  await expect(page.getByText(`Hi, ${user.username}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open host dashboard" })).toBeVisible();
 });
 
 test("sign in rejects a wrong password", async ({ page }) => {
   const user = uniqueUser();
   await signUp(page, user);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page, user);
   await expect(page.getByRole("link", { name: "Hosting portal" })).toBeVisible();
 
   await page.goto("/sign-in");
