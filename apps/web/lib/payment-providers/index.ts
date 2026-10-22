@@ -52,16 +52,9 @@ export async function createProviderCheckout(params: {
   };
 }
 
-export async function createMercadoPagoCardAuthorization(params: {
-  bookingId: string;
-  amountCents: number;
-  currency: string;
-  payerEmail: string;
-  cardToken: string;
-  paymentMethodId: string;
-  paymentTypeId?: string | null;
-  installments?: number;
-}) {
+export async function createMercadoPagoCardAuthorization(
+  params: Parameters<typeof createMercadoPagoAuthorizedOrder>[0]
+) {
   return createMercadoPagoAuthorizedOrder(params);
 }
 

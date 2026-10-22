@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/currency";
 
 declare global {
   interface Window {
+    MP_DEVICE_SESSION_ID?: string;
     MercadoPago?: new (publicKey: string, options?: { locale?: string }) => {
       bricks: () => {
         create: (
@@ -40,6 +41,16 @@ const MP_BLUE_DARK = "#007EB5";
 const MP_FONT_URL =
   "https://fonts.gstatic.com/s/poppins/v21/pxiEyp8kv8JHgFVrJJfecg.woff2";
 const SECTION_CLASS = "px-6 py-5";
+const MP_SECURITY_SCRIPT = "https://www.mercadopago.com/v2/security.js";
+const CHALLENGE_POLL_MS = 3000;
+
+function loadMercadoPagoDeviceFingerprint() {
+  if (document.querySelector(`script[src="${MP_SECURITY_SCRIPT}"]`)) return;
+  const script = document.createElement("script");
+  script.src = MP_SECURITY_SCRIPT;
+  script.setAttribute("view", "checkout");
+  document.body.appendChild(script);
+}
 
 function formatMercadoPagoError(message?: string) {
   const raw = message?.trim() || "";
@@ -138,6 +149,49 @@ export default function MercadoPagoPayClient({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [brickReady, setBrickReady] = useState(false);
+  const [challengeUrl, setChallengeUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!challengeUrl) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    async function check() {
+      try {
+        const response = await fetch(`/api/bookings/${bookingId}/pay/challenge`, { method: "POST" });
+        const data = await response.json();
+        if (!active) return;
+        if (response.ok && data.ok) {
+          router.push(data.statusUrl || `/booking/${bookingId}`);
+          return;
+        }
+        if (response.status === 402 || response.status === 409) {
+          setChallengeUrl(null);
+          setError(data.error || "No pudimos procesar el pago. / We couldn't process the payment.");
+          return;
+        }
+      } catch {
+        // Network blip: keep polling.
+      }
+      if (active) timer = setTimeout(check, CHALLENGE_POLL_MS);
+    }
+
+    function onMessage(event: MessageEvent) {
+      const data = event.data as { status?: string } | null;
+      if (data?.status === "COMPLETE") {
+        if (timer) clearTimeout(timer);
+        check();
+      }
+    }
+
+    window.addEventListener("message", onMessage);
+    timer = setTimeout(check, CHALLENGE_POLL_MS);
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+    };
+  }, [challengeUrl, bookingId, router]);
 
   useEffect(() => {
     fetch(`/api/bookings/${bookingId}`, { cache: "no-store" })
@@ -172,6 +226,7 @@ export default function MercadoPagoPayClient({
     setBrickReady(false);
 
     async function mountBrick() {
+      loadMercadoPagoDeviceFingerprint();
       if (!window.MercadoPago) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement("script");
@@ -263,12 +318,17 @@ export default function MercadoPagoPayClient({
                 payment_method_id: cardData.payment_method_id ?? cardData.paymentMethodId,
                 payment_type_id: cardData.payment_type_id ?? additionalData?.paymentTypeId,
                 installments: cardData.installments ?? 1,
+                deviceId: window.MP_DEVICE_SESSION_ID || undefined,
               }),
             })
               .then(async (response) => {
                 const data = await response.json();
                 if (!response.ok) {
                   throw new Error(data.error || "Payment authorization failed");
+                }
+                if (data.challengeUrl) {
+                  setChallengeUrl(data.challengeUrl);
+                  return;
                 }
                 router.push(data.statusUrl || `/booking/${bookingId}`);
               })
@@ -371,7 +431,21 @@ export default function MercadoPagoPayClient({
         </div>
 
         <div className={`${SECTION_CLASS} space-y-4`}>
-          <div className="mp-pay-brick-host">
+          {challengeUrl && (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-700">
+                Tu banco pide verificar que eres tú. Completa la verificación aquí; no se cobra nada hasta terminar. /
+                Your bank needs to verify it&apos;s you. Complete it below; nothing is charged until you finish.
+              </p>
+              <iframe
+                src={challengeUrl}
+                title="Verificación del banco / Bank verification"
+                className="h-[560px] w-full rounded-lg border border-gray-200"
+              />
+            </div>
+          )}
+
+          <div className={challengeUrl ? "hidden" : "mp-pay-brick-host"}>
             <div className="relative min-h-[280px]">
               {!brickReady && <FormSkeleton />}
               <div

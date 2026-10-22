@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const prismaMock = { booking: { findUnique: vi.fn() } };
+const prismaMock = { booking: { findUnique: vi.fn(), update: vi.fn() } };
 const createAuth = vi.fn();
 const verify = vi.fn();
 const finalizeCaptured = vi.fn();
@@ -42,6 +42,10 @@ beforeEach(() => {
     totalPriceCents: 270000,
     currency: "MXN",
     guestEmail: "guest@example.com",
+    guestName: "Ana López",
+    startDate: new Date("2026-10-27"),
+    endDate: new Date("2026-10-30"),
+    listing: { title: "Forest Studio 3", hotel: { name: "La Arbolita" }, images: [{ url: "https://x/p.jpg" }] },
   });
 });
 
@@ -75,6 +79,29 @@ describe("POST /api/bookings/[id]/pay", () => {
     expect(res.status).toBe(200);
     expect(verify).not.toHaveBeenCalled();
     expect(markAuthorized).toHaveBeenCalledWith("b1", "mercadopago", "o1", "p1");
+  });
+
+  it("passes the device fingerprint and stay to Mercado Pago, and sends the guest to their bank's 3DS check", async () => {
+    verify.mockResolvedValue({ ok: true, snapshot: "[snap]" });
+    createAuth.mockResolvedValue({ orderId: "o3", referenceId: "p3", captured: false, challengeUrl: "https://mp/challenge" });
+
+    const res = await pay({ token: "t", payment_method_id: "debvisa", deviceId: "dev-1" });
+
+    expect(res.status).toBe(202);
+    await expect(res.json()).resolves.toEqual({ ok: true, challengeUrl: "https://mp/challenge" });
+    expect(createAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: "dev-1",
+        payerName: "Ana López",
+        item: expect.objectContaining({ title: "Forest Studio 3 · La Arbolita", pictureUrl: "https://x/p.jpg" }),
+      })
+    );
+    expect(prismaMock.booking.update).toHaveBeenCalledWith({
+      where: { id: "b1" },
+      data: { paymentProvider: "mercadopago", paymentOrderId: "o3", paymentReference: "p3", externalBlocksSnapshot: "[snap]" },
+    });
+    expect(finalizeCaptured).not.toHaveBeenCalled();
+    expect(markAuthorized).not.toHaveBeenCalled();
   });
 
   it("shows the guest a readable message when the card is refused", async () => {

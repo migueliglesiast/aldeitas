@@ -25,6 +25,7 @@ const bodySchema = z
     paymentTypeId: z.string().max(40).optional(),
     payment_type_id: z.string().max(40).optional(),
     installments: z.coerce.number().int().min(1).max(24).optional(),
+    deviceId: z.string().max(200).optional(),
   })
   .refine((data) => Boolean(data.paymentMethodId || data.payment_method_id), {
     message: "paymentMethodId is required",
@@ -51,6 +52,15 @@ export async function POST(
 
   const booking = await prisma.booking.findUnique({
     where: { id: id },
+    include: {
+      listing: {
+        select: {
+          title: true,
+          hotel: { select: { name: true } },
+          images: { select: { url: true }, orderBy: { position: "asc" }, take: 1 },
+        },
+      },
+    },
   });
 
   if (!booking) {
@@ -97,6 +107,15 @@ export async function POST(
       paymentMethodId: method.id,
       paymentTypeId: method.type,
       installments: parsed.data.installments,
+      deviceId: parsed.data.deviceId,
+      payerName: booking.guestName,
+      item: booking.listing
+        ? {
+            title: [booking.listing.title, booking.listing.hotel?.name].filter(Boolean).join(" · "),
+            description: `Estancia ${booking.startDate.toISOString().slice(0, 10)} → ${booking.endDate.toISOString().slice(0, 10)}`,
+            pictureUrl: booking.listing.images?.[0]?.url,
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("[bookings/pay]", { bookingId: booking.id, paymentMethodId, paymentTypeId }, error);
@@ -104,6 +123,25 @@ export async function POST(
       error instanceof MercadoPagoPaymentError ? error.guestMessage : guestPaymentErrorMessage(null);
     await recordBookingEvent(booking.id, "payment_failed", "fail", guestMessage);
     return NextResponse.json({ error: guestMessage }, { status: 402 });
+  }
+
+  if ("challengeUrl" in authorization && authorization.challengeUrl) {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        paymentProvider: "mercadopago",
+        paymentOrderId: authorization.orderId,
+        paymentReference: authorization.referenceId,
+        ...(snapshot ? { externalBlocksSnapshot: snapshot } : {}),
+      },
+    });
+    await recordBookingEvent(
+      booking.id,
+      "payment_submitted",
+      "wait",
+      `Bank verification (3DS) requested; nothing charged until the guest completes it. Order ${authorization.orderId}`
+    );
+    return NextResponse.json({ ok: true, challengeUrl: authorization.challengeUrl }, { status: 202 });
   }
 
   await recordBookingEvent(

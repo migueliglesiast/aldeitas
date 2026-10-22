@@ -53,6 +53,12 @@ export function guestPaymentErrorMessage(detail: string | null | undefined) {
   if (code.includes("bad_filled") || code.includes("security_code") || code.includes("expiration") || code.includes("card_number")) {
     return "Revisa el número, la fecha de vencimiento y el CVV. / Please check the card number, expiry date and CVV.";
   }
+  if (code.includes("high_risk") || code.includes("blacklist")) {
+    return "El sistema antifraude de Mercado Pago rechazó esta tarjeta; tu banco no hizo ningún cargo. Prueba con una tarjeta de crédito o escríbenos por WhatsApp. / Mercado Pago's fraud check declined this card; nothing was charged. Please try a credit card or message us on WhatsApp.";
+  }
+  if (code.includes("3ds") || code.includes("challenge")) {
+    return "Tu banco no pudo verificar el pago. Inténtalo de nuevo o usa otra tarjeta. / Your bank couldn't verify the payment. Please try again or use another card.";
+  }
   if (code.includes("duplicated")) {
     return "Este pago ya se intentó hace un momento. Espera un minuto o usa otra tarjeta. / This payment was just attempted; wait a minute or use another card.";
   }
@@ -90,6 +96,7 @@ type MercadoPagoOrder = {
       id?: string;
       status?: string;
       status_detail?: string;
+      payment_method?: { transaction_security?: { url?: string } };
     }>;
   };
 };
@@ -100,7 +107,8 @@ function formatAmount(amountCents: number) {
 
 async function mercadoPagoRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  { acceptActionRequired = false } = {}
 ): Promise<T> {
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!token) {
@@ -122,7 +130,7 @@ async function mercadoPagoRequest<T>(
     string,
     unknown
   >;
-  if (!response.ok) {
+  if (!response.ok && !(acceptActionRequired && payload?.status === "action_required")) {
     const message = formatMercadoPagoApiError(payload, response.status);
     console.error("[mercadopago] API error:", response.status, payload);
     throw new Error(message);
@@ -150,9 +158,32 @@ export function isMercadoPagoOrderAuthorized(order: MercadoPagoOrder) {
   );
 }
 
-function isMercadoPagoOrderCaptured(order: MercadoPagoOrder) {
+export function isMercadoPagoOrderCaptured(order: MercadoPagoOrder) {
   const payment = getPrimaryPayment(order);
   return order.status === "processed" || payment?.status === "processed";
+}
+
+/** Bank 3DS verification the guest must complete before the payment is decided. */
+export function getMercadoPagoChallengeUrl(order: MercadoPagoOrder) {
+  const payment = getPrimaryPayment(order);
+  const pending =
+    (order.status === "action_required" && order.status_detail === "pending_challenge") ||
+    (payment?.status === "action_required" && payment?.status_detail === "pending_challenge");
+  return pending ? payment?.payment_method?.transaction_security?.url || null : null;
+}
+
+export function isMercadoPagoOrderFinalFailure(order: MercadoPagoOrder) {
+  return Boolean(order.status && RELEASE_FINAL_STATUSES.has(order.status) && order.status !== "processed");
+}
+
+function splitName(fullName: string | null | undefined) {
+  const parts = (fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return {};
+  return { first_name: parts.slice(0, -1).join(" ").slice(0, 60), last_name: parts[parts.length - 1].slice(0, 60) };
+}
+
+function is3dsEnabled() {
+  return process.env.MERCADOPAGO_3DS !== "false";
 }
 
 /**
@@ -168,6 +199,9 @@ export async function createMercadoPagoAuthorizedOrder(params: {
   paymentMethodId: string;
   paymentTypeId?: string | null;
   installments?: number;
+  deviceId?: string | null;
+  payerName?: string | null;
+  item?: { title: string; description: string; pictureUrl?: string | null };
 }) {
   if (!isMercadoPagoConfigured()) {
     throw new Error("Mercado Pago is not configured");
@@ -190,9 +224,29 @@ export async function createMercadoPagoAuthorizedOrder(params: {
         marketplace: "NONE",
         total_amount: amount,
         currency: charge.currency,
+        description: params.item?.title.slice(0, 120),
         payer: {
           email: payerEmail,
+          ...splitName(params.payerName),
         },
+        ...(params.item
+          ? {
+              items: [
+                {
+                  title: params.item.title.slice(0, 120),
+                  description: params.item.description.slice(0, 250),
+                  ...(params.item.pictureUrl?.startsWith("https://") ? { picture_url: params.item.pictureUrl } : {}),
+                  category_id: "travel",
+                  quantity: 1,
+                  unit_price: amount,
+                  external_code: params.bookingId,
+                },
+              ],
+            }
+          : {}),
+        ...(is3dsEnabled()
+          ? { config: { online: { transaction_security: { validation: "on_fraud_risk", liability_shift: "required" } } } }
+          : {}),
         transactions: {
           payments: [
             {
@@ -207,13 +261,18 @@ export async function createMercadoPagoAuthorizedOrder(params: {
           ],
         },
       }),
-    });
+      ...(params.deviceId ? { headers: { "X-meli-session-id": params.deviceId } } : {}),
+    }, { acceptActionRequired: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new MercadoPagoPaymentError(message, guestPaymentErrorMessage(message));
   }
 
   const payment = getPrimaryPayment(order);
+  const challengeUrl = getMercadoPagoChallengeUrl(order);
+  if (challengeUrl) {
+    return { orderId: order.id, referenceId: payment?.id, captured: false, challengeUrl };
+  }
   const ok = method.manualCapture ? isMercadoPagoOrderAuthorized(order) : isMercadoPagoOrderCaptured(order);
   if (!ok) {
     const detail = payment?.status_detail || order.status_detail || order.status || "unknown";

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { markBookingAuthorizedFromPaymentOrder } from "@/lib/booking-payment";
+import { markBookingAuthorizedFromPaymentOrder, settleMercadoPagoChallenge } from "@/lib/booking-payment";
 import {
   getMercadoPagoOrder,
   isMercadoPagoOrderAuthorized,
+  isMercadoPagoOrderCaptured,
+  isMercadoPagoOrderFinalFailure,
 } from "@/lib/payment-providers/mercadopago";
 import { isValidMercadoPagoSignature } from "@/lib/payment-providers/mercadopago-webhook";
 
@@ -56,6 +58,11 @@ export async function POST(req: NextRequest) {
         order.id,
         order.external_reference || undefined
       );
+    } else if (
+      order.external_reference &&
+      (isMercadoPagoOrderCaptured(order) || isMercadoPagoOrderFinalFailure(order))
+    ) {
+      await settleMercadoPagoChallenge(order.external_reference);
     }
   } catch (error) {
     console.error("[mercadopago/webhook] Failed to process order notification:", error);

@@ -15,6 +15,14 @@ import {
   getProviderAuthorizationState,
 } from "@/lib/payment-providers";
 import type { PaymentProviderId } from "@/lib/payment-providers/types";
+import {
+  getMercadoPagoChallengeUrl,
+  getMercadoPagoOrder,
+  guestPaymentErrorMessage,
+  isMercadoPagoOrderAuthorized,
+  isMercadoPagoOrderCaptured,
+  isMercadoPagoOrderFinalFailure,
+} from "@/lib/payment-providers/mercadopago";
 
 
 async function finalizeAuthorizedBooking(
@@ -247,4 +255,67 @@ export async function finalizeCapturedBooking(
 
 export async function cancelBookingForExpiredCheckout(bookingId: string) {
   await cancelUnpaidPendingBooking(bookingId);
+}
+
+export type ChallengeSettlement =
+  | { state: "done" }
+  | { state: "pending"; challengeUrl: string | null }
+  | { state: "failed"; guestMessage: string }
+  | { state: "none" };
+
+/**
+ * Resolves a Mercado Pago payment that was waiting on the guest's bank verification (3DS):
+ * confirms a charge, records a hold, or frees the booking for another card attempt.
+ */
+export async function settleMercadoPagoChallenge(bookingId: string): Promise<ChallengeSettlement> {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      id: true,
+      status: true,
+      authorizedAt: true,
+      paymentProvider: true,
+      paymentOrderId: true,
+      externalBlocksSnapshot: true,
+    },
+  });
+  if (!booking) return { state: "none" };
+  if (booking.authorizedAt || booking.status === "CONFIRMED") return { state: "done" };
+  if (booking.status !== "PENDING" || booking.paymentProvider !== "mercadopago" || !booking.paymentOrderId) {
+    return { state: "none" };
+  }
+  const orderId = booking.paymentOrderId;
+  const order = await getMercadoPagoOrder(orderId);
+  const challengeUrl = getMercadoPagoChallengeUrl(order);
+  if (challengeUrl) return { state: "pending", challengeUrl };
+  const payment = order.transactions?.payments?.[0];
+
+  if (isMercadoPagoOrderCaptured(order)) {
+    const claim = await prisma.booking.updateMany({
+      where: { id: booking.id, status: "PENDING", authorizedAt: null, paymentOrderId: orderId },
+      data: { authorizedAt: new Date() },
+    });
+    if (claim.count === 0) return { state: "done" };
+    await recordBookingEvent(booking.id, "payment_charged", "ok", `Bank verified; Mercado Pago order ${orderId}`);
+    await finalizeCapturedBooking(booking.id, "mercadopago", orderId, payment?.id, booking.externalBlocksSnapshot ?? "[]");
+    return { state: "done" };
+  }
+
+  if (isMercadoPagoOrderAuthorized(order)) {
+    await recordBookingEvent(booking.id, "payment_held", "ok", `Bank verified; Mercado Pago order ${orderId}`);
+    await markBookingAuthorizedForBooking(booking.id, "mercadopago", orderId, payment?.id);
+    return { state: "done" };
+  }
+
+  if (isMercadoPagoOrderFinalFailure(order)) {
+    const guestMessage = guestPaymentErrorMessage(payment?.status_detail || order.status_detail || order.status);
+    const cleared = await prisma.booking.updateMany({
+      where: { id: booking.id, paymentOrderId: orderId, authorizedAt: null },
+      data: { paymentOrderId: null, paymentReference: null },
+    });
+    if (cleared.count > 0) await recordBookingEvent(booking.id, "payment_failed", "fail", guestMessage);
+    return { state: "failed", guestMessage };
+  }
+
+  return { state: "pending", challengeUrl: null };
 }
