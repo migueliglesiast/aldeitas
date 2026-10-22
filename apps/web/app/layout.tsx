@@ -11,6 +11,7 @@ import { getStorefrontFromHeaders } from "../lib/storefront";
 import StorefrontFooter from "../components/storefront/StorefrontFooter";
 import StorefrontTheme from "../components/storefront/StorefrontTheme";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 
 const inter = localFont({
@@ -49,6 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const storefront = await getStorefrontFromHeaders();
+  const chromeless = (await headers()).get("x-chromeless") === "1";
 
   return (
     <html lang="es" id="top">
@@ -57,10 +59,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <HotelProvider>
             <StorefrontProvider hotel={storefront}>
               <StorefrontTheme />
-              <ParallaxBackground />
-              <PortalHeader />
-              <ContentContainer>{children}</ContentContainer>
-              {storefront ? <StorefrontFooter /> : <PortalFooter />}
+              {chromeless ? (
+                children
+              ) : (
+                <>
+                  <ParallaxBackground />
+                  <PortalHeader />
+                  <ContentContainer>{children}</ContentContainer>
+                  {storefront ? <StorefrontFooter /> : <PortalFooter />}
+                </>
+              )}
             </StorefrontProvider>
           </HotelProvider>
         </LocaleProvider>
