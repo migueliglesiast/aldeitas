@@ -22,10 +22,10 @@ const bodySchema = z
     token: z.string().min(1),
     paymentMethodId: z.string().min(1).optional(),
     payment_method_id: z.string().min(1).optional(),
-    paymentTypeId: z.string().max(40).optional(),
-    payment_type_id: z.string().max(40).optional(),
-    installments: z.coerce.number().int().min(1).max(24).optional(),
-    deviceId: z.string().max(200).optional(),
+    paymentTypeId: z.string().max(40).optional().catch(undefined),
+    payment_type_id: z.string().max(40).optional().catch(undefined),
+    installments: z.coerce.number().int().min(1).max(24).optional().catch(undefined),
+    deviceId: z.string().trim().min(1).max(1000).optional().catch(undefined),
   })
   .refine((data) => Boolean(data.paymentMethodId || data.payment_method_id), {
     message: "paymentMethodId is required",

@@ -104,6 +104,22 @@ describe("POST /api/bookings/[id]/pay", () => {
     expect(markAuthorized).not.toHaveBeenCalled();
   });
 
+  it("accepts Mercado Pago's long device IDs and never rejects a payment over a bad optional field", async () => {
+    verify.mockResolvedValue({ ok: true, snapshot: "[snap]" });
+    createAuth.mockResolvedValue({ orderId: "o4", referenceId: "p4", captured: true });
+    const longId = `armor.${"a".repeat(225)}`;
+
+    const res = await pay({ token: "t", payment_method_id: "debvisa", deviceId: longId, installments: "x", payment_type_id: 12 });
+
+    expect(res.status).toBe(200);
+    expect(createAuth).toHaveBeenCalledWith(expect.objectContaining({ deviceId: longId }));
+
+    createAuth.mockClear();
+    const res2 = await pay({ token: "t", payment_method_id: "debvisa", deviceId: 42 });
+    expect(res2.status).toBe(200);
+    expect(createAuth).toHaveBeenCalledWith(expect.objectContaining({ deviceId: undefined }));
+  });
+
   it("shows the guest a readable message when the card is refused", async () => {
     const { MercadoPagoPaymentError } = await import("@/lib/payment-providers/mercadopago");
     createAuth.mockRejectedValue(new MercadoPagoPaymentError("property_value: Invalid value", "Prueba con otra tarjeta"));
