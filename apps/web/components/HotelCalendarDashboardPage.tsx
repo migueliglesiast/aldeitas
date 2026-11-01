@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import HotelMultiCalendar from "@/components/HotelMultiCalendar";
 import OwnerDashboard from "@/components/OwnerDashboard";
 import ReviewsPanel from "@/components/ReviewsPanel";
+import ShareCleaningCalendarButton from "@/components/ShareCleaningCalendarButton";
 import { buildHotelCalendarData } from "@/lib/hotel-calendar-data";
 import { computeHotelStats, toPublicStats } from "@/lib/hotel-stats";
 import { hotelTodayKey } from "@/lib/calendar-dates";
@@ -46,14 +47,24 @@ export default function HotelCalendarDashboardPage({
   token,
   hotel,
   owner,
+  editable = false,
 }: {
   hotelId: string;
   token: string;
   hotel: { name: string; location: string };
   owner: boolean;
+  /** Admin view: the calendar keeps blocks, price sync and edits. */
+  editable?: boolean;
 }) {
   return (
-    <div className="mx-auto max-w-[1600px] space-y-3 px-2 py-4 sm:space-y-6 sm:px-4 sm:py-8">
+    <div
+      className={
+        editable
+          ? "space-y-3 sm:space-y-6"
+          : "mx-auto max-w-[1600px] space-y-3 px-2 py-4 sm:space-y-6 sm:px-4 sm:py-8"
+      }
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-gray-400 sm:text-xs">
           {owner ? "Panel del propietario" : "Calendario compartido"}
@@ -62,17 +73,27 @@ export default function HotelCalendarDashboardPage({
           {hotel.name}
         </h1>
         <p className="text-sm text-gray-500 sm:text-base">{hotel.location}</p>
-        <p className="mt-1 text-xs text-gray-400 sm:mt-2 sm:text-sm">
-          Solo lectura · próximos 3 meses · desliza para ver más fechas
-        </p>
+        {editable ? null : (
+          <p className="mt-1 text-xs text-gray-400 sm:mt-2 sm:text-sm">
+            Solo lectura · próximos 3 meses · desliza para ver más fechas
+          </p>
+        )}
       </div>
-      <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={token} showPrices={owner} />
+      {owner ? <ShareCleaningCalendarButton token={token} hotelName={hotel.name} /> : null}
+      </div>
+      {editable ? (
+        <HotelMultiCalendar hotelId={hotelId} showPrices />
+      ) : (
+        <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={token} showPrices={owner} />
+      )}
       <Suspense fallback={<StatsSkeleton />}>
         <HotelStatsSection hotelId={hotelId} owner={owner} />
       </Suspense>
-      <Suspense fallback={null}>
-        <ReviewsSection hotelId={hotelId} owner={owner} />
-      </Suspense>
+      {editable ? null : (
+        <Suspense fallback={null}>
+          <ReviewsSection hotelId={hotelId} owner={owner} />
+        </Suspense>
+      )}
     </div>
   );
 }
