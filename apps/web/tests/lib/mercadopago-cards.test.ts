@@ -71,6 +71,18 @@ describe("createMercadoPagoAuthorizedOrder", () => {
     expect(result).toEqual({ orderId: "o1", referenceId: "p1", captured: false });
   });
 
+  it("collects into a connected hotel's account with Aldeitas's marketplace fee", async () => {
+    fetchMock.mockReturnValue(
+      reply(201, { id: "o5", status: "action_required", status_detail: "waiting_capture", transactions: { payments: [{ id: "p5" }] } })
+    );
+
+    await createMercadoPagoAuthorizedOrder({ ...PARAMS, paymentMethodId: "visa", accessToken: "HOTEL", marketplaceFeeCents: 27000 });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBe("Bearer HOTEL");
+    expect(JSON.parse(init.body).marketplace_fee).toBe("270.00");
+  });
+
   it("charges a debit card at once instead of sending it as a credit card", async () => {
     fetchMock.mockReturnValue(
       reply(201, { id: "o2", status: "processed", status_detail: "accredited", transactions: { payments: [{ id: "p2", status: "processed" }] } })

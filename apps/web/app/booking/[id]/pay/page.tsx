@@ -1,5 +1,7 @@
 import MercadoPagoPayClient from "./MercadoPagoPayClient";
 import { getMercadoPagoPublicKey } from "@/lib/payment-providers/config";
+import { getHotelMercadoPagoMerchant } from "@/lib/mercadopago-merchant";
+import { prisma } from "@/lib/prisma";
 
 export default async function BookingPayPage({
   params,
@@ -7,7 +9,10 @@ export default async function BookingPayPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const publicKey = getMercadoPagoPublicKey();
+  const booking = await prisma.booking.findUnique({ where: { id }, select: { listing: { select: { hotelId: true } } } });
+  const merchant = booking?.listing?.hotelId ? await getHotelMercadoPagoMerchant(booking.listing.hotelId) : null;
+  // Card tokens must be created with the public key of the account that charges them.
+  const publicKey = merchant?.publicKey || getMercadoPagoPublicKey();
 
   if (!publicKey) {
     return (

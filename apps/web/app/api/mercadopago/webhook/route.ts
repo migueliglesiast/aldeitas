@@ -7,6 +7,8 @@ import {
   isMercadoPagoOrderFinalFailure,
 } from "@/lib/payment-providers/mercadopago";
 import { isValidMercadoPagoSignature } from "@/lib/payment-providers/mercadopago-webhook";
+import { getBookingMercadoPagoToken, getHotelMercadoPagoMerchant } from "@/lib/mercadopago-merchant";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +16,20 @@ type MercadoPagoNotification = {
   type?: string;
   action?: string;
   data?: { id?: string | number };
+  user_id?: string | number;
 };
+
+/** Orders charged on a connected hotel's account must be read with that hotel's token. */
+async function resolveOrderToken(orderId: string, collectorId: string | null) {
+  const booking = await prisma.booking.findFirst({
+    where: { paymentOrderId: orderId },
+    select: { paymentMerchantHotelId: true },
+  });
+  if (booking) return getBookingMercadoPagoToken(booking);
+  if (!collectorId) return undefined;
+  const hotel = await prisma.hotel.findFirst({ where: { mercadoPagoUserId: collectorId }, select: { id: true } });
+  return hotel ? (await getHotelMercadoPagoMerchant(hotel.id))?.accessToken : undefined;
+}
 
 export async function POST(req: NextRequest) {
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
@@ -51,7 +66,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const order = await getMercadoPagoOrder(dataId);
+    const collectorId = payload?.user_id != null ? String(payload.user_id) : null;
+    const order = await getMercadoPagoOrder(dataId, await resolveOrderToken(dataId, collectorId));
     if (isMercadoPagoOrderAuthorized(order)) {
       await markBookingAuthorizedFromPaymentOrder(
         "mercadopago",

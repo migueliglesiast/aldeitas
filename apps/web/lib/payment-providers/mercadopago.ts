@@ -108,9 +108,9 @@ function formatAmount(amountCents: number) {
 async function mercadoPagoRequest<T>(
   path: string,
   options: RequestInit = {},
-  { acceptActionRequired = false } = {}
+  { acceptActionRequired = false, accessToken }: { acceptActionRequired?: boolean; accessToken?: string } = {}
 ): Promise<T> {
-  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  const token = accessToken || process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!token) {
     throw new Error("Mercado Pago is not configured");
   }
@@ -202,6 +202,10 @@ export async function createMercadoPagoAuthorizedOrder(params: {
   deviceId?: string | null;
   payerName?: string | null;
   item?: { title: string; description: string; pictureUrl?: string | null };
+  /** Collect into a connected hotel's account (OAuth token) instead of Aldeitas's. */
+  accessToken?: string;
+  /** Aldeitas's cut when collecting for a hotel. */
+  marketplaceFeeCents?: number;
 }) {
   if (!isMercadoPagoConfigured()) {
     throw new Error("Mercado Pago is not configured");
@@ -222,6 +226,7 @@ export async function createMercadoPagoAuthorizedOrder(params: {
         external_reference: params.bookingId,
         processing_mode: "automatic",
         marketplace: "NONE",
+        ...(params.accessToken && params.marketplaceFeeCents ? { marketplace_fee: formatAmount(params.marketplaceFeeCents) } : {}),
         total_amount: amount,
         currency: charge.currency,
         description: params.item?.title.slice(0, 120),
@@ -262,7 +267,7 @@ export async function createMercadoPagoAuthorizedOrder(params: {
         },
       }),
       ...(params.deviceId ? { headers: { "X-meli-session-id": params.deviceId } } : {}),
-    }, { acceptActionRequired: true });
+    }, { acceptActionRequired: true, accessToken: params.accessToken });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new MercadoPagoPaymentError(message, guestPaymentErrorMessage(message));
@@ -276,7 +281,7 @@ export async function createMercadoPagoAuthorizedOrder(params: {
   const ok = method.manualCapture ? isMercadoPagoOrderAuthorized(order) : isMercadoPagoOrderCaptured(order);
   if (!ok) {
     const detail = payment?.status_detail || order.status_detail || order.status || "unknown";
-    if (order.id) await releaseMercadoPagoOrder(order.id);
+    if (order.id) await releaseMercadoPagoOrder(order.id, params.accessToken);
     throw new MercadoPagoPaymentError(`Mercado Pago did not accept the payment: ${detail}`, guestPaymentErrorMessage(detail));
   }
 
@@ -287,14 +292,15 @@ export async function createMercadoPagoAuthorizedOrder(params: {
   };
 }
 
-export async function getMercadoPagoOrder(orderId: string) {
-  return mercadoPagoRequest<MercadoPagoOrder>(`/v1/orders/${orderId}`);
+export async function getMercadoPagoOrder(orderId: string, accessToken?: string) {
+  return mercadoPagoRequest<MercadoPagoOrder>(`/v1/orders/${orderId}`, {}, { accessToken });
 }
 
 export async function getMercadoPagoAuthorizationState(
-  orderId: string
+  orderId: string,
+  accessToken?: string
 ): Promise<AuthorizedPaymentState> {
-  const order = await getMercadoPagoOrder(orderId);
+  const order = await getMercadoPagoOrder(orderId, accessToken);
   const payment = getPrimaryPayment(order);
 
   return {
@@ -304,29 +310,29 @@ export async function getMercadoPagoAuthorizationState(
   };
 }
 
-export async function captureMercadoPagoOrder(orderId: string) {
-  const order = await getMercadoPagoOrder(orderId);
+export async function captureMercadoPagoOrder(orderId: string, accessToken?: string) {
+  const order = await getMercadoPagoOrder(orderId, accessToken);
   if (!isMercadoPagoOrderAuthorized(order)) return;
 
   await mercadoPagoRequest(`/v1/orders/${orderId}/capture`, {
     method: "POST",
     body: JSON.stringify({}),
-  });
+  }, { accessToken });
 }
 
 const RELEASE_FINAL_STATUSES = new Set(["canceled", "refunded", "processed", "failed", "expired"]);
 const RELEASE_ATTEMPTS = 3;
 
-export async function releaseMercadoPagoOrder(orderId: string) {
+export async function releaseMercadoPagoOrder(orderId: string, accessToken?: string) {
   for (let attempt = 1; attempt <= RELEASE_ATTEMPTS; attempt++) {
     try {
-      const order = await getMercadoPagoOrder(orderId);
+      const order = await getMercadoPagoOrder(orderId, accessToken);
       if (order.status && RELEASE_FINAL_STATUSES.has(order.status)) return;
 
       await mercadoPagoRequest(`/v1/orders/${orderId}/cancel`, {
         method: "POST",
         body: JSON.stringify({}),
-      });
+      }, { accessToken });
       return;
     } catch (error) {
       if (attempt === RELEASE_ATTEMPTS) {

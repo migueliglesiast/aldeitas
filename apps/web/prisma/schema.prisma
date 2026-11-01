@@ -85,6 +85,8 @@ model Hotel {
   mercadoPagoTokenExpiresAt DateTime?
   mercadoPagoAccount        String?
   mercadoPagoConnectedAt    DateTime?
+  /// Aldeitas marketplace fee (%) on payments collected by the hotel's own Mercado Pago account.
+  commissionPercent         Float?
   addons               HotelAddon[]
 }
 
@@ -267,6 +269,8 @@ model Booking {
   paymentProvider        String?
   paymentOrderId         String?
   paymentReference       String?
+  /// Hotel whose connected Mercado Pago account collected this payment (null = Aldeitas account).
+  paymentMerchantHotelId String?
   authorizedAt           DateTime?
   confirmedAt            DateTime?
   pendingExpiresAt       DateTime?

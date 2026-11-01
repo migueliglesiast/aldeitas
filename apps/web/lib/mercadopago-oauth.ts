@@ -70,16 +70,22 @@ export type MercadoPagoOAuthTokens = {
   expiresAt: Date | null;
 };
 
-export async function exchangeMercadoPagoCode(code: string): Promise<MercadoPagoOAuthTokens> {
+export function exchangeMercadoPagoCode(code: string) {
+  return requestMercadoPagoToken({ grant_type: "authorization_code", code, redirect_uri: getMercadoPagoRedirectUri() });
+}
+
+export function refreshMercadoPagoToken(refreshToken: string) {
+  return requestMercadoPagoToken({ grant_type: "refresh_token", refresh_token: refreshToken });
+}
+
+async function requestMercadoPagoToken(grant: Record<string, string>): Promise<MercadoPagoOAuthTokens> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({
       client_id: getMercadoPagoClientId(),
       client_secret: process.env.MERCADOPAGO_CLIENT_SECRET,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: getMercadoPagoRedirectUri(),
+      ...grant,
     }),
     signal: AbortSignal.timeout(15_000),
   });
