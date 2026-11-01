@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import { getHotelCoverCandidates } from "@/lib/hotel-cover";
 import HotelContactsSection from "./HotelContactsSection";
@@ -36,16 +36,25 @@ type Hotel = {
   }>;
 };
 
-type TabId = "general" | "calendar" | "maintenance";
+export type TabId = "general" | "calendar" | "maintenance";
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "general", label: "General Info" },
-  { id: "calendar", label: "Multi Calendar" },
+  { id: "calendar", label: "Calendario y panel" },
   { id: "maintenance", label: "Maintenance" },
 ];
 
-export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
-  const [tab, setTab] = useState<TabId>("general");
+export default function HotelAdminPanel({
+  hotel,
+  dashboard,
+  initialTab = "general",
+}: {
+  hotel: Hotel;
+  /** Server-rendered calendar + owner dashboard for the calendar tab. */
+  dashboard?: ReactNode;
+  initialTab?: TabId;
+}) {
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [description, setDescription] = useState(hotel.description);
   const [mainContact, setMainContact] = useState(hotel.mainContactNumber || "");
   const [logoImageUrl, setLogoImageUrl] = useState(hotel.logoImageUrl || "");
@@ -333,7 +342,7 @@ export default function HotelAdminPanel({ hotel }: { hotel: Hotel }) {
         </div>
       ) : null}
 
-      {tab === "calendar" ? <HotelMultiCalendar hotelId={hotel.id} /> : null}
+      {tab === "calendar" ? dashboard ?? <HotelMultiCalendar hotelId={hotel.id} /> : null}
 
       {tab === "maintenance" ? (
         <div className="space-y-6">

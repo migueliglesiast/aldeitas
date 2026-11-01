@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { signInUrl } from "@/lib/auth-redirect";
-import { getOrCreateHotelCalendarShareToken } from "@/lib/hotel-calendar-data";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -25,8 +24,7 @@ export default async function AdminCalendarShortcut({
 
   const target = hotels.find((h) => h.hotel.id === hotelId) ?? (hotels.length === 1 ? hotels[0] : null);
   if (target) {
-    const share = await getOrCreateHotelCalendarShareToken(target.hotel.id);
-    redirect(`/calendar/${share.token}/owner`);
+    redirect(`/admin/hotel/${target.hotel.id}?tab=calendar`);
   }
 
   return (
