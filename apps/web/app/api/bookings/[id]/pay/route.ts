@@ -7,6 +7,7 @@ import {
   verifyBookingDatesAvailable,
 } from "@/lib/booking-payment";
 import { recordBookingEvent } from "@/lib/booking-events";
+import { getHotelMercadoPagoMerchant, marketplaceFeeCents } from "@/lib/mercadopago-merchant";
 import { isMercadoPagoConfigured } from "@/lib/payment-providers/config";
 import { createMercadoPagoCardAuthorization } from "@/lib/payment-providers";
 import {
@@ -56,6 +57,7 @@ export async function POST(
       listing: {
         select: {
           title: true,
+          hotelId: true,
           hotel: { select: { name: true } },
           images: { select: { url: true }, orderBy: { position: "asc" }, take: 1 },
         },
@@ -96,6 +98,9 @@ export async function POST(
     snapshot = dates.snapshot;
   }
 
+  const merchant = booking.listing?.hotelId ? await getHotelMercadoPagoMerchant(booking.listing.hotelId) : null;
+  const paymentMerchantHotelId = merchant?.hotelId ?? null;
+
   let authorization: Awaited<ReturnType<typeof createMercadoPagoCardAuthorization>>;
   try {
     authorization = await createMercadoPagoCardAuthorization({
@@ -109,6 +114,12 @@ export async function POST(
       installments: parsed.data.installments,
       deviceId: parsed.data.deviceId,
       payerName: booking.guestName,
+      ...(merchant
+        ? {
+            accessToken: merchant.accessToken,
+            marketplaceFeeCents: marketplaceFeeCents(booking.totalPriceCents, merchant.commissionPercent),
+          }
+        : {}),
       item: booking.listing
         ? {
             title: [booking.listing.title, booking.listing.hotel?.name].filter(Boolean).join(" · "),
@@ -132,6 +143,7 @@ export async function POST(
         paymentProvider: "mercadopago",
         paymentOrderId: authorization.orderId,
         paymentReference: authorization.referenceId,
+        paymentMerchantHotelId,
         ...(snapshot ? { externalBlocksSnapshot: snapshot } : {}),
       },
     });
@@ -144,11 +156,12 @@ export async function POST(
     return NextResponse.json({ ok: true, challengeUrl: authorization.challengeUrl }, { status: 202 });
   }
 
+  await prisma.booking.update({ where: { id: booking.id }, data: { paymentMerchantHotelId } });
   await recordBookingEvent(
     booking.id,
     authorization.captured ? "payment_charged" : "payment_held",
     "ok",
-    `Mercado Pago order ${authorization.orderId}`
+    `Mercado Pago order ${authorization.orderId}${merchant ? " (hotel's Mercado Pago account)" : ""}`
   );
 
   try {

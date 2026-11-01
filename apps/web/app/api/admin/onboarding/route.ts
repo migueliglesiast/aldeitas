@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncBilingualDescription } from "@/lib/sync-bilingual-description";
 import { MAX_CONTACT_PRIORITY } from "@/lib/contact-priority";
+import { isValidClabe, normalizeClabe } from "@/lib/clabe";
 import {
   getOnboardingState,
   getPrimaryHotelId,
@@ -39,6 +40,16 @@ const saveSchema = z.discriminatedUnion("step", [
     step: z.literal("team"),
     cleaner: contactSchema,
     maintenance: contactSchema.optional(),
+  }),
+  z.object({
+    step: z.literal("payouts"),
+    email: z.union([z.string().trim().toLowerCase().email().max(200), z.literal("")]).optional(),
+    clabe: z
+      .string()
+      .transform(normalizeClabe)
+      .refine((v) => v === "" || isValidClabe(v), { message: "clabe_invalid" })
+      .optional(),
+    holder: z.string().trim().max(120).optional(),
   }),
 ]);
 
@@ -99,7 +110,8 @@ export async function POST(req: NextRequest) {
 
   const parsed = saveSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid" }, { status: 400 });
+    const clabeInvalid = parsed.error.issues.some((issue) => issue.message === "clabe_invalid");
+    return NextResponse.json({ error: clabeInvalid ? "clabe_invalid" : "invalid" }, { status: 400 });
   }
   const body = parsed.data;
 
@@ -150,6 +162,20 @@ export async function POST(req: NextRequest) {
         latitude: coords.latitude,
         longitude: coords.longitude,
         ...(body.maps.startsWith("https://") ? { googleMapsUrl: body.maps } : {}),
+      },
+    });
+  }
+
+  if (body.step === "payouts") {
+    if (!body.email && !body.clabe) {
+      return NextResponse.json({ error: "invalid" }, { status: 400 });
+    }
+    await prisma.hotel.update({
+      where: { id: hotelId },
+      data: {
+        payoutMercadoPagoEmail: body.email || null,
+        payoutClabe: body.clabe || null,
+        payoutAccountHolder: body.holder || null,
       },
     });
   }

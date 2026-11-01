@@ -12,7 +12,7 @@ import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
 const SEEN_KEY = "aldeitas-onboarding-seen";
-const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "done"];
+const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "mercadopago", "payouts", "done"];
 const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
 
 type T = (key: OnboardingCopyKey, vars?: Record<string, string | number>) => string;
@@ -764,6 +764,74 @@ function TeamStep({ t, state, setState, next, footer }: StepProps) {
   );
 }
 
+function MercadoPagoStep({ t, state, next, footer }: StepProps) {
+  const result = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("mp");
+  const connected = Boolean(state.hotel?.mercadoPagoConnected);
+  const notice =
+    result === "unavailable" ? t("mpUnavailable") : result === "denied" ? t("mpDenied") : result === "error" ? t("mpError") : null;
+  return (
+    <>
+      {connected ? (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#0f766e]/30 bg-[#0f766e]/5 px-4 py-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0f766e] text-white">✓</span>
+          <div className="text-sm">
+            <div className="font-semibold text-ink">{t("mpConnected")}</div>
+            {state.hotel?.mercadoPagoAccount ? <div className="text-muted">{state.hotel.mercadoPagoAccount}</div> : null}
+          </div>
+        </div>
+      ) : (
+        <a
+          href="/api/mercadopago/oauth/start"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-[#009ee3] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#0089c7]"
+        >
+          {t("mpConnect")}
+        </a>
+      )}
+      {notice ? <p className="text-xs text-red-700">{notice}</p> : <p className="text-xs text-muted">{t("mpHint")}</p>}
+      {footer({ busy: false, onSave: next, error: null })}
+    </>
+  );
+}
+
+function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
+  const hotel = state.hotel;
+  const [email, setEmail] = useState(hotel?.payoutEmail ?? "");
+  const [clabe, setClabe] = useState(hotel?.payoutClabe ?? "");
+  const [holder, setHolder] = useState(hotel?.payoutHolder ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const unchanged =
+      email === (hotel?.payoutEmail ?? "") && clabe === (hotel?.payoutClabe ?? "") && holder === (hotel?.payoutHolder ?? "");
+    if (unchanged && (email || clabe)) return next();
+    if (!email.trim() && !clabe.trim()) return setError(t("payoutRequired"));
+    setBusy(true);
+    const { ok, data } = await postJson("/api/admin/onboarding", { step: "payouts", email, clabe, holder });
+    setBusy(false);
+    if (!ok) return setError(data?.error === "clabe_invalid" ? t("clabeInvalid") : t("error"));
+    setState(data);
+    next();
+  }
+  return (
+    <>
+      <Label text={t("mpEmail")}>
+        <input className={inputClass} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("mpEmailPh")} />
+      </Label>
+      <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+        <Label text={t("clabe")}>
+          <input className={inputClass} inputMode="numeric" maxLength={22} value={clabe} onChange={(e) => setClabe(e.target.value)} placeholder="012 180 0123456789 1" />
+        </Label>
+        <Label text={t("accountHolder")}>
+          <input className={inputClass} value={holder} onChange={(e) => setHolder(e.target.value)} />
+        </Label>
+      </div>
+      <p className="text-xs text-muted">{t("payoutsHint")}</p>
+      {footer({ busy, onSave: save, error })}
+    </>
+  );
+}
+
 function DoneStep({ t, state, close }: { t: T; state: OnboardingState; close: () => void }) {
   return (
     <>
@@ -785,6 +853,8 @@ const STEP_COPY: Record<DemoId, { kicker: OnboardingCopyKey; title: OnboardingCo
   calendars: { kicker: "calKicker", title: "calTitle", body: "calBody" },
   inbox: { kicker: "inboxKicker", title: "inboxTitle", body: "inboxBody" },
   team: { kicker: "teamKicker", title: "teamTitle", body: "teamBody" },
+  mercadopago: { kicker: "mpKicker", title: "mpTitle", body: "mpBody" },
+  payouts: { kicker: "payoutsKicker", title: "payoutsTitle", body: "payoutsBody" },
   done: { kicker: "doneKicker", title: "doneTitle", body: "doneBody" },
 };
 
@@ -800,17 +870,24 @@ function stepsFor(mode: "full" | "missing", state: OnboardingState, importer: Pi
 }
 
 function Slideshow({
-  t, mode, state, setState, onClose, importer,
+  t, mode, startAt, state, setState, onClose, importer,
 }: {
   t: T;
   mode: "full" | "missing";
+  startAt?: DemoId | null;
   state: OnboardingState;
   setState: (state: OnboardingState) => void;
   onClose: () => void;
   importer: Importer;
 }) {
   const [steps, setSteps] = useState(() => stepsFor(mode, state, importer));
-  const [index, setIndex] = useState(() => (isRunning(importer.job) ? Math.max(0, steps.indexOf("airbnb")) : 0));
+  const [index, setIndex] = useState(() =>
+    isRunning(importer.job)
+      ? Math.max(0, steps.indexOf("airbnb"))
+      : startAt && steps.includes(startAt)
+        ? steps.indexOf(startAt)
+        : 0
+  );
   const id = steps[index];
   const ensureNext = (step: DemoId) =>
     setSteps((list) => (list.includes(step) ? list : [...list.slice(0, index + 1), step, ...list.slice(index + 1)]));
@@ -905,6 +982,8 @@ function Slideshow({
             {id === "calendars" ? <CalendarStep {...props} /> : null}
             {id === "inbox" ? <InboxStep {...props} /> : null}
             {id === "team" ? <TeamStep {...props} /> : null}
+            {id === "mercadopago" ? <MercadoPagoStep {...props} /> : null}
+            {id === "payouts" ? <PayoutsStep {...props} /> : null}
             {id === "done" ? <DoneStep t={t} state={state} close={onClose} /> : null}
           </div>
         </div>
@@ -920,6 +999,7 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   const t: T = useCallback((key, vars) => onboardingText(locale, key, vars), [locale]);
   const [state, setState] = useState<OnboardingState | null>(null);
   const [mode, setMode] = useState<"full" | "missing" | null>(null);
+  const [startAt, setStartAt] = useState<DemoId | null>(null);
   const [job, setJob] = useState<ImportJob>({ status: "idle", items: [] });
   const [reviewed, setReviewed] = useState(false);
   const running = useRef(false);
@@ -977,7 +1057,10 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
       .then((data: OnboardingState | null) => {
         if (!alive || !Array.isArray(data?.missing)) return;
         setState(data);
-        const welcome = new URLSearchParams(window.location.search).has("welcome");
+        const query = new URLSearchParams(window.location.search);
+        const welcome = query.has("welcome");
+        const target = query.get("welcome");
+        if (target && (FULL_TOUR as string[]).includes(target)) setStartAt(target as DemoId);
         if (welcome || !window.localStorage.getItem(`${SEEN_KEY}:${userId}`)) {
           setMode((current) => current ?? "full");
         }
@@ -1037,7 +1120,7 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
       ) : null}
       {mode
         ? createPortal(
-            <Slideshow key={mode} t={t} mode={mode} state={state} setState={setState} onClose={close} importer={importer} />,
+            <Slideshow key={mode} t={t} mode={mode} startAt={startAt} state={state} setState={setState} onClose={close} importer={importer} />,
             document.body
           )
         : null}

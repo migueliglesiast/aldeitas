@@ -5,6 +5,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const markBookingAuthorizedFromPaymentOrder = vi.fn();
 const getMercadoPagoOrder = vi.fn();
+const prismaMock = { booking: { findFirst: vi.fn() }, hotel: { findFirst: vi.fn() } };
+const getBookingToken = vi.fn();
+const getMerchant = vi.fn();
+
+vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
+vi.mock("@/lib/mercadopago-merchant", () => ({
+  getBookingMercadoPagoToken: (...args: unknown[]) => getBookingToken(...args),
+  getHotelMercadoPagoMerchant: (...args: unknown[]) => getMerchant(...args),
+}));
 
 vi.mock("@/lib/booking-payment", () => ({
   markBookingAuthorizedFromPaymentOrder: (...args: unknown[]) =>
@@ -71,7 +80,7 @@ describe("POST /api/mercadopago/webhook", () => {
     const res = await POST(request());
 
     expect(res.status).toBe(200);
-    expect(getMercadoPagoOrder).toHaveBeenCalledWith(ORDER_ID);
+    expect(getMercadoPagoOrder).toHaveBeenCalledWith(ORDER_ID, undefined);
     expect(markBookingAuthorizedFromPaymentOrder).toHaveBeenCalledWith(
       "mercadopago",
       ORDER_ID,

@@ -7,11 +7,16 @@ const createAuth = vi.fn();
 const verify = vi.fn();
 const finalizeCaptured = vi.fn();
 const markAuthorized = vi.fn();
+const getMerchant = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/payment-providers/config", () => ({ isMercadoPagoConfigured: () => true }));
 vi.mock("@/lib/payment-providers", () => ({
   createMercadoPagoCardAuthorization: (...args: unknown[]) => createAuth(...args),
+}));
+vi.mock("@/lib/mercadopago-merchant", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/mercadopago-merchant")>()),
+  getHotelMercadoPagoMerchant: (...args: unknown[]) => getMerchant(...args),
 }));
 vi.mock("@/lib/booking-payment", () => ({
   verifyBookingDatesAvailable: (...args: unknown[]) => verify(...args),
@@ -35,6 +40,7 @@ function pay(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
+  getMerchant.mockResolvedValue(null);
   prismaMock.booking.findUnique.mockResolvedValue({
     id: "b1",
     status: "PENDING",
@@ -45,7 +51,7 @@ beforeEach(() => {
     guestName: "Ana López",
     startDate: new Date("2026-10-27"),
     endDate: new Date("2026-10-30"),
-    listing: { title: "Forest Studio 3", hotel: { name: "La Arbolita" }, images: [{ url: "https://x/p.jpg" }] },
+    listing: { title: "Forest Studio 3", hotelId: "h1", hotel: { name: "La Arbolita" }, images: [{ url: "https://x/p.jpg" }] },
   });
 });
 
@@ -98,7 +104,7 @@ describe("POST /api/bookings/[id]/pay", () => {
     );
     expect(prismaMock.booking.update).toHaveBeenCalledWith({
       where: { id: "b1" },
-      data: { paymentProvider: "mercadopago", paymentOrderId: "o3", paymentReference: "p3", externalBlocksSnapshot: "[snap]" },
+      data: { paymentProvider: "mercadopago", paymentOrderId: "o3", paymentReference: "p3", paymentMerchantHotelId: null, externalBlocksSnapshot: "[snap]" },
     });
     expect(finalizeCaptured).not.toHaveBeenCalled();
     expect(markAuthorized).not.toHaveBeenCalled();
@@ -128,5 +134,26 @@ describe("POST /api/bookings/[id]/pay", () => {
 
     expect(res.status).toBe(402);
     await expect(res.json()).resolves.toEqual({ error: "Prueba con otra tarjeta" });
+  });
+
+  it("charges a connected hotel's own Mercado Pago account and takes Aldeitas's commission", async () => {
+    getMerchant.mockResolvedValue({ hotelId: "h1", accessToken: "HOTEL_TOKEN", publicKey: "PK", commissionPercent: 10 });
+    createAuth.mockResolvedValue({ orderId: "o9", referenceId: "p9", captured: false });
+
+    const res = await pay({ token: "t", payment_method_id: "visa" });
+
+    expect(res.status).toBe(200);
+    expect(getMerchant).toHaveBeenCalledWith("h1");
+    expect(createAuth).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "HOTEL_TOKEN", marketplaceFeeCents: 27000 }));
+    expect(prismaMock.booking.update).toHaveBeenCalledWith({ where: { id: "b1" }, data: { paymentMerchantHotelId: "h1" } });
+  });
+
+  it("charges Aldeitas's account when the hotel hasn't connected Mercado Pago", async () => {
+    createAuth.mockResolvedValue({ orderId: "o1", referenceId: "p1", captured: false });
+
+    await pay({ token: "t", payment_method_id: "visa" });
+
+    expect(createAuth.mock.calls[0][0]).not.toHaveProperty("accessToken");
+    expect(prismaMock.booking.update).toHaveBeenCalledWith({ where: { id: "b1" }, data: { paymentMerchantHotelId: null } });
   });
 });

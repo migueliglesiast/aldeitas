@@ -1,3 +1,4 @@
+import { isMercadoPagoOAuthConfigured } from "@/lib/mercadopago-oauth";
 import { prisma } from "@/lib/prisma";
 import { getListingIcalExportUrl } from "@/lib/site-url";
 import { parseContactPriority } from "@/lib/contact-priority";
@@ -14,6 +15,8 @@ export const ONBOARDING_STEPS = [
   "airbnb",
   "calendars",
   "team",
+  "mercadopago",
+  "payouts",
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
@@ -45,6 +48,11 @@ export type OnboardingState = {
     longitude: number | null;
     gmailEmail: string;
     gmailConnected: boolean;
+    mercadoPagoConnected: boolean;
+    mercadoPagoAccount: string;
+    payoutEmail: string;
+    payoutClabe: string;
+    payoutHolder: string;
   } | null;
   rooms: OnboardingRoom[];
   isOwner: boolean;
@@ -149,6 +157,8 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     if (rooms.length === 0 || rooms.some((room) => !roomHasPhotos(room))) missing.push("airbnb");
     if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!cleaner) missing.push("team");
+    if (!hotel.mercadoPagoConnectedAt && isMercadoPagoOAuthConfigured()) missing.push("mercadopago");
+    if (!hotel.payoutMercadoPagoEmail && !hotel.payoutClabe && !hotel.mercadoPagoConnectedAt) missing.push("payouts");
   }
 
   return {
@@ -168,6 +178,11 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
           longitude: hotel.longitude,
           gmailEmail: hotel.gmailSyncEmail ?? "",
           gmailConnected: Boolean(hotel.gmailSyncEmail && hotel.gmailSyncPasswordEnc),
+          mercadoPagoConnected: Boolean(hotel.mercadoPagoConnectedAt),
+          mercadoPagoAccount: hotel.mercadoPagoAccount ?? "",
+          payoutEmail: hotel.payoutMercadoPagoEmail ?? "",
+          payoutClabe: hotel.payoutClabe ?? "",
+          payoutHolder: hotel.payoutAccountHolder ?? "",
         }
       : null,
     rooms,

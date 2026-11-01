@@ -23,6 +23,7 @@ import {
   isMercadoPagoOrderCaptured,
   isMercadoPagoOrderFinalFailure,
 } from "@/lib/payment-providers/mercadopago";
+import { getBookingMercadoPagoToken } from "@/lib/mercadopago-merchant";
 
 
 async function finalizeAuthorizedBooking(
@@ -149,18 +150,15 @@ export async function markBookingAuthorizedFromPaymentOrder(
   orderId: string,
   bookingId?: string
 ) {
-  const authState = await getProviderAuthorizationState(provider, orderId);
+  const record = bookingId
+    ? await prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, paymentMerchantHotelId: true } })
+    : await prisma.booking.findFirst({ where: { paymentOrderId: orderId }, select: { id: true, paymentMerchantHotelId: true } });
+  const resolvedBookingId = record?.id ?? bookingId;
+  const accessToken = record ? await getBookingMercadoPagoToken(record) : undefined;
+
+  const authState = await getProviderAuthorizationState(provider, orderId, accessToken);
   if (!authState.authorized) {
     throw new Error("Payment is not authorized yet");
-  }
-
-  let resolvedBookingId = bookingId;
-  if (!resolvedBookingId) {
-    const byOrder = await prisma.booking.findFirst({
-      where: { paymentOrderId: orderId },
-      select: { id: true },
-    });
-    resolvedBookingId = byOrder?.id;
   }
 
   if (!resolvedBookingId) {
@@ -181,7 +179,9 @@ export async function markBookingAuthorizedForBooking(
   orderId: string,
   referenceId?: string
 ) {
-  const authState = await getProviderAuthorizationState(provider, orderId);
+  const record = await prisma.booking.findUnique({ where: { id: bookingId }, select: { paymentMerchantHotelId: true } });
+  const accessToken = record ? await getBookingMercadoPagoToken(record) : undefined;
+  const authState = await getProviderAuthorizationState(provider, orderId, accessToken);
   if (!authState.authorized) {
     throw new Error("Payment is not authorized yet");
   }
@@ -276,6 +276,7 @@ export async function settleMercadoPagoChallenge(bookingId: string): Promise<Cha
       authorizedAt: true,
       paymentProvider: true,
       paymentOrderId: true,
+      paymentMerchantHotelId: true,
       externalBlocksSnapshot: true,
     },
   });
@@ -285,7 +286,7 @@ export async function settleMercadoPagoChallenge(bookingId: string): Promise<Cha
     return { state: "none" };
   }
   const orderId = booking.paymentOrderId;
-  const order = await getMercadoPagoOrder(orderId);
+  const order = await getMercadoPagoOrder(orderId, await getBookingMercadoPagoToken(booking));
   const challengeUrl = getMercadoPagoChallengeUrl(order);
   if (challengeUrl) return { state: "pending", challengeUrl };
   const payment = order.transactions?.payments?.[0];

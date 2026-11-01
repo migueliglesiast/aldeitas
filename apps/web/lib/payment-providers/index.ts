@@ -19,10 +19,12 @@ import {
   getMercadoPagoAuthorizationState,
   releaseMercadoPagoOrder,
 } from "./mercadopago";
+import { getBookingMercadoPagoToken } from "@/lib/mercadopago-merchant";
 
 type BookingPaymentRecord = {
   paymentProvider: string | null;
   paymentOrderId: string | null;
+  paymentMerchantHotelId?: string | null;
 };
 
 export async function createProviderCheckout(params: {
@@ -60,12 +62,13 @@ export async function createMercadoPagoCardAuthorization(
 
 export async function getProviderAuthorizationState(
   provider: PaymentProviderId,
-  orderId: string
+  orderId: string,
+  accessToken?: string
 ) {
   if (provider === "conekta") {
     return getConektaAuthorizationState(orderId);
   }
-  return getMercadoPagoAuthorizationState(orderId);
+  return getMercadoPagoAuthorizationState(orderId, accessToken);
 }
 
 export async function captureAuthorizedBookingPayment(booking: BookingPaymentRecord) {
@@ -77,7 +80,7 @@ export async function captureAuthorizedBookingPayment(booking: BookingPaymentRec
   }
 
   if (booking.paymentProvider === "mercadopago") {
-    await captureMercadoPagoOrder(booking.paymentOrderId);
+    await captureMercadoPagoOrder(booking.paymentOrderId, await getBookingMercadoPagoToken(booking));
   }
 }
 
@@ -90,6 +93,6 @@ export async function releaseAuthorizedBookingPayment(booking: BookingPaymentRec
   }
 
   if (booking.paymentProvider === "mercadopago") {
-    await releaseMercadoPagoOrder(booking.paymentOrderId);
+    await releaseMercadoPagoOrder(booking.paymentOrderId, await getBookingMercadoPagoToken(booking));
   }
 }
