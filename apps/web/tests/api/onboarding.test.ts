@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 const prismaMock = {
   user: { update: vi.fn() },
+  hotel: { update: vi.fn() },
   hotelContact: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 };
 const getCurrentUser = vi.fn();
@@ -71,5 +72,36 @@ describe("POST /api/admin/onboarding step you", () => {
       data: { nickname: "Miguel", phoneNumber: "+52 954 111 1111" },
     });
     expect((await post({ step: "you" })).status).toBe(400);
+  });
+});
+
+describe("POST /api/admin/onboarding step payouts", () => {
+  it("saves the Mercado Pago email and a valid CLABE (spaces stripped)", async () => {
+    const res = await post({ step: "payouts", email: " Pagos@Hotel.mx ", clabe: "002 010 077777777771", holder: "Clara Torres" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.hotel.update).toHaveBeenCalledWith({
+      where: { id: "h1" },
+      data: { payoutMercadoPagoEmail: "pagos@hotel.mx", payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres" },
+    });
+  });
+
+  it("accepts a Mercado Pago email alone", async () => {
+    const res = await post({ step: "payouts", email: "pagos@hotel.mx", clabe: "", holder: "" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.hotel.update).toHaveBeenCalledWith({
+      where: { id: "h1" },
+      data: { payoutMercadoPagoEmail: "pagos@hotel.mx", payoutClabe: null, payoutAccountHolder: null },
+    });
+  });
+
+  it("rejects a CLABE with a bad control digit", async () => {
+    const res = await post({ step: "payouts", clabe: "002010077777777772" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "clabe_invalid" });
+    expect(prismaMock.hotel.update).not.toHaveBeenCalled();
+  });
+
+  it("requires an email or a CLABE", async () => {
+    expect((await post({ step: "payouts", email: "", clabe: "" })).status).toBe(400);
   });
 });

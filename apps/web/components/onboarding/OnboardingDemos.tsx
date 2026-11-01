@@ -5,7 +5,7 @@ import type { OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
 
 type T = (key: OnboardingCopyKey) => string;
 
-export type DemoId = "you" | "story" | "map" | "airbnb" | "calendars" | "inbox" | "team" | "done";
+export type DemoId = "you" | "story" | "map" | "airbnb" | "calendars" | "inbox" | "team" | "payouts" | "done";
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -254,6 +254,24 @@ function TeamDemo({ t }: { t: T }) {
   );
 }
 
+function PayoutsDemo({ t }: { t: T }) {
+  return (
+    <Frame>
+      <div className="absolute inset-x-6 top-5 space-y-2">
+        <div className="ob-loop ob-in-20 flex items-center justify-between rounded-xl bg-white px-3 py-2 shadow-sm">
+          <span className="text-[10px] font-semibold text-[#009ee3]">Mercado Pago</span>
+          <span className="text-[10px] text-muted">{t("demoPayout")}</span>
+        </div>
+        <div className="ob-loop ob-in-45 flex items-center justify-between rounded-xl bg-white px-3 py-2 shadow-sm">
+          <span className="text-[10px] text-muted">CLABE ···· 4821</span>
+          <span className="text-sm font-semibold text-[#0f766e]">+ MX$2,565</span>
+        </div>
+        <div className="ob-loop ob-grow h-1.5 w-2/3 rounded bg-[#0f766e]" />
+      </div>
+    </Frame>
+  );
+}
+
 function Ring({ to, label, value }: { to: number; label: string; value: string }) {
   const full = 2 * Math.PI * 22;
   const style = { "--ring-full": `${full}`, "--ring-to": `${full * (1 - to)}`, strokeDasharray: full } as CSSProperties;
@@ -299,6 +317,7 @@ export default function OnboardingDemo({ id, t }: { id: DemoId; t: T }) {
     case "calendars": return <CalendarsDemo t={t} />;
     case "inbox": return <InboxDemo t={t} />;
     case "team": return <TeamDemo t={t} />;
+    case "payouts": return <PayoutsDemo t={t} />;
     case "done": return <DoneDemo t={t} />;
   }
 }

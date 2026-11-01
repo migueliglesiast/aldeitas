@@ -14,6 +14,7 @@ export const ONBOARDING_STEPS = [
   "airbnb",
   "calendars",
   "team",
+  "payouts",
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
@@ -45,6 +46,9 @@ export type OnboardingState = {
     longitude: number | null;
     gmailEmail: string;
     gmailConnected: boolean;
+    payoutEmail: string;
+    payoutClabe: string;
+    payoutHolder: string;
   } | null;
   rooms: OnboardingRoom[];
   isOwner: boolean;
@@ -152,6 +156,7 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     if (rooms.length === 0 || rooms.some((room) => !roomHasPhotos(room))) missing.push("airbnb");
     if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!cleaner) missing.push("team");
+    if (!hotel.payoutMercadoPagoEmail && !hotel.payoutClabe) missing.push("payouts");
   }
 
   return {
@@ -171,6 +176,9 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
           longitude: hotel.longitude,
           gmailEmail: hotel.gmailSyncEmail ?? "",
           gmailConnected: Boolean(hotel.gmailSyncEmail && hotel.gmailSyncPasswordEnc),
+          payoutEmail: hotel.payoutMercadoPagoEmail ?? "",
+          payoutClabe: hotel.payoutClabe ?? "",
+          payoutHolder: hotel.payoutAccountHolder ?? "",
         }
       : null,
     rooms,

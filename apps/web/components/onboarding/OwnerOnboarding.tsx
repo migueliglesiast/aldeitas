@@ -12,7 +12,7 @@ import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
 const SEEN_KEY = "aldeitas-onboarding-seen";
-const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "done"];
+const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "payouts", "done"];
 const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
 
 type T = (key: OnboardingCopyKey, vars?: Record<string, string | number>) => string;
@@ -714,6 +714,45 @@ function TeamStep({ t, state, setState, next, footer }: StepProps) {
   );
 }
 
+function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
+  const hotel = state.hotel;
+  const [email, setEmail] = useState(hotel?.payoutEmail ?? "");
+  const [clabe, setClabe] = useState(hotel?.payoutClabe ?? "");
+  const [holder, setHolder] = useState(hotel?.payoutHolder ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const unchanged =
+      email === (hotel?.payoutEmail ?? "") && clabe === (hotel?.payoutClabe ?? "") && holder === (hotel?.payoutHolder ?? "");
+    if (unchanged && (email || clabe)) return next();
+    if (!email.trim() && !clabe.trim()) return setError(t("payoutRequired"));
+    setBusy(true);
+    const { ok, data } = await postJson("/api/admin/onboarding", { step: "payouts", email, clabe, holder });
+    setBusy(false);
+    if (!ok) return setError(data?.error === "clabe_invalid" ? t("clabeInvalid") : t("error"));
+    setState(data);
+    next();
+  }
+  return (
+    <>
+      <Label text={t("mpEmail")}>
+        <input className={inputClass} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("mpEmailPh")} />
+      </Label>
+      <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+        <Label text={t("clabe")}>
+          <input className={inputClass} inputMode="numeric" maxLength={22} value={clabe} onChange={(e) => setClabe(e.target.value)} placeholder="012 180 0123456789 1" />
+        </Label>
+        <Label text={t("accountHolder")}>
+          <input className={inputClass} value={holder} onChange={(e) => setHolder(e.target.value)} />
+        </Label>
+      </div>
+      <p className="text-xs text-muted">{t("payoutsHint")}</p>
+      {footer({ busy, onSave: save, error })}
+    </>
+  );
+}
+
 function DoneStep({ t, state, close }: { t: T; state: OnboardingState; close: () => void }) {
   return (
     <>
@@ -735,6 +774,7 @@ const STEP_COPY: Record<DemoId, { kicker: OnboardingCopyKey; title: OnboardingCo
   calendars: { kicker: "calKicker", title: "calTitle", body: "calBody" },
   inbox: { kicker: "inboxKicker", title: "inboxTitle", body: "inboxBody" },
   team: { kicker: "teamKicker", title: "teamTitle", body: "teamBody" },
+  payouts: { kicker: "payoutsKicker", title: "payoutsTitle", body: "payoutsBody" },
   done: { kicker: "doneKicker", title: "doneTitle", body: "doneBody" },
 };
 
@@ -855,6 +895,7 @@ function Slideshow({
             {id === "calendars" ? <CalendarStep {...props} /> : null}
             {id === "inbox" ? <InboxStep {...props} /> : null}
             {id === "team" ? <TeamStep {...props} /> : null}
+            {id === "payouts" ? <PayoutsStep {...props} /> : null}
             {id === "done" ? <DoneStep t={t} state={state} close={onClose} /> : null}
           </div>
         </div>

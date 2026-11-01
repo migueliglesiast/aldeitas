@@ -75,6 +75,9 @@ model Hotel {
   gmailSyncLastAt      DateTime?
   gmailSyncLastError   String?
   gmailSyncOffset      Int                 @default(0)
+  payoutMercadoPagoEmail String?
+  payoutClabe          String?
+  payoutAccountHolder  String?
   addons               HotelAddon[]
 }
 
