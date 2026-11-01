@@ -78,6 +78,13 @@ model Hotel {
   payoutMercadoPagoEmail String?
   payoutClabe          String?
   payoutAccountHolder  String?
+  mercadoPagoUserId         String?
+  mercadoPagoAccessTokenEnc String?
+  mercadoPagoRefreshTokenEnc String?
+  mercadoPagoPublicKey      String?
+  mercadoPagoTokenExpiresAt DateTime?
+  mercadoPagoAccount        String?
+  mercadoPagoConnectedAt    DateTime?
   addons               HotelAddon[]
 }
 

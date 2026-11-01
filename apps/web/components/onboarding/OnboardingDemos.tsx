@@ -5,7 +5,7 @@ import type { OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
 
 type T = (key: OnboardingCopyKey) => string;
 
-export type DemoId = "you" | "story" | "map" | "airbnb" | "calendars" | "inbox" | "team" | "payouts" | "done";
+export type DemoId = "you" | "story" | "map" | "airbnb" | "calendars" | "inbox" | "team" | "mercadopago" | "payouts" | "done";
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -254,6 +254,23 @@ function TeamDemo({ t }: { t: T }) {
   );
 }
 
+function MercadoPagoDemo({ t }: { t: T }) {
+  return (
+    <Frame>
+      <div className="absolute inset-x-8 top-6 flex items-center justify-between">
+        <div className="ob-loop ob-in-20 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[10px] font-bold text-aldeitas shadow-sm">Aldeitas</div>
+        <div className="ob-loop ob-grow mx-2 h-1 flex-1 rounded bg-[#009ee3]" />
+        <div className="ob-loop ob-in-45 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#009ee3] text-[9px] font-bold leading-tight text-white shadow-sm">
+          Mercado<br />Pago
+        </div>
+      </div>
+      <div className="ob-loop ob-in-70 absolute inset-x-10 top-24 rounded-xl bg-white px-3 py-2 text-center text-[10px] font-semibold text-[#0f766e] shadow-sm">
+        ✓ {t("demoMpConnected")}
+      </div>
+    </Frame>
+  );
+}
+
 function PayoutsDemo({ t }: { t: T }) {
   return (
     <Frame>
@@ -317,6 +334,7 @@ export default function OnboardingDemo({ id, t }: { id: DemoId; t: T }) {
     case "calendars": return <CalendarsDemo t={t} />;
     case "inbox": return <InboxDemo t={t} />;
     case "team": return <TeamDemo t={t} />;
+    case "mercadopago": return <MercadoPagoDemo t={t} />;
     case "payouts": return <PayoutsDemo t={t} />;
     case "done": return <DoneDemo t={t} />;
   }
