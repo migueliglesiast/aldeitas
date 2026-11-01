@@ -11,9 +11,12 @@ export type MercadoPagoMerchant = {
   commissionPercent: number;
 };
 
+const DEFAULT_COMMISSION_PERCENT = 3;
+
 function defaultCommissionPercent() {
-  const raw = Number(process.env.MERCADOPAGO_MARKETPLACE_FEE_PERCENT);
-  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  const raw = process.env.MERCADOPAGO_MARKETPLACE_FEE_PERCENT;
+  const value = raw ? Number(raw) : NaN;
+  return Number.isFinite(value) && value >= 0 ? value : DEFAULT_COMMISSION_PERCENT;
 }
 
 /** Aldeitas's cut, in cents, of a payment collected by a hotel's own account. */
