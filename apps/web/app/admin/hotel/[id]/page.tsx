@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import HotelAdminPanel from "@/components/HotelAdminPanel";
+import HotelCalendarDashboardPage from "@/components/HotelCalendarDashboardPage";
+import { getOrCreateHotelCalendarShareToken } from "@/lib/hotel-calendar-data";
 import ReviewsPanel from "@/components/ReviewsPanel";
 import AddonsPanel from "@/components/AddonsPanel";
 import { getHotelReviewInsights } from "@/lib/review-insights";
@@ -17,8 +19,15 @@ async function HotelReviews({ hotelId }: { hotelId: string }) {
   return <ReviewsPanel insights={insights} staff={false} />;
 }
 
-export default async function HotelEditPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+export default async function HotelEditPage({
+  params: paramsPromise,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const params = await paramsPromise;
+  const { tab } = await searchParams;
   const user = await getCurrentUser();
 
   if (!user) {
@@ -50,6 +59,7 @@ export default async function HotelEditPage({ params: paramsPromise }: { params:
   }
 
   const hotel = hotelManager.hotel;
+  const share = await getOrCreateHotelCalendarShareToken(hotel.id);
 
   return (
     <div className="space-y-6">
@@ -64,7 +74,19 @@ export default async function HotelEditPage({ params: paramsPromise }: { params:
         <p className="text-gray-600">{hotel.location}</p>
       </div>
 
-      <HotelAdminPanel hotel={hotel} />
+      <HotelAdminPanel
+        hotel={hotel}
+        initialTab={tab === "calendar" || tab === "maintenance" ? tab : "general"}
+        dashboard={
+          <HotelCalendarDashboardPage
+            hotelId={hotel.id}
+            token={share.token}
+            hotel={{ name: hotel.name, location: hotel.location }}
+            owner
+            editable
+          />
+        }
+      />
 
       <AddonsPanel hotelId={hotel.id} />
 
