@@ -52,6 +52,16 @@ export default async function AdminPage() {
         <div className="flex flex-wrap gap-2">
           <OpenTourButton className="rounded border border-aldeitas/30 px-4 py-2 text-sm text-aldeitas hover:bg-aldeitas/5" />
           <Link
+            href="/admin/calendar"
+            className="inline-flex items-center gap-2 rounded bg-[#00a19c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#008a86]"
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
+              <rect x="3" y="4" width="14" height="13" rx="2" />
+              <path d="M3 8h14M7 2v4M13 2v4" />
+            </svg>
+            Calendar
+          </Link>
+          <Link
             href="/admin/bookings"
             className="rounded border px-4 py-2 text-sm hover:bg-gray-50"
           >
@@ -61,7 +71,7 @@ export default async function AdminPage() {
             href="/admin/calendars"
             className="rounded border px-4 py-2 text-sm hover:bg-gray-50"
           >
-            Manage calendars
+            Calendar sync
           </Link>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import HotelMultiCalendar from "@/components/HotelMultiCalendar";
 import OwnerDashboard from "@/components/OwnerDashboard";
 import ReviewsPanel from "@/components/ReviewsPanel";
+import ShareCleaningCalendarButton from "@/components/ShareCleaningCalendarButton";
 import { buildHotelCalendarData } from "@/lib/hotel-calendar-data";
 import { computeHotelStats, toPublicStats } from "@/lib/hotel-stats";
 import { hotelTodayKey } from "@/lib/calendar-dates";
@@ -54,6 +55,7 @@ export default function HotelCalendarDashboardPage({
 }) {
   return (
     <div className="mx-auto max-w-[1600px] space-y-3 px-2 py-4 sm:space-y-6 sm:px-4 sm:py-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-gray-400 sm:text-xs">
           {owner ? "Panel del propietario" : "Calendario compartido"}
@@ -65,6 +67,8 @@ export default function HotelCalendarDashboardPage({
         <p className="mt-1 text-xs text-gray-400 sm:mt-2 sm:text-sm">
           Solo lectura · próximos 3 meses · desliza para ver más fechas
         </p>
+      </div>
+      {owner ? <ShareCleaningCalendarButton token={token} hotelName={hotel.name} /> : null}
       </div>
       <HotelMultiCalendar hotelId={hotelId} readOnly shareToken={token} showPrices={owner} />
       <Suspense fallback={<StatsSkeleton />}>

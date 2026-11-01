@@ -693,8 +693,8 @@ export default function HotelMultiCalendar({
                 : copiedShare
                   ? "Copied!"
                   : shareUrl
-                    ? "Copy share link"
-                    : "Share calendar link"}
+                    ? "Copy cleaning calendar link"
+                    : "Share cleaning calendar"}
             </button>
           </div>
         ) : null}
@@ -704,7 +704,7 @@ export default function HotelMultiCalendar({
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
           {shareUrl ? (
             <>
-              <p className="text-sm font-medium text-gray-800">Shared calendar link</p>
+              <p className="text-sm font-medium text-gray-800">Cleaning / maintenance calendar link</p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input
                   type="text"

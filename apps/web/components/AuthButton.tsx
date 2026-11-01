@@ -129,6 +129,7 @@ export default function AuthButton({ hideWhenSignedOut = false }: { hideWhenSign
             </div>
             <div className="my-1 border-t border-line" />
             <Link role="menuitem" href="/admin" className={`${itemClass} font-semibold`} onClick={() => setMenuOpen(false)}>{t("dashboard")}</Link>
+            <Link role="menuitem" href="/admin/calendar" className={itemClass} onClick={() => setMenuOpen(false)}>{t("navCalendar")}</Link>
             <Link role="menuitem" href="/admin/bookings" className={itemClass} onClick={() => setMenuOpen(false)}>{t("navBookings")}</Link>
             <Link role="menuitem" href="/admin/calendars" className={itemClass} onClick={() => setMenuOpen(false)}>{t("navCalendars")}</Link>
             <div className="my-1 border-t border-line" />

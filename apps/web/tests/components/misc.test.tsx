@@ -51,7 +51,8 @@ describe("AuthButton", () => {
     await userEvent.click(account);
     expect(account).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("menuitem", { name: "Bookings" })).toHaveAttribute("href", "/admin/bookings");
-    expect(screen.getByRole("menuitem", { name: "Calendars" })).toHaveAttribute("href", "/admin/calendars");
+    expect(screen.getByRole("menuitem", { name: "Calendar" })).toHaveAttribute("href", "/admin/calendar");
+    expect(screen.getByRole("menuitem", { name: "Calendar sync" })).toHaveAttribute("href", "/admin/calendars");
 
     await userEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     await waitFor(() =>
