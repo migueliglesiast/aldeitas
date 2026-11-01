@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getListingIcalExportUrl } from "@/lib/site-url";
+import { CONTACT_PRIORITIES, type ContactPriority } from "@/lib/contact-priority";
 import {
   getHotelCalendarShareUrl,
   getOrCreateHotelCalendarShareToken,
@@ -30,6 +31,8 @@ export type OnboardingRoom = {
   exportUrl: string;
 };
 
+export type OnboardingContact = { name: string; phone: string; priority: ContactPriority | null };
+
 export type OnboardingState = {
   user: { nickname: string; fullName: string; phoneNumber: string };
   hotel: {
@@ -44,8 +47,11 @@ export type OnboardingState = {
     gmailConnected: boolean;
   } | null;
   rooms: OnboardingRoom[];
-  cleaner: { name: string; phone: string } | null;
-  maintenance: { name: string; phone: string } | null;
+  isOwner: boolean;
+  owner: OnboardingContact | null;
+  manager: OnboardingContact | null;
+  cleaner: OnboardingContact | null;
+  maintenance: OnboardingContact | null;
   publicCalendarUrl: string | null;
   ownerCalendarUrl: string | null;
   missing: OnboardingStep[];
@@ -116,10 +122,16 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     exportUrl: getListingIcalExportUrl(listing.id),
   }));
 
-  const contact = (type: string) => {
+  const contact = (type: string): OnboardingContact | null => {
     const found = hotel?.contacts.find((c) => c.type === type);
-    return found ? { name: found.name, phone: found.phone } : null;
+    if (!found) return null;
+    const priority = (CONTACT_PRIORITIES as readonly string[]).includes(found.priority ?? "")
+      ? (found.priority as ContactPriority)
+      : null;
+    return { name: found.name, phone: found.phone, priority };
   };
+  const owner = contact("OWNER");
+  const manager = contact("MANAGER");
   const cleaner = contact("CLEANER");
   const maintenance = contact("MAIN_MAINTENANCE");
 
@@ -130,7 +142,7 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
   }
 
   const missing: OnboardingStep[] = [];
-  if (!user.nickname || !user.phoneNumber) missing.push("you");
+  if (hotel ? !owner : !user.nickname || !user.phoneNumber) missing.push("you");
   if (hotel) {
     if (!hotel.description.trim()) missing.push("story");
     if (!hotel.location.trim() || hotel.latitude == null || hotel.longitude == null) {
@@ -162,6 +174,9 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
         }
       : null,
     rooms,
+    isOwner: Boolean(hotel && hotel.ownerId === userId),
+    owner,
+    manager,
     cleaner,
     maintenance,
     publicCalendarUrl,

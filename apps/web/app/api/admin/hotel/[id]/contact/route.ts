@@ -6,7 +6,7 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 
 const contactSchema = z.object({
-  type: z.enum(["CLEANER", "PLUMBER_ELECTRICIAN", "INTERNET_TECH", "AC_TECH", "MAIN_MAINTENANCE"]),
+  type: z.enum(["OWNER", "MANAGER", "CLEANER", "PLUMBER_ELECTRICIAN", "INTERNET_TECH", "AC_TECH", "MAIN_MAINTENANCE"]),
   name: z.string().min(1),
   phone: z.string().min(1),
 });

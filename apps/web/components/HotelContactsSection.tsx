@@ -21,6 +21,8 @@ export default function HotelContactsSection({ hotelId, initialContacts }: Props
   const [message, setMessage] = useState<string | null>(null);
 
   const contactTypes = [
+    { value: "OWNER", label: "Owner" },
+    { value: "MANAGER", label: "Manager" },
     { value: "MAIN_MAINTENANCE", label: "Main Maintenance Contact" },
     { value: "CLEANER", label: "Cleaner" },
     { value: "PLUMBER_ELECTRICIAN", label: "Plumber/Electrician" },
