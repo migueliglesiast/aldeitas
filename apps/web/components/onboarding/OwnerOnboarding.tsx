@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { onboardingText, type OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
 import type { GmailListing } from "@/lib/gmail-listing-discovery";
-import type { OnboardingRoom, OnboardingState } from "@/lib/onboarding";
+import { CONTACT_PRIORITIES, type ContactPriority } from "@/lib/contact-priority";
+import type { OnboardingContact, OnboardingRoom, OnboardingState } from "@/lib/onboarding";
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
@@ -73,7 +74,83 @@ function importProgress(job: ImportJob) {
   return { total, done, ratio };
 }
 
-function YouStep({ t, state, setState, next, footer }: StepProps) {
+type ContactDraft = { name: string; phone: string; priority: ContactPriority };
+
+const PRIORITY_COPY: Record<ContactPriority, OnboardingCopyKey> = {
+  high: "priorityHigh",
+  medium: "priorityMedium",
+  low: "priorityLow",
+};
+
+function contactDraft(saved: OnboardingContact | null, fallback: { name: string; phone: string } | null, priority: ContactPriority): ContactDraft {
+  if (saved) return { name: saved.name, phone: saved.phone, priority: saved.priority ?? priority };
+  return { name: fallback?.name ?? "", phone: fallback?.phone ?? "", priority };
+}
+
+function sameContact(draft: ContactDraft, saved: OnboardingContact | null) {
+  return draft.name === (saved?.name ?? "") && draft.phone === (saved?.phone ?? "") && draft.priority === (saved?.priority ?? draft.priority);
+}
+
+function ContactRow({ t, label, value, onChange }: { t: T; label: string; value: ContactDraft; onChange: (value: ContactDraft) => void }) {
+  return (
+    <fieldset className="space-y-1">
+      <legend className="text-xs font-semibold text-ink">{label}</legend>
+      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_11rem]">
+        <Label text={t("name")}>
+          <input className={inputClass} value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} placeholder={t("nicknamePh")} />
+        </Label>
+        <Label text={t("whatsapp")}>
+          <input className={inputClass} type="tel" value={value.phone} onChange={(e) => onChange({ ...value, phone: e.target.value })} placeholder={t("whatsappPh")} />
+        </Label>
+        <Label text={t("priority")}>
+          <select className={inputClass} value={value.priority} onChange={(e) => onChange({ ...value, priority: e.target.value as ContactPriority })}>
+            {CONTACT_PRIORITIES.map((p) => (
+              <option key={p} value={p}>{t(PRIORITY_COPY[p])}</option>
+            ))}
+          </select>
+        </Label>
+      </div>
+    </fieldset>
+  );
+}
+
+function YouStep(props: StepProps) {
+  return props.state.hotel ? <PeopleStep {...props} /> : <SelfStep {...props} />;
+}
+
+function PeopleStep({ t, state, setState, next, footer }: StepProps) {
+  const me = { name: state.user.nickname, phone: state.user.phoneNumber };
+  const [owner, setOwner] = useState(() => contactDraft(state.owner, state.isOwner ? me : null, "high"));
+  const [manager, setManager] = useState(() => contactDraft(state.manager, state.isOwner ? null : me, "medium"));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (state.owner && sameContact(owner, state.owner) && sameContact(manager, state.manager)) return next();
+    setBusy(true);
+    const { ok, data } = await postJson("/api/admin/onboarding", {
+      step: "you",
+      owner,
+      ...(manager.name.trim() && manager.phone.trim() ? { manager } : {}),
+    });
+    setBusy(false);
+    if (!ok) return setError(t("error"));
+    setState(data);
+    next();
+  }
+  return (
+    <>
+      <p className="text-sm font-medium text-ink">{t("peopleAsk")}</p>
+      <div className="space-y-3">
+        <ContactRow t={t} label={t("owner")} value={owner} onChange={setOwner} />
+        <ContactRow t={t} label={t("manager")} value={manager} onChange={setManager} />
+      </div>
+      {footer({ busy, onSave: save, error })}
+    </>
+  );
+}
+
+function SelfStep({ t, state, setState, next, footer }: StepProps) {
   const [nickname, setNickname] = useState(state.user.nickname);
   const [phone, setPhone] = useState(state.user.phoneNumber);
   const [busy, setBusy] = useState(false);

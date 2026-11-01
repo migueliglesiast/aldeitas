@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncBilingualDescription } from "@/lib/sync-bilingual-description";
+import { CONTACT_PRIORITIES } from "@/lib/contact-priority";
 import {
   getOnboardingState,
   getPrimaryHotelId,
@@ -14,13 +15,16 @@ export const dynamic = "force-dynamic";
 const contactSchema = z.object({
   name: z.string().trim().min(1),
   phone: z.string().trim().min(5),
+  priority: z.enum(CONTACT_PRIORITIES).optional(),
 });
 
 const saveSchema = z.discriminatedUnion("step", [
   z.object({
     step: z.literal("you"),
-    nickname: z.string().trim().min(1),
-    phoneNumber: z.string().trim().min(8),
+    nickname: z.string().trim().min(1).optional(),
+    phoneNumber: z.string().trim().min(8).optional(),
+    owner: contactSchema.optional(),
+    manager: contactSchema.optional(),
   }),
   z.object({
     step: z.literal("story"),
@@ -46,7 +50,9 @@ export async function GET() {
   return NextResponse.json(await getOnboardingState(user.id));
 }
 
-async function upsertContact(hotelId: string, type: string, contact: { name: string; phone: string }) {
+type ContactInput = z.infer<typeof contactSchema>;
+
+async function upsertContact(hotelId: string, type: string, contact: ContactInput) {
   const existing = await prisma.hotelContact.findFirst({
     where: { hotelId, type },
     orderBy: { createdAt: "asc" },
@@ -71,7 +77,10 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  if (body.step === "you") {
+  if (body.step === "you" && !body.owner) {
+    if (!body.nickname || !body.phoneNumber) {
+      return NextResponse.json({ error: "invalid" }, { status: 400 });
+    }
     await prisma.user.update({
       where: { id: user.id },
       data: { nickname: body.nickname, phoneNumber: body.phoneNumber },
@@ -82,6 +91,13 @@ export async function POST(req: NextRequest) {
   const hotelId = await getPrimaryHotelId(user.id);
   if (!hotelId) {
     return NextResponse.json({ error: "no_hotel" }, { status: 404 });
+  }
+
+  if (body.step === "you" && body.owner) {
+    await upsertContact(hotelId, "OWNER", body.owner);
+    if (body.manager) {
+      await upsertContact(hotelId, "MANAGER", body.manager);
+    }
   }
 
   if (body.step === "story") {
