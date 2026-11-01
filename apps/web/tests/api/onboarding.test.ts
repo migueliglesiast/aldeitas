@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 const prismaMock = {
   user: { update: vi.fn() },
-  hotelContact: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  hotelContact: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
 };
 const getCurrentUser = vi.fn();
 const getPrimaryHotelId = vi.fn();
@@ -29,38 +29,67 @@ beforeEach(() => {
   getCurrentUser.mockResolvedValue({ id: "u1" });
   getPrimaryHotelId.mockResolvedValue("h1");
   prismaMock.hotelContact.findFirst.mockResolvedValue(null);
+  prismaMock.hotelContact.findMany.mockResolvedValue([]);
 });
 
 describe("POST /api/admin/onboarding step you", () => {
-  it("saves owner and manager contacts with their priority", async () => {
+  it("saves the owner and every manager with their priority number", async () => {
     const res = await post({
       step: "you",
-      owner: { name: "Miguel", phone: "+52 954 111 1111", priority: "high" },
-      manager: { name: "Clara", phone: "+52 954 222 2222", priority: "medium" },
+      owner: { name: "Miguel", phone: "+52 954 111 1111", priority: 2 },
+      managers: [
+        { name: "Clara", phone: "+52 954 222 2222", priority: 1 },
+        { name: "Rosa", phone: "+52 954 333 3333", priority: 3 },
+      ],
     });
     expect(res.status).toBe(200);
     expect(prismaMock.hotelContact.create).toHaveBeenCalledWith({
-      data: { hotelId: "h1", type: "OWNER", name: "Miguel", phone: "+52 954 111 1111", priority: "high" },
+      data: { hotelId: "h1", type: "OWNER", name: "Miguel", phone: "+52 954 111 1111", priority: "2" },
     });
     expect(prismaMock.hotelContact.create).toHaveBeenCalledWith({
-      data: { hotelId: "h1", type: "MANAGER", name: "Clara", phone: "+52 954 222 2222", priority: "medium" },
+      data: { hotelId: "h1", type: "MANAGER", name: "Clara", phone: "+52 954 222 2222", priority: "1" },
+    });
+    expect(prismaMock.hotelContact.create).toHaveBeenCalledWith({
+      data: { hotelId: "h1", type: "MANAGER", name: "Rosa", phone: "+52 954 333 3333", priority: "3" },
     });
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  it("updates an existing owner contact and skips an empty manager", async () => {
+  it("updates an existing owner contact and leaves managers alone when none are sent", async () => {
     prismaMock.hotelContact.findFirst.mockResolvedValue({ id: "c1" });
-    await post({ step: "you", owner: { name: "Miguel", phone: "+52 954 111 1111", priority: "low" } });
+    await post({ step: "you", owner: { name: "Miguel", phone: "+52 954 111 1111", priority: 1 } });
     expect(prismaMock.hotelContact.update).toHaveBeenCalledWith({
       where: { id: "c1" },
-      data: { name: "Miguel", phone: "+52 954 111 1111", priority: "low" },
+      data: { name: "Miguel", phone: "+52 954 111 1111", priority: "1" },
     });
-    expect(prismaMock.hotelContact.findFirst).toHaveBeenCalledTimes(1);
+    expect(prismaMock.hotelContact.findMany).not.toHaveBeenCalled();
   });
 
-  it("rejects an unknown priority", async () => {
-    const res = await post({ step: "you", owner: { name: "M", phone: "+52 954 111 1111", priority: "urgent" } });
+  it("reuses existing manager rows and deletes the ones that were removed", async () => {
+    prismaMock.hotelContact.findMany.mockResolvedValue([{ id: "m1" }, { id: "m2" }, { id: "m3" }]);
+    await post({
+      step: "you",
+      owner: { name: "Miguel", phone: "+52 954 111 1111", priority: 1 },
+      managers: [{ name: "Clara", phone: "+52 954 222 2222", priority: 2 }],
+    });
+    expect(prismaMock.hotelContact.update).toHaveBeenCalledWith({
+      where: { id: "m1" },
+      data: { name: "Clara", phone: "+52 954 222 2222", priority: "2" },
+    });
+    expect(prismaMock.hotelContact.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["m2", "m3"] } } });
+  });
+
+  it("rejects a priority that is not a rank number", async () => {
+    const res = await post({ step: "you", owner: { name: "M", phone: "+52 954 111 1111", priority: 0 } });
     expect(res.status).toBe(400);
+    const res2 = await post({ step: "you", owner: { name: "M", phone: "+52 954 111 1111", priority: "high" } });
+    expect(res2.status).toBe(400);
+  });
+
+  it("renumbers ranks and reads legacy high/medium/low values", async () => {
+    const { rankContacts, parseContactPriority } = await import("@/lib/contact-priority");
+    expect(rankContacts([{ priority: 3 }, { priority: 1 }, { priority: null }]).map((c) => c.priority)).toEqual([2, 1, 3]);
+    expect(["high", "medium", "low", "4", "x", null].map(parseContactPriority)).toEqual([1, 2, 3, 4, null, null]);
   });
 
   it("still saves the signed-in user's own name and WhatsApp when there is no hotel yet", async () => {

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getListingIcalExportUrl } from "@/lib/site-url";
-import { CONTACT_PRIORITIES, type ContactPriority } from "@/lib/contact-priority";
+import { parseContactPriority } from "@/lib/contact-priority";
 import {
   getHotelCalendarShareUrl,
   getOrCreateHotelCalendarShareToken,
@@ -31,7 +31,7 @@ export type OnboardingRoom = {
   exportUrl: string;
 };
 
-export type OnboardingContact = { name: string; phone: string; priority: ContactPriority | null };
+export type OnboardingContact = { name: string; phone: string; priority: number | null };
 
 export type OnboardingState = {
   user: { nickname: string; fullName: string; phoneNumber: string };
@@ -49,7 +49,7 @@ export type OnboardingState = {
   rooms: OnboardingRoom[];
   isOwner: boolean;
   owner: OnboardingContact | null;
-  manager: OnboardingContact | null;
+  managers: OnboardingContact[];
   cleaner: OnboardingContact | null;
   maintenance: OnboardingContact | null;
   publicCalendarUrl: string | null;
@@ -122,16 +122,13 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     exportUrl: getListingIcalExportUrl(listing.id),
   }));
 
-  const contact = (type: string): OnboardingContact | null => {
-    const found = hotel?.contacts.find((c) => c.type === type);
-    if (!found) return null;
-    const priority = (CONTACT_PRIORITIES as readonly string[]).includes(found.priority ?? "")
-      ? (found.priority as ContactPriority)
-      : null;
-    return { name: found.name, phone: found.phone, priority };
-  };
+  const contacts = (type: string): OnboardingContact[] =>
+    (hotel?.contacts ?? [])
+      .filter((c) => c.type === type)
+      .map((c) => ({ name: c.name, phone: c.phone, priority: parseContactPriority(c.priority) }));
+  const contact = (type: string): OnboardingContact | null => contacts(type)[0] ?? null;
   const owner = contact("OWNER");
-  const manager = contact("MANAGER");
+  const managers = contacts("MANAGER");
   const cleaner = contact("CLEANER");
   const maintenance = contact("MAIN_MAINTENANCE");
 
@@ -176,7 +173,7 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     rooms,
     isOwner: Boolean(hotel && hotel.ownerId === userId),
     owner,
-    manager,
+    managers,
     cleaner,
     maintenance,
     publicCalendarUrl,

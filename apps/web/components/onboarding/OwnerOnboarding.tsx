@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { onboardingText, type OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
 import type { GmailListing } from "@/lib/gmail-listing-discovery";
-import { CONTACT_PRIORITIES, type ContactPriority } from "@/lib/contact-priority";
+import { MAX_CONTACT_PRIORITY, rankContacts } from "@/lib/contact-priority";
 import type { OnboardingContact, OnboardingRoom, OnboardingState } from "@/lib/onboarding";
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
@@ -74,28 +74,41 @@ function importProgress(job: ImportJob) {
   return { total, done, ratio };
 }
 
-type ContactDraft = { name: string; phone: string; priority: ContactPriority };
+type ContactDraft = { name: string; phone: string; priority: number };
 
-const PRIORITY_COPY: Record<ContactPriority, OnboardingCopyKey> = {
-  high: "priorityHigh",
-  medium: "priorityMedium",
-  low: "priorityLow",
-};
-
-function contactDraft(saved: OnboardingContact | null, fallback: { name: string; phone: string } | null, priority: ContactPriority): ContactDraft {
+function contactDraft(saved: OnboardingContact | null, fallback: { name: string; phone: string } | null, priority: number): ContactDraft {
   if (saved) return { name: saved.name, phone: saved.phone, priority: saved.priority ?? priority };
   return { name: fallback?.name ?? "", phone: fallback?.phone ?? "", priority };
 }
 
-function sameContact(draft: ContactDraft, saved: OnboardingContact | null) {
-  return draft.name === (saved?.name ?? "") && draft.phone === (saved?.phone ?? "") && draft.priority === (saved?.priority ?? draft.priority);
-}
+const filled = (c: ContactDraft) => Boolean(c.name.trim() && c.phone.trim());
 
-function ContactRow({ t, label, value, onChange }: { t: T; label: string; value: ContactDraft; onChange: (value: ContactDraft) => void }) {
+function ContactRow({
+  t,
+  label,
+  value,
+  count,
+  onChange,
+  onRemove,
+}: {
+  t: T;
+  label: string;
+  value: ContactDraft;
+  count: number;
+  onChange: (value: ContactDraft) => void;
+  onRemove?: () => void;
+}) {
   return (
     <fieldset className="space-y-1">
-      <legend className="text-xs font-semibold text-ink">{label}</legend>
-      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_11rem]">
+      <div className="flex items-center justify-between">
+        <legend className="text-xs font-semibold text-ink">{label}</legend>
+        {onRemove ? (
+          <button type="button" onClick={onRemove} className="text-xs font-medium text-muted hover:text-ink">
+            {t("removeContact")}
+          </button>
+        ) : null}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_10rem]">
         <Label text={t("name")}>
           <input className={inputClass} value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} placeholder={t("nicknamePh")} />
         </Label>
@@ -103,9 +116,9 @@ function ContactRow({ t, label, value, onChange }: { t: T; label: string; value:
           <input className={inputClass} type="tel" value={value.phone} onChange={(e) => onChange({ ...value, phone: e.target.value })} placeholder={t("whatsappPh")} />
         </Label>
         <Label text={t("priority")}>
-          <select className={inputClass} value={value.priority} onChange={(e) => onChange({ ...value, priority: e.target.value as ContactPriority })}>
-            {CONTACT_PRIORITIES.map((p) => (
-              <option key={p} value={p}>{t(PRIORITY_COPY[p])}</option>
+          <select className={inputClass} value={value.priority} onChange={(e) => onChange({ ...value, priority: Number(e.target.value) })}>
+            {Array.from({ length: count }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>{n === 1 ? t("priorityFirst", { n }) : n}</option>
             ))}
           </select>
         </Label>
@@ -119,20 +132,43 @@ function YouStep(props: StepProps) {
 }
 
 function PeopleStep({ t, state, setState, next, footer }: StepProps) {
-  const me = { name: state.user.nickname, phone: state.user.phoneNumber };
-  const [owner, setOwner] = useState(() => contactDraft(state.owner, state.isOwner ? me : null, "high"));
-  const [manager, setManager] = useState(() => contactDraft(state.manager, state.isOwner ? null : me, "medium"));
+  const [rows, setRows] = useState<ContactDraft[]>(() => {
+    const me = { name: state.user.nickname, phone: state.user.phoneNumber };
+    const owner = contactDraft(state.owner, state.isOwner ? me : null, 1);
+    const managers = state.managers.length
+      ? state.managers.map((m, i) => contactDraft(m, null, i + 2))
+      : [contactDraft(null, state.isOwner ? null : me, 2)];
+    return rankContacts([owner, ...managers]);
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const managerRows = rows.length - 1;
+
+  function update(index: number, value: ContactDraft) {
+    setRows((current) =>
+      current.map((row, i) => {
+        if (i === index) return value;
+        // Picking a number another person has swaps the two, so the order stays 1..n.
+        if (row.priority === value.priority) return { ...row, priority: current[index].priority };
+        return row;
+      })
+    );
+  }
+
+  function remove(index: number) {
+    setRows((current) => rankContacts(current.filter((_, i) => i !== index)));
+  }
+
+  function add() {
+    setRows((current) => [...current, { name: "", phone: "", priority: current.length + 1 }]);
+  }
 
   async function save() {
-    if (state.owner && sameContact(owner, state.owner) && sameContact(manager, state.manager)) return next();
+    const [owner, ...managers] = rankContacts([rows[0], ...rows.slice(1).filter(filled)]);
+    const saved = state.owner ? [state.owner, ...state.managers] : null;
+    if (saved && JSON.stringify(saved) === JSON.stringify([owner, ...managers])) return next();
     setBusy(true);
-    const { ok, data } = await postJson("/api/admin/onboarding", {
-      step: "you",
-      owner,
-      ...(manager.name.trim() && manager.phone.trim() ? { manager } : {}),
-    });
+    const { ok, data } = await postJson("/api/admin/onboarding", { step: "you", owner, managers });
     setBusy(false);
     if (!ok) return setError(t("error"));
     setState(data);
@@ -142,8 +178,22 @@ function PeopleStep({ t, state, setState, next, footer }: StepProps) {
     <>
       <p className="text-sm font-medium text-ink">{t("peopleAsk")}</p>
       <div className="space-y-3">
-        <ContactRow t={t} label={t("owner")} value={owner} onChange={setOwner} />
-        <ContactRow t={t} label={t("manager")} value={manager} onChange={setManager} />
+        {rows.map((row, i) => (
+          <ContactRow
+            key={i}
+            t={t}
+            label={i === 0 ? t("owner") : managerRows > 1 ? t("managerN", { n: i }) : t("manager")}
+            value={row}
+            count={rows.length}
+            onChange={(value) => update(i, value)}
+            onRemove={i > 0 ? () => remove(i) : undefined}
+          />
+        ))}
+        {rows.length < MAX_CONTACT_PRIORITY ? (
+          <button type="button" onClick={add} className="text-sm font-semibold text-aldeitas hover:underline">
+            {t("addManager")}
+          </button>
+        ) : null}
       </div>
       {footer({ busy, onSave: save, error })}
     </>

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncBilingualDescription } from "@/lib/sync-bilingual-description";
-import { CONTACT_PRIORITIES } from "@/lib/contact-priority";
+import { MAX_CONTACT_PRIORITY } from "@/lib/contact-priority";
 import {
   getOnboardingState,
   getPrimaryHotelId,
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const contactSchema = z.object({
   name: z.string().trim().min(1),
   phone: z.string().trim().min(5),
-  priority: z.enum(CONTACT_PRIORITIES).optional(),
+  priority: z.number().int().min(1).max(MAX_CONTACT_PRIORITY).optional(),
 });
 
 const saveSchema = z.discriminatedUnion("step", [
@@ -24,7 +24,7 @@ const saveSchema = z.discriminatedUnion("step", [
     nickname: z.string().trim().min(1).optional(),
     phoneNumber: z.string().trim().min(8).optional(),
     owner: contactSchema.optional(),
-    manager: contactSchema.optional(),
+    managers: z.array(contactSchema).max(MAX_CONTACT_PRIORITY - 1).optional(),
   }),
   z.object({
     step: z.literal("story"),
@@ -52,16 +52,42 @@ export async function GET() {
 
 type ContactInput = z.infer<typeof contactSchema>;
 
+function contactData({ priority, ...contact }: ContactInput) {
+  return { ...contact, ...(priority ? { priority: String(priority) } : {}) };
+}
+
 async function upsertContact(hotelId: string, type: string, contact: ContactInput) {
   const existing = await prisma.hotelContact.findFirst({
     where: { hotelId, type },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
+  const data = contactData(contact);
   if (existing) {
-    await prisma.hotelContact.update({ where: { id: existing.id }, data: contact });
+    await prisma.hotelContact.update({ where: { id: existing.id }, data });
   } else {
-    await prisma.hotelContact.create({ data: { hotelId, type, ...contact } });
+    await prisma.hotelContact.create({ data: { hotelId, type, ...data } });
+  }
+}
+
+/** Makes the hotel's contacts of `type` exactly `contacts`, reusing existing rows in order. */
+async function replaceContacts(hotelId: string, type: string, contacts: ContactInput[]) {
+  const existing = await prisma.hotelContact.findMany({
+    where: { hotelId, type },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  for (const [i, contact] of contacts.entries()) {
+    const data = contactData(contact);
+    if (existing[i]) {
+      await prisma.hotelContact.update({ where: { id: existing[i].id }, data });
+    } else {
+      await prisma.hotelContact.create({ data: { hotelId, type, ...data } });
+    }
+  }
+  const stale = existing.slice(contacts.length).map((c) => c.id);
+  if (stale.length) {
+    await prisma.hotelContact.deleteMany({ where: { id: { in: stale } } });
   }
 }
 
@@ -95,8 +121,8 @@ export async function POST(req: NextRequest) {
 
   if (body.step === "you" && body.owner) {
     await upsertContact(hotelId, "OWNER", body.owner);
-    if (body.manager) {
-      await upsertContact(hotelId, "MANAGER", body.manager);
+    if (body.managers) {
+      await replaceContacts(hotelId, "MANAGER", body.managers);
     }
   }
 
