@@ -27,9 +27,11 @@ export default function PortalHeader() {
             <span className="font-poster text-[1.6rem] font-black leading-none tracking-tight text-aldeitas md:text-3xl">
               Aldeitas
             </span>
-            <span className="mt-1 text-[0.7rem] font-medium leading-none tracking-wide text-muted md:text-xs">
-              {t("headerTagline")}
-            </span>
+            {isStorefront ? (
+              <span className="mt-1 text-[0.7rem] font-medium leading-none tracking-wide text-muted md:text-xs">
+                {t("headerTagline")}
+              </span>
+            ) : null}
           </span>
         </Link>
         {isStorefront ? (
