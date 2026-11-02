@@ -62,14 +62,17 @@ const waiting: Array<() => void> = [];
 
 async function withFetchSlot<T>(task: () => Promise<T>): Promise<T> {
   if (activeFetches >= MAX_CONCURRENT_FETCHES) {
+    // The finishing task hands its slot straight to us, so the count stays the same.
     await new Promise<void>((resolve) => waiting.push(resolve));
+  } else {
+    activeFetches += 1;
   }
-  activeFetches += 1;
   try {
     return await task();
   } finally {
-    activeFetches -= 1;
-    waiting.shift()?.();
+    const next = waiting.shift();
+    if (next) next();
+    else activeFetches -= 1;
   }
 }
 
