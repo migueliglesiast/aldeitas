@@ -37,6 +37,45 @@ describe("external calendar fetching", () => {
     expect(fetchIcalBlocks).toHaveBeenCalledTimes(1);
   });
 
+  it("never runs more than 6 downloads at once, even when a slot is handed to a queued one", async () => {
+    let running = 0;
+    let peak = 0;
+    const finish: Array<() => void> = [];
+    fetchIcalBlocks.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          running += 1;
+          peak = Math.max(peak, running);
+          finish.push(() => {
+            running -= 1;
+            resolve([block]);
+          });
+        })
+    );
+    const source = (n: number) => ({ name: `Airbnb ${n}`, icalUrl: `https://www.airbnb.es/calendar/ical/${n}.ics` });
+    const ticks = async (n: number) => {
+      for (let i = 0; i < n; i += 1) await Promise.resolve();
+    };
+    // A new caller can arrive at any microtask after a download finishes; try each gap.
+    for (let gap = 0; gap < 30; gap += 1) {
+      clearCalendarCache();
+      const ids = Array.from({ length: 8 }, (_, i) => gap * 100 + i);
+      const first = fetchListingExternalBlocks({ icalUrl: null, calendarSources: ids.map(source) });
+      await ticks(30);
+      expect(running).toBe(6);
+      finish.shift()!();
+      await ticks(gap);
+      const late = fetchListingExternalBlocks({ icalUrl: null, calendarSources: [source(gap * 100 + 99)] });
+      await ticks(30);
+      while (finish.length) {
+        finish.shift()!();
+        await ticks(30);
+      }
+      await Promise.all([first, late]);
+    }
+    expect(peak).toBe(6);
+  });
+
   it("serves browse requests from cache, but verify always downloads", async () => {
     fetchIcalBlocks.mockResolvedValue([block]);
     await fetchListingExternalBlocks(listing);
