@@ -14,6 +14,17 @@ export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
 const SEEN_KEY = "aldeitas-onboarding-seen";
 const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "mercadopago", "payouts", "done"];
 const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
+const MISSING_LABEL: Partial<Record<DemoId, OnboardingCopyKey>> = {
+  you: "missingYou",
+  story: "missingStory",
+  map: "missingMap",
+  inbox: "missingInbox",
+  airbnb: "missingAirbnb",
+  calendars: "missingCalendars",
+  team: "missingTeam",
+  mercadopago: "missingMercadopago",
+  payouts: "missingPayouts",
+};
 
 type T = (key: OnboardingCopyKey, vars?: Record<string, string | number>) => string;
 
@@ -1002,6 +1013,8 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   const [startAt, setStartAt] = useState<DemoId | null>(null);
   const [job, setJob] = useState<ImportJob>({ status: "idle", items: [] });
   const [reviewed, setReviewed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const running = useRef(false);
 
   const startImport = useCallback(async () => {
@@ -1082,6 +1095,28 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
     setMode(null);
   }, [userId]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  const openMissing = (step: DemoId | null) => {
+    setMenuOpen(false);
+    setStartAt(step);
+    setMode("missing");
+  };
+
   if (!state) return null;
   const missingSteps = stepsFor("missing", state, { job, reviewed });
   const progress = importProgress(job);
@@ -1091,9 +1126,12 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   return (
     <>
       {missingCount > 0 || isRunning(job) ? (
+        <div ref={menuRef} className="relative">
         <button
           type="button"
-          onClick={() => setMode("missing")}
+          onClick={() => (isRunning(job) ? openMissing(null) : setMenuOpen((open) => !open))}
+          aria-haspopup={isRunning(job) ? undefined : "menu"}
+          aria-expanded={isRunning(job) ? undefined : menuOpen}
           aria-label={isRunning(job) ? (job.status === "scanning" ? t("importWait") : t("navImporting", { done: progress.done, total: progress.total })) : t("navButtonAria", { count: missingCount })}
           className="group flex items-center gap-2 rounded-full border border-aldeitas/30 bg-aldeitas/5 py-1.5 pl-2 pr-3 text-sm font-semibold text-aldeitas transition hover:border-aldeitas/60 hover:bg-aldeitas/10"
         >
@@ -1117,6 +1155,34 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
               : t(listingsOnly ? "navButtonListings" : "navButton")}
           </span>
         </button>
+        {menuOpen && !isRunning(job) ? (
+          <div role="menu" aria-label={t("navMissingTitle")} className="absolute right-0 z-50 mt-2 w-72 rounded-2xl border border-line bg-white p-2 shadow-xl">
+            <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted">{t("navMissingTitle")}</p>
+            {missingSteps.map((step) => (
+              <button
+                key={step}
+                role="menuitem"
+                type="button"
+                onClick={() => openMissing(step)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-surface"
+              >
+                <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                <span className="flex-1">{t(MISSING_LABEL[step] ?? "navButton")}</span>
+                <span aria-hidden className="text-aldeitas">›</span>
+              </button>
+            ))}
+            <div className="my-1 border-t border-line" />
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => openMissing(null)}
+              className="w-full rounded-lg bg-aldeitas px-3 py-2 text-sm font-semibold text-white hover:opacity-90"
+            >
+              {t("navMissingAll")}
+            </button>
+          </div>
+        ) : null}
+        </div>
       ) : null}
       {mode
         ? createPortal(
