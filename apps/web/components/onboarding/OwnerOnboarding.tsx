@@ -7,12 +7,14 @@ import { useLocale } from "@/lib/i18n/locale-context";
 import { onboardingText, type OnboardingCopyKey } from "@/lib/i18n/onboarding-copy";
 import type { GmailListing } from "@/lib/gmail-listing-discovery";
 import { MAX_CONTACT_PRIORITY, rankContacts } from "@/lib/contact-priority";
+import { formatClabe, isValidClabe, normalizeClabe } from "@/lib/clabe";
+import { bankFromClabe } from "@/lib/mexican-banks";
 import type { OnboardingContact, OnboardingRoom, OnboardingState } from "@/lib/onboarding";
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
 const SEEN_KEY = "aldeitas-onboarding-seen";
-const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "mercadopago", "payouts", "done"];
+const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "payouts", "done"];
 const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
 const MISSING_LABEL: Partial<Record<DemoId, OnboardingCopyKey>> = {
   you: "missingYou",
@@ -22,7 +24,6 @@ const MISSING_LABEL: Partial<Record<DemoId, OnboardingCopyKey>> = {
   airbnb: "missingAirbnb",
   calendars: "missingCalendars",
   team: "missingTeam",
-  mercadopago: "missingMercadopago",
   payouts: "missingPayouts",
 };
 
@@ -775,50 +776,23 @@ function TeamStep({ t, state, setState, next, footer }: StepProps) {
   );
 }
 
-function MercadoPagoStep({ t, state, next, footer }: StepProps) {
-  const result = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("mp");
-  const connected = Boolean(state.hotel?.mercadoPagoConnected);
-  const notice =
-    result === "unavailable" ? t("mpUnavailable") : result === "denied" ? t("mpDenied") : result === "error" ? t("mpError") : null;
-  return (
-    <>
-      {connected ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-[#0f766e]/30 bg-[#0f766e]/5 px-4 py-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0f766e] text-white">✓</span>
-          <div className="text-sm">
-            <div className="font-semibold text-ink">{t("mpConnected")}</div>
-            {state.hotel?.mercadoPagoAccount ? <div className="text-muted">{state.hotel.mercadoPagoAccount}</div> : null}
-          </div>
-        </div>
-      ) : (
-        <a
-          href="/api/mercadopago/oauth/start"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-[#009ee3] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#0089c7]"
-        >
-          {t("mpConnect")}
-        </a>
-      )}
-      {notice ? <p className="text-xs text-red-700">{notice}</p> : <p className="text-xs text-muted">{t("mpHint")}</p>}
-      {footer({ busy: false, onSave: next, error: null })}
-    </>
-  );
-}
-
 function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
   const hotel = state.hotel;
-  const [email, setEmail] = useState(hotel?.payoutEmail ?? "");
-  const [clabe, setClabe] = useState(hotel?.payoutClabe ?? "");
+  const [clabe, setClabe] = useState(formatClabe(hotel?.payoutClabe ?? ""));
   const [holder, setHolder] = useState(hotel?.payoutHolder ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const digits = normalizeClabe(clabe);
+  const bank = bankFromClabe(digits);
+  const complete = digits.length === 18;
+  const valid = complete && isValidClabe(digits);
 
   async function save() {
-    const unchanged =
-      email === (hotel?.payoutEmail ?? "") && clabe === (hotel?.payoutClabe ?? "") && holder === (hotel?.payoutHolder ?? "");
-    if (unchanged && (email || clabe)) return next();
-    if (!email.trim() && !clabe.trim()) return setError(t("payoutRequired"));
+    if (!complete || !holder.trim()) return setError(t("payoutRequired"));
+    if (!valid) return setError(t("clabeInvalid"));
+    if (digits === hotel?.payoutClabe && holder.trim() === hotel?.payoutHolder) return next();
     setBusy(true);
-    const { ok, data } = await postJson("/api/admin/onboarding", { step: "payouts", email, clabe, holder });
+    const { ok, data } = await postJson("/api/admin/onboarding", { step: "payouts", clabe: digits, holder });
     setBusy(false);
     if (!ok) return setError(data?.error === "clabe_invalid" ? t("clabeInvalid") : t("error"));
     setState(data);
@@ -826,17 +800,39 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
   }
   return (
     <>
-      <Label text={t("mpEmail")}>
-        <input className={inputClass} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("mpEmailPh")} />
+      <Label text={t("clabe")}>
+        <input
+          className={inputClass}
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={21}
+          value={clabe}
+          onChange={(e) => setClabe(formatClabe(e.target.value))}
+          placeholder="012 180 01234567891 2"
+        />
       </Label>
-      <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
-        <Label text={t("clabe")}>
-          <input className={inputClass} inputMode="numeric" maxLength={22} value={clabe} onChange={(e) => setClabe(e.target.value)} placeholder="012 180 0123456789 1" />
-        </Label>
-        <Label text={t("accountHolder")}>
-          <input className={inputClass} value={holder} onChange={(e) => setHolder(e.target.value)} />
-        </Label>
-      </div>
+      {digits.length >= 3 ? (
+        <div
+          data-testid="clabe-bank"
+          className="flex items-center gap-3 rounded-2xl border border-line bg-white px-3 py-2.5"
+        >
+          {bank?.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={bank.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-line bg-white object-contain p-1" />
+          ) : (
+            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-lg">🏦</span>
+          )}
+          <div className="min-w-0 flex-1 text-sm">
+            <div className="font-semibold text-ink">{bank ? bank.name : t("bankUnknown")}</div>
+            <div className="text-xs text-muted">
+              {valid ? `✓ ${t("clabeValid")}` : complete ? t("clabeInvalid") : t("clabeTyping")}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <Label text={t("accountHolder")}>
+        <input className={inputClass} autoComplete="name" value={holder} onChange={(e) => setHolder(e.target.value)} />
+      </Label>
       <p className="text-xs text-muted">{t("payoutsHint")}</p>
       {footer({ busy, onSave: save, error })}
     </>
@@ -864,7 +860,6 @@ const STEP_COPY: Record<DemoId, { kicker: OnboardingCopyKey; title: OnboardingCo
   calendars: { kicker: "calKicker", title: "calTitle", body: "calBody" },
   inbox: { kicker: "inboxKicker", title: "inboxTitle", body: "inboxBody" },
   team: { kicker: "teamKicker", title: "teamTitle", body: "teamBody" },
-  mercadopago: { kicker: "mpKicker", title: "mpTitle", body: "mpBody" },
   payouts: { kicker: "payoutsKicker", title: "payoutsTitle", body: "payoutsBody" },
   done: { kicker: "doneKicker", title: "doneTitle", body: "doneBody" },
 };
@@ -993,7 +988,6 @@ function Slideshow({
             {id === "calendars" ? <CalendarStep {...props} /> : null}
             {id === "inbox" ? <InboxStep {...props} /> : null}
             {id === "team" ? <TeamStep {...props} /> : null}
-            {id === "mercadopago" ? <MercadoPagoStep {...props} /> : null}
             {id === "payouts" ? <PayoutsStep {...props} /> : null}
             {id === "done" ? <DoneStep t={t} state={state} close={onClose} /> : null}
           </div>

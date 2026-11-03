@@ -43,13 +43,8 @@ const saveSchema = z.discriminatedUnion("step", [
   }),
   z.object({
     step: z.literal("payouts"),
-    email: z.union([z.string().trim().toLowerCase().email().max(200), z.literal("")]).optional(),
-    clabe: z
-      .string()
-      .transform(normalizeClabe)
-      .refine((v) => v === "" || isValidClabe(v), { message: "clabe_invalid" })
-      .optional(),
-    holder: z.string().trim().max(120).optional(),
+    clabe: z.string().transform(normalizeClabe).refine(isValidClabe, { message: "clabe_invalid" }),
+    holder: z.string().trim().min(2).max(120),
   }),
 ]);
 
@@ -167,16 +162,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.step === "payouts") {
-    if (!body.email && !body.clabe) {
-      return NextResponse.json({ error: "invalid" }, { status: 400 });
-    }
     await prisma.hotel.update({
       where: { id: hotelId },
-      data: {
-        payoutMercadoPagoEmail: body.email || null,
-        payoutClabe: body.clabe || null,
-        payoutAccountHolder: body.holder || null,
-      },
+      data: { payoutClabe: body.clabe, payoutAccountHolder: body.holder },
     });
   }
 

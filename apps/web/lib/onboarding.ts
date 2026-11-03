@@ -1,4 +1,3 @@
-import { isMercadoPagoOAuthConfigured } from "@/lib/mercadopago-oauth";
 import { prisma } from "@/lib/prisma";
 import { getListingIcalExportUrl } from "@/lib/site-url";
 import { parseContactPriority } from "@/lib/contact-priority";
@@ -15,7 +14,6 @@ export const ONBOARDING_STEPS = [
   "airbnb",
   "calendars",
   "team",
-  "mercadopago",
   "payouts",
 ] as const;
 
@@ -157,8 +155,7 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     if (rooms.length === 0 || rooms.some((room) => !roomHasPhotos(room))) missing.push("airbnb");
     if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!cleaner) missing.push("team");
-    if (!hotel.mercadoPagoConnectedAt && isMercadoPagoOAuthConfigured()) missing.push("mercadopago");
-    if (!hotel.payoutMercadoPagoEmail && !hotel.payoutClabe && !hotel.mercadoPagoConnectedAt) missing.push("payouts");
+    if (!hotel.payoutClabe || !hotel.payoutAccountHolder?.trim()) missing.push("payouts");
   }
 
   return {
