@@ -8,6 +8,7 @@ import { onboardingText, type OnboardingCopyKey } from "@/lib/i18n/onboarding-co
 import type { GmailListing } from "@/lib/gmail-listing-discovery";
 import { MAX_CONTACT_PRIORITY, rankContacts } from "@/lib/contact-priority";
 import { formatClabe, isValidClabe, normalizeClabe } from "@/lib/clabe";
+import { isValidRfc, normalizeRfc } from "@/lib/rfc";
 import { bankFromClabe } from "@/lib/mexican-banks";
 import type { OnboardingContact, OnboardingRoom, OnboardingState } from "@/lib/onboarding";
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
@@ -780,6 +781,7 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
   const hotel = state.hotel;
   const [clabe, setClabe] = useState(formatClabe(hotel?.payoutClabe ?? ""));
   const [holder, setHolder] = useState(hotel?.payoutHolder ?? "");
+  const [rfc, setRfc] = useState(hotel?.payoutRfc ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const digits = normalizeClabe(clabe);
@@ -790,11 +792,13 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
   async function save() {
     if (!complete || !holder.trim()) return setError(t("payoutRequired"));
     if (!valid) return setError(t("clabeInvalid"));
-    if (digits === hotel?.payoutClabe && holder.trim() === hotel?.payoutHolder) return next();
+    const rfcValue = normalizeRfc(rfc);
+    if (rfcValue && !isValidRfc(rfcValue)) return setError(t("rfcInvalid"));
+    if (digits === hotel?.payoutClabe && holder.trim() === hotel?.payoutHolder && rfcValue === (hotel?.payoutRfc ?? "")) return next();
     setBusy(true);
-    const { ok, data } = await postJson("/api/admin/onboarding", { step: "payouts", clabe: digits, holder });
+    const { ok, data } = await postJson("/api/admin/onboarding", { step: "payouts", clabe: digits, holder, rfc: rfcValue });
     setBusy(false);
-    if (!ok) return setError(data?.error === "clabe_invalid" ? t("clabeInvalid") : t("error"));
+    if (!ok) return setError(data?.error === "clabe_invalid" ? t("clabeInvalid") : data?.error === "rfc_invalid" ? t("rfcInvalid") : t("error"));
     setState(data);
     next();
   }
@@ -832,6 +836,16 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
       ) : null}
       <Label text={t("accountHolder")}>
         <input className={inputClass} autoComplete="name" value={holder} onChange={(e) => setHolder(e.target.value)} />
+      </Label>
+      <Label text={t("rfc")}>
+        <input
+          className={`${inputClass} uppercase`}
+          autoComplete="off"
+          maxLength={13}
+          value={rfc}
+          onChange={(e) => setRfc(normalizeRfc(e.target.value))}
+          placeholder={t("rfcPh")}
+        />
       </Label>
       <p className="text-xs text-muted">{t("payoutsHint")}</p>
       {footer({ busy, onSave: save, error })}

@@ -110,8 +110,24 @@ describe("POST /api/admin/onboarding step payouts", () => {
     expect(res.status).toBe(200);
     expect(prismaMock.hotel.update).toHaveBeenCalledWith({
       where: { id: "h1" },
-      data: { payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres" },
+      data: { payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres", payoutRfc: null },
     });
+  });
+
+  it("saves an optional RFC, uppercased and without spaces", async () => {
+    const res = await post({ step: "payouts", clabe: "002010077777777771", holder: "Clara Torres", rfc: "toga 900101 ab1" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.hotel.update).toHaveBeenCalledWith({
+      where: { id: "h1" },
+      data: { payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres", payoutRfc: "TOGA900101AB1" },
+    });
+  });
+
+  it("rejects a malformed RFC", async () => {
+    const res = await post({ step: "payouts", clabe: "002010077777777771", holder: "Clara Torres", rfc: "TOGA90" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "rfc_invalid" });
+    expect(prismaMock.hotel.update).not.toHaveBeenCalled();
   });
 
   it("rejects a CLABE with a bad control digit", async () => {

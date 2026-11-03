@@ -51,6 +51,7 @@ export type OnboardingState = {
     payoutEmail: string;
     payoutClabe: string;
     payoutHolder: string;
+    payoutRfc: string;
   } | null;
   rooms: OnboardingRoom[];
   isOwner: boolean;
@@ -180,6 +181,7 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
           payoutEmail: hotel.payoutMercadoPagoEmail ?? "",
           payoutClabe: hotel.payoutClabe ?? "",
           payoutHolder: hotel.payoutAccountHolder ?? "",
+          payoutRfc: hotel.payoutRfc ?? "",
         }
       : null,
     rooms,

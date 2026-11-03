@@ -23,6 +23,7 @@ const state: OnboardingState = {
     payoutEmail: "",
     payoutClabe: "",
     payoutHolder: "",
+    payoutRfc: "",
   },
   rooms: [],
   isOwner: false,
