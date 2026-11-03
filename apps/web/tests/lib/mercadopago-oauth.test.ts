@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
+  createMercadoPagoInvite,
   createMercadoPagoState,
+  verifyMercadoPagoInvite,
   exchangeMercadoPagoCode,
   getMercadoPagoAuthorizeUrl,
   getMercadoPagoClientId,
@@ -63,5 +65,17 @@ describe("mercadopago oauth", () => {
   it("throws when Mercado Pago refuses the code", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ message: "invalid_grant" }), { status: 400 }));
     await expect(exchangeMercadoPagoCode("bad")).rejects.toThrow(/invalid_grant/);
+  });
+});
+
+describe("mercadopago invite links", () => {
+  it("round-trips the hotel id and rejects tampered, expired or state tokens", () => {
+    const now = Date.UTC(2026, 10, 3);
+    const invite = createMercadoPagoInvite("hotel-1", now);
+    expect(verifyMercadoPagoInvite(invite, now + 1000)).toEqual({ hotelId: "hotel-1" });
+    expect(verifyMercadoPagoInvite(`${invite}x`, now)).toBeNull();
+    expect(verifyMercadoPagoInvite(invite, now + 15 * 24 * 60 * 60 * 1000)).toBeNull();
+    expect(verifyMercadoPagoInvite(createMercadoPagoState("hotel-1", "u1", now), now)).toBeNull();
+    expect(verifyMercadoPagoState(invite, now)).toBeNull();
   });
 });
