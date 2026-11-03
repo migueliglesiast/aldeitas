@@ -156,7 +156,7 @@ describe("POST /api/book", () => {
       data: expect.objectContaining({
         listingId: "l1",
         status: "PENDING",
-        totalPriceCents: 20000,
+        totalPriceCents: 21000,
         currency: "USD",
         paymentProvider: "mercadopago",
         pendingExpiresAt: expect.any(Date),
@@ -194,7 +194,7 @@ describe("POST /api/book", () => {
       checkoutUrl: "https://checkout.stripe.com/s/1",
     });
     expect(prismaMock.booking.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ totalPriceCents: 10000, currency: "MXN" }),
+      data: expect.objectContaining({ totalPriceCents: 8820, currency: "MXN" }),
     });
   });
 
@@ -232,7 +232,7 @@ describe("POST /api/book", () => {
               quantity: 1,
               price_data: expect.objectContaining({
                 currency: "USD",
-                unit_amount: 20000,
+                unit_amount: 21000,
               }),
             }),
           ],
