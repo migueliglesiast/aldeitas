@@ -818,7 +818,7 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
         >
           {bank?.logo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={bank.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-line bg-white object-contain p-1" />
+            <img src={bank.logo} alt="" className="h-10 w-20 shrink-0 rounded-xl border border-line bg-white object-contain px-2 py-1" />
           ) : (
             <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-lg">🏦</span>
           )}
