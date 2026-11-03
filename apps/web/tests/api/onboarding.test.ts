@@ -105,32 +105,42 @@ describe("POST /api/admin/onboarding step you", () => {
 });
 
 describe("POST /api/admin/onboarding step payouts", () => {
-  it("saves the Mercado Pago email and a valid CLABE (spaces stripped)", async () => {
-    const res = await post({ step: "payouts", email: " Pagos@Hotel.mx ", clabe: "002 010 077777777771", holder: "Clara Torres" });
+  it("saves a valid CLABE (spaces stripped) and the holder's full name", async () => {
+    const res = await post({ step: "payouts", clabe: "002 010 077777777771", holder: " Clara Torres " });
     expect(res.status).toBe(200);
     expect(prismaMock.hotel.update).toHaveBeenCalledWith({
       where: { id: "h1" },
-      data: { payoutMercadoPagoEmail: "pagos@hotel.mx", payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres" },
+      data: { payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres", payoutRfc: null },
     });
   });
 
-  it("accepts a Mercado Pago email alone", async () => {
-    const res = await post({ step: "payouts", email: "pagos@hotel.mx", clabe: "", holder: "" });
+  it("saves an optional RFC, uppercased and without spaces", async () => {
+    const res = await post({ step: "payouts", clabe: "002010077777777771", holder: "Clara Torres", rfc: "toga 900101 ab1" });
     expect(res.status).toBe(200);
     expect(prismaMock.hotel.update).toHaveBeenCalledWith({
       where: { id: "h1" },
-      data: { payoutMercadoPagoEmail: "pagos@hotel.mx", payoutClabe: null, payoutAccountHolder: null },
+      data: { payoutClabe: "002010077777777771", payoutAccountHolder: "Clara Torres", payoutRfc: "TOGA900101AB1" },
     });
+  });
+
+  it("rejects a malformed RFC", async () => {
+    const res = await post({ step: "payouts", clabe: "002010077777777771", holder: "Clara Torres", rfc: "TOGA90" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "rfc_invalid" });
+    expect(prismaMock.hotel.update).not.toHaveBeenCalled();
   });
 
   it("rejects a CLABE with a bad control digit", async () => {
-    const res = await post({ step: "payouts", clabe: "002010077777777772" });
+    const res = await post({ step: "payouts", clabe: "002010077777777772", holder: "Clara Torres" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "clabe_invalid" });
     expect(prismaMock.hotel.update).not.toHaveBeenCalled();
   });
 
-  it("requires an email or a CLABE", async () => {
-    expect((await post({ step: "payouts", email: "", clabe: "" })).status).toBe(400);
+  it("requires both the CLABE and the holder's name", async () => {
+    expect((await post({ step: "payouts", clabe: "", holder: "Clara Torres" })).status).toBe(400);
+    expect((await post({ step: "payouts", clabe: "002010077777777771", holder: "" })).status).toBe(400);
+    expect((await post({ step: "payouts", email: "pagos@hotel.mx" })).status).toBe(400);
+    expect(prismaMock.hotel.update).not.toHaveBeenCalled();
   });
 });

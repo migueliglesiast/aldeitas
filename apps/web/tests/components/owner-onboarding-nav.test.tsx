@@ -23,6 +23,7 @@ const state: OnboardingState = {
     payoutEmail: "",
     payoutClabe: "",
     payoutHolder: "",
+    payoutRfc: "",
   },
   rooms: [],
   isOwner: false,
@@ -32,7 +33,7 @@ const state: OnboardingState = {
   maintenance: null,
   publicCalendarUrl: null,
   ownerCalendarUrl: null,
-  missing: ["mercadopago", "payouts"],
+  missing: ["team", "payouts"],
 };
 
 describe("OwnerOnboarding navbar missing-info menu", () => {
@@ -55,14 +56,36 @@ describe("OwnerOnboarding navbar missing-info menu", () => {
     await user.click(pill);
     const items = screen.getAllByRole("menuitem").map((el) => el.textContent);
     expect(items).toEqual([
-      expect.stringContaining("Connect Mercado Pago"),
-      expect.stringContaining("Payout account (email or CLABE)"),
+      expect.stringContaining("Cleaning contact"),
+      expect.stringContaining("Bank account (CLABE and name)"),
       "Complete everything",
     ]);
 
-    await user.click(screen.getByRole("menuitem", { name: /Payout account/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Bank account/ }));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Where should we send your money?")).toBeInTheDocument());
+  });
+
+  it("recognizes the bank as soon as the CLABE's first digits are typed", async () => {
+    const user = userEvent.setup();
+    render(<OwnerOnboarding userId="u1" />);
+    await user.click(await screen.findByRole("button", { name: /2 steps left/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Bank account/ }));
+    const input = await screen.findByLabelText("CLABE (18 digits)");
+    expect(screen.queryByRole("link", { name: /Mercado Pago/ })).not.toBeInTheDocument();
+
+    await user.type(input, "012");
+    const card = screen.getByTestId("clabe-bank");
+    expect(card).toHaveTextContent("BBVA");
+    expect(card.querySelector("img")).toHaveAttribute("src", "/banks/012.png");
+
+    await user.type(input, "180012345678919");
+    expect(input).toHaveValue("012 180 01234567891 9");
+    expect(card).toHaveTextContent(/Valid CLABE|isn't valid/);
+
+    await user.clear(input);
+    await user.type(input, "999");
+    expect(screen.getByTestId("clabe-bank")).toHaveTextContent("Bank not recognized");
   });
 
   it("closes the menu with Escape", async () => {

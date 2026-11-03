@@ -78,6 +78,7 @@ model Hotel {
   payoutMercadoPagoEmail String?
   payoutClabe          String?
   payoutAccountHolder  String?
+  payoutRfc            String?
   mercadoPagoUserId         String?
   mercadoPagoAccessTokenEnc String?
   mercadoPagoRefreshTokenEnc String?

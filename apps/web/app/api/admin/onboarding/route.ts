@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { syncBilingualDescription } from "@/lib/sync-bilingual-description";
 import { MAX_CONTACT_PRIORITY } from "@/lib/contact-priority";
 import { isValidClabe, normalizeClabe } from "@/lib/clabe";
+import { isValidRfc, normalizeRfc } from "@/lib/rfc";
 import {
   getOnboardingState,
   getPrimaryHotelId,
@@ -43,13 +44,13 @@ const saveSchema = z.discriminatedUnion("step", [
   }),
   z.object({
     step: z.literal("payouts"),
-    email: z.union([z.string().trim().toLowerCase().email().max(200), z.literal("")]).optional(),
-    clabe: z
+    clabe: z.string().transform(normalizeClabe).refine(isValidClabe, { message: "clabe_invalid" }),
+    holder: z.string().trim().min(2).max(120),
+    rfc: z
       .string()
-      .transform(normalizeClabe)
-      .refine((v) => v === "" || isValidClabe(v), { message: "clabe_invalid" })
+      .transform(normalizeRfc)
+      .refine((v) => v === "" || isValidRfc(v), { message: "rfc_invalid" })
       .optional(),
-    holder: z.string().trim().max(120).optional(),
   }),
 ]);
 
@@ -110,8 +111,8 @@ export async function POST(req: NextRequest) {
 
   const parsed = saveSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    const clabeInvalid = parsed.error.issues.some((issue) => issue.message === "clabe_invalid");
-    return NextResponse.json({ error: clabeInvalid ? "clabe_invalid" : "invalid" }, { status: 400 });
+    const known = parsed.error.issues.find((issue) => issue.message === "clabe_invalid" || issue.message === "rfc_invalid");
+    return NextResponse.json({ error: known?.message ?? "invalid" }, { status: 400 });
   }
   const body = parsed.data;
 
@@ -167,16 +168,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.step === "payouts") {
-    if (!body.email && !body.clabe) {
-      return NextResponse.json({ error: "invalid" }, { status: 400 });
-    }
     await prisma.hotel.update({
       where: { id: hotelId },
-      data: {
-        payoutMercadoPagoEmail: body.email || null,
-        payoutClabe: body.clabe || null,
-        payoutAccountHolder: body.holder || null,
-      },
+      data: { payoutClabe: body.clabe, payoutAccountHolder: body.holder, payoutRfc: body.rfc || null },
     });
   }
 
