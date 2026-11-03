@@ -12,7 +12,7 @@ import {
 export const dynamic = "force-dynamic";
 
 function back(result: "connected" | "denied" | "error") {
-  return NextResponse.redirect(new URL(`/admin?welcome=mercadopago&mp=${result}`, getSiteUrl()));
+  return NextResponse.redirect(new URL(`/admin?welcome=payouts&mp=${result}`, getSiteUrl()));
 }
 
 export async function GET(req: NextRequest) {

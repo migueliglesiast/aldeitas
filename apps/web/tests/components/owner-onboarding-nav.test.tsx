@@ -57,11 +57,11 @@ describe("OwnerOnboarding navbar missing-info menu", () => {
     const items = screen.getAllByRole("menuitem").map((el) => el.textContent);
     expect(items).toEqual([
       expect.stringContaining("Cleaning contact"),
-      expect.stringContaining("Bank account (CLABE and name)"),
+      expect.stringContaining("Payouts (Mercado Pago or CLABE)"),
       "Complete everything",
     ]);
 
-    await user.click(screen.getByRole("menuitem", { name: /Bank account/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Payouts/ }));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Where should we send your money?")).toBeInTheDocument());
   });
@@ -70,7 +70,12 @@ describe("OwnerOnboarding navbar missing-info menu", () => {
     const user = userEvent.setup();
     render(<OwnerOnboarding userId="u1" />);
     await user.click(await screen.findByRole("button", { name: /2 steps left/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Bank account/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Payouts/ }));
+    const connect = await screen.findByRole("link", { name: "Connect Mercado Pago" });
+    expect(connect).toHaveAttribute("href", "/api/mercadopago/oauth/start");
+    expect(screen.getByRole("tab", { name: "Mercado Pago (automatic)" })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByRole("tab", { name: "CLABE only" }));
     const input = await screen.findByLabelText("CLABE (18 digits)");
     expect(screen.queryByRole("link", { name: /Mercado Pago/ })).not.toBeInTheDocument();
 

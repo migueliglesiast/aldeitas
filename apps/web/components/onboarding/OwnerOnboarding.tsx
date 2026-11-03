@@ -788,6 +788,11 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
   const bank = bankFromClabe(digits);
   const complete = digits.length === 18;
   const valid = complete && isValidClabe(digits);
+  const connected = Boolean(hotel?.mercadoPagoConnected);
+  const result = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("mp");
+  const [tab, setTab] = useState<"mp" | "clabe">(connected || !hotel?.payoutClabe ? "mp" : "clabe");
+  const mpNotice =
+    result === "unavailable" ? t("mpUnavailable") : result === "denied" ? t("mpDenied") : result === "error" ? t("mpError") : null;
 
   async function save() {
     if (!complete || !holder.trim()) return setError(t("payoutRequired"));
@@ -802,8 +807,43 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
     setState(data);
     next();
   }
+  const tabClass = (active: boolean) =>
+    `flex-1 rounded-full px-3 py-1.5 text-sm font-semibold transition ${active ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink"}`;
   return (
     <>
+      <div role="tablist" aria-label={t("payoutsTitle")} className="flex gap-1 rounded-full bg-surface p-1">
+        <button type="button" role="tab" aria-selected={tab === "mp"} onClick={() => setTab("mp")} className={tabClass(tab === "mp")}>
+          {t("payoutTabMp")}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "clabe"} onClick={() => setTab("clabe")} className={tabClass(tab === "clabe")}>
+          {t("payoutTabClabe")}
+        </button>
+      </div>
+      {tab === "mp" ? (
+        <>
+          {connected ? (
+            <div data-testid="mp-connected" className="flex items-center gap-3 rounded-2xl border border-[#0f766e]/30 bg-[#0f766e]/5 px-4 py-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0f766e] text-white">✓</span>
+              <div className="text-sm">
+                <div className="font-semibold text-ink">{t("mpConnected")}</div>
+                {hotel?.mercadoPagoAccount ? <div className="text-muted">{hotel.mercadoPagoAccount}</div> : null}
+              </div>
+            </div>
+          ) : (
+            <a
+              href="/api/mercadopago/oauth/start"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#009ee3] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#0089c7]"
+            >
+              {t("mpConnect")}
+            </a>
+          )}
+          <p className="text-xs text-muted">{t("mpSplitNote")}</p>
+          {mpNotice ? <p className="text-xs text-red-700">{mpNotice}</p> : <p className="text-xs text-muted">{t("mpHint")}</p>}
+          {footer({ busy: false, onSave: next, error: null })}
+        </>
+      ) : (
+        <>
+      <p className="text-xs text-muted">{t("clabeOnlyNote")}</p>
       <Label text={t("clabe")}>
         <input
           className={inputClass}
@@ -849,6 +889,8 @@ function PayoutsStep({ t, state, setState, next, footer }: StepProps) {
       </Label>
       <p className="text-xs text-muted">{t("payoutsHint")}</p>
       {footer({ busy, onSave: save, error })}
+        </>
+      )}
     </>
   );
 }
