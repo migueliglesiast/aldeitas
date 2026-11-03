@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import "./mercadopago-pay.css";
 import { formatMoney } from "@/lib/currency";
+import PriceSplit from "@/components/PriceSplit";
 
 declare global {
   interface Window {
@@ -427,6 +428,10 @@ export default function MercadoPagoPayClient({
             <span className="text-sm text-gray-600">Total a autorizar</span>
             <span className="text-xl font-semibold tabular-nums text-gray-900">{amountLabel}</span>
           </div>
+          <PriceSplit
+            totalCents={booking.mercadoPagoChargeAmountCents ?? booking.totalPriceCents}
+            currency={booking.mercadoPagoChargeCurrency ?? booking.currency}
+          />
           <AuthorizationNotice />
         </div>
 
