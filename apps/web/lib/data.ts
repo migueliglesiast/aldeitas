@@ -1,4 +1,10 @@
 import { prisma } from "./prisma";
+import { guestPriceCents } from "./price-split";
+
+function withGuestPrice<T extends { nightlyBasePrice: number }>(listing: T): T {
+  if (typeof listing.nightlyBasePrice !== "number") return listing;
+  return { ...listing, nightlyBasePrice: guestPriceCents(listing.nightlyBasePrice) };
+}
 
 export type HotelWithListings = Awaited<ReturnType<typeof getHotelsWithListings>>[number];
 export type ListingWithImages = HotelWithListings["listings"][number];
@@ -6,7 +12,7 @@ export type ListingDetail = NonNullable<Awaited<ReturnType<typeof getListingDeta
 export type HotelDetail = NonNullable<Awaited<ReturnType<typeof getHotelDetail>>>;
 
 export async function getHotelsWithListings() {
-  return prisma.hotel.findMany({
+  const hotels = await prisma.hotel.findMany({
     include: {
       listings: {
         include: { images: { orderBy: { position: "asc" } } },
@@ -14,20 +20,22 @@ export async function getHotelsWithListings() {
     },
     orderBy: { createdAt: "desc" },
   });
+  return hotels.map((hotel) => ({ ...hotel, listings: hotel.listings.map(withGuestPrice) }));
 }
 
 export async function getListingDetail(id: string) {
-  return prisma.listing.findUnique({
+  const listing = await prisma.listing.findUnique({
     where: { id },
     include: {
       images: { orderBy: { position: "asc" } },
       hotel: true,
     },
   });
+  return listing ? withGuestPrice(listing) : null;
 }
 
 export async function getHotelDetail(id: string) {
-  return prisma.hotel.findUnique({
+  const hotel = await prisma.hotel.findUnique({
     where: { id },
     include: {
       listings: {
@@ -36,6 +44,5 @@ export async function getHotelDetail(id: string) {
       },
     },
   });
+  return hotel ? { ...hotel, listings: hotel.listings.map(withGuestPrice) } : null;
 }
-
-

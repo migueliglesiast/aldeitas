@@ -222,10 +222,10 @@ describe("GET /api/listings/[id]/pricing", () => {
 
     await expect(res.json()).resolves.toEqual({
       nights: 2,
-      nightlyCents: 10000,
-      totalCents: 20000,
+      nightlyCents: 10500,
+      totalCents: 21000,
       currency: "USD",
-      basePriceCents: 10000,
+      basePriceCents: 10500,
       baseCurrency: "USD",
       isDynamic: false,
     });
@@ -245,7 +245,7 @@ describe("GET /api/listings/[id]/pricing", () => {
     );
 
     await expect(res.json()).resolves.toMatchObject({
-      totalCents: 7000,
+      totalCents: 6174,
       currency: "MXN",
       isDynamic: true,
     });
