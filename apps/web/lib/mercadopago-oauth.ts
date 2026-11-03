@@ -52,6 +52,33 @@ export function verifyMercadoPagoState(state: string, now = Date.now()): { hotel
   }
 }
 
+const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+/** `userId` placed in the OAuth state when a hotel connects from an invite link instead of a signed-in session. */
+export const MERCADOPAGO_INVITE_USER = "invite";
+
+/** Signed, expiring link token that lets one hotel connect Mercado Pago without signing in. */
+export function createMercadoPagoInvite(hotelId: string, now = Date.now()) {
+  const payload = Buffer.from(JSON.stringify({ h: hotelId, t: now })).toString("base64url");
+  const mac = sign(`invite:${payload}`);
+  return `${payload}.${mac}`;
+}
+
+export function verifyMercadoPagoInvite(token: string, now = Date.now()): { hotelId: string } | null {
+  const [payload, mac] = token.split(".");
+  if (!payload || !mac) return null;
+  const expected = Buffer.from(sign(`invite:${payload}`));
+  const given = Buffer.from(mac);
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
+  try {
+    const { h, t } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { h?: unknown; t?: unknown };
+    if (typeof h !== "string" || typeof t !== "number") return null;
+    if (now - t > INVITE_TTL_MS || t - now > 60_000) return null;
+    return { hotelId: h };
+  } catch {
+    return null;
+  }
+}
+
 export function getMercadoPagoAuthorizeUrl(state: string) {
   const url = new URL(AUTH_URL);
   url.searchParams.set("client_id", getMercadoPagoClientId());

@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const site = getSiteUrl();
   const user = await getCurrentUser();
-  if (!user) return NextResponse.redirect(new URL(signInUrl("/admin?welcome=mercadopago"), site));
+  if (!user) return NextResponse.redirect(new URL(signInUrl("/admin?welcome=payouts"), site));
 
   const requested = req.nextUrl.searchParams.get("hotel");
   const hotelId = requested
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!hotelId) return NextResponse.redirect(new URL("/admin", site));
 
   if (!isMercadoPagoOAuthConfigured()) {
-    return NextResponse.redirect(new URL("/admin?welcome=mercadopago&mp=unavailable", site));
+    return NextResponse.redirect(new URL("/admin?welcome=payouts&mp=unavailable", site));
   }
   return NextResponse.redirect(getMercadoPagoAuthorizeUrl(createMercadoPagoState(hotelId, user.id)));
 }
