@@ -49,7 +49,7 @@ describe("mercadopago merchant", () => {
     prismaMock.hotel.findUnique.mockResolvedValue(hotel({ commissionPercent: null }));
     expect((await getHotelMercadoPagoMerchant("h1"))?.commissionPercent).toBe(8);
     delete process.env.MERCADOPAGO_MARKETPLACE_FEE_PERCENT;
-    expect((await getHotelMercadoPagoMerchant("h1"))?.commissionPercent).toBe(3);
+    expect((await getHotelMercadoPagoMerchant("h1"))?.commissionPercent).toBe(5);
     expect(refresh).not.toHaveBeenCalled();
   });
 
