@@ -3,6 +3,7 @@ import { resolveListingAirbnbId } from "@/lib/airbnb-listing-id";
 import { fetchAirbnbDailyPriceMap } from "@/lib/airbnb-prices";
 import { parseDateKey } from "@/lib/calendar-dates";
 import { SITE_CURRENCY } from "@/lib/currency";
+import { hotelRateFromAirbnbCents } from "@/lib/price-split";
 
 export type SyncAirbnbPricesResult = {
   hotelId: string;
@@ -128,7 +129,9 @@ export async function syncHotelAirbnbPrices(
     );
 
     let updatedDays = 0;
-    for (const [dateKey, priceCents] of prices) {
+    // Stored as the hotel's rate; guests see it plus the Aldeitas markup.
+    const hotelRates = new Map([...prices].map(([key, cents]) => [key, hotelRateFromAirbnbCents(cents)]));
+    for (const [dateKey, priceCents] of hotelRates) {
       const date = parseDateKey(dateKey);
       await prisma.listingDailyPrice.upsert({
         where: {
@@ -151,7 +154,7 @@ export async function syncHotelAirbnbPrices(
       updatedDays += 1;
     }
 
-    const values = [...prices.values()];
+    const values = [...hotelRates.values()];
     const basePriceCents =
       values.length > 0
         ? values.slice().sort((a, b) => a - b)[Math.floor(values.length / 2)]
