@@ -156,7 +156,8 @@ export async function getOnboardingState(userId: string): Promise<OnboardingStat
     if (rooms.length === 0 || rooms.some((room) => !roomHasPhotos(room))) missing.push("airbnb");
     if (rooms.some((room) => !roomHasCalendar(room))) missing.push("calendars");
     if (!cleaner) missing.push("team");
-    if (!hotel.payoutClabe || !hotel.payoutAccountHolder?.trim()) missing.push("payouts");
+    const clabeReady = Boolean(hotel.payoutClabe && hotel.payoutAccountHolder?.trim());
+    if (!hotel.mercadoPagoConnectedAt && !clabeReady) missing.push("payouts");
   }
 
   return {
