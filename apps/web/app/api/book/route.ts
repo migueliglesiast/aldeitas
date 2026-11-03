@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { fetchDynamicPricing } from "@/lib/airbnb";
+import { guestPriceCents, guestPriceFromAirbnbCents } from "@/lib/price-split";
 import Stripe from "stripe";
 import { hasLocalDateConflict } from "@/lib/booking-blocks";
 import { checkExternalAvailability } from "@/lib/external-calendars";
@@ -105,7 +106,9 @@ async function handleBooking(req: NextRequest) {
   const nights = Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24));
   if (nights <= 0) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
-  const nightlyCents = offer?.nightlyCents ?? dynamic?.nightlyCents ?? listing.nightlyBasePrice;
+  const nightlyCents =
+    offer?.nightlyCents ??
+    (dynamic ? guestPriceFromAirbnbCents(dynamic.nightlyCents) : guestPriceCents(listing.nightlyBasePrice));
   const currency = offer?.currency ?? dynamic?.currency ?? listing.baseCurrency;
   const staysCents = offer ? offerPrice(offer).totalCents : Math.round(nightlyCents * nights);
 

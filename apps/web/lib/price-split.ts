@@ -34,3 +34,23 @@ export function priceSplit(
     hotelCents: total - aldeitasCents,
   };
 }
+
+/** Airbnb's guest-facing nightly price is treated as including IVA; Aldeitas strips it to get the hotel's rate. */
+export const AIRBNB_GUEST_TAX_PERCENT = 16;
+/** Aldeitas adds its commission on top of the hotel's rate to get the price guests see. */
+export const GUEST_MARKUP_PERCENT = DEFAULT_COMMISSION_PERCENT;
+
+/** Hotel rate from the nightly price a guest sees on Airbnb: minus 16%. */
+export function hotelRateFromAirbnbCents(airbnbGuestCents: number) {
+  return Math.round((airbnbGuestCents * (100 - AIRBNB_GUEST_TAX_PERCENT)) / 100);
+}
+
+/** Price an Aldeitas guest pays for a hotel-set rate: plus 5%. */
+export function guestPriceCents(hotelRateCents: number) {
+  return Math.round((hotelRateCents * (100 + GUEST_MARKUP_PERCENT)) / 100);
+}
+
+/** Aldeitas guest price from Airbnb's guest-facing price: minus 16%, then plus 5%. */
+export function guestPriceFromAirbnbCents(airbnbGuestCents: number) {
+  return guestPriceCents(hotelRateFromAirbnbCents(airbnbGuestCents));
+}
