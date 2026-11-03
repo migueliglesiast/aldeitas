@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useHotel } from "@/lib/hotel-context";
 import { useLocale } from "@/lib/i18n/locale-context";
+import PriceSplit from "@/components/PriceSplit";
 import {
   ADDON_UNIT_LABELS,
   addonLineTotal,
@@ -498,6 +499,7 @@ export default function BookingForm({ listingId, basePriceCents, currency, offer
           )}
         </div>
         )}
+        {!loadingPricing && <PriceSplit totalCents={totalCents} currency={displayCurrency} />}
         {providerLines.length > 0 && (
           <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-ink">
             <div className="flex items-center justify-between font-medium">

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret } from "@/lib/secret-crypto";
+import { DEFAULT_COMMISSION_PERCENT, marketplaceFeeCents } from "@/lib/price-split";
 import { isMercadoPagoOAuthConfigured, refreshMercadoPagoToken } from "@/lib/mercadopago-oauth";
 
 const REFRESH_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -11,7 +12,7 @@ export type MercadoPagoMerchant = {
   commissionPercent: number;
 };
 
-const DEFAULT_COMMISSION_PERCENT = 3;
+export { marketplaceFeeCents };
 
 function defaultCommissionPercent() {
   const raw = process.env.MERCADOPAGO_MARKETPLACE_FEE_PERCENT;
@@ -19,11 +20,6 @@ function defaultCommissionPercent() {
   return Number.isFinite(value) && value >= 0 ? value : DEFAULT_COMMISSION_PERCENT;
 }
 
-/** Aldeitas's cut, in cents, of a payment collected by a hotel's own account. */
-export function marketplaceFeeCents(amountCents: number, percent: number) {
-  if (!Number.isFinite(percent) || percent <= 0) return 0;
-  return Math.min(amountCents, Math.round((amountCents * Math.min(percent, 100)) / 100));
-}
 
 /** The hotel's connected Mercado Pago account (token refreshed when close to expiry), or null. */
 export async function getHotelMercadoPagoMerchant(hotelId: string): Promise<MercadoPagoMerchant | null> {
