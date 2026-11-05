@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { setSiteMode } from "@/lib/host-mode";
 import { useLocale } from "@/lib/i18n/locale-context";
 import OwnerOnboarding from "@/components/onboarding/OwnerOnboarding";
 
@@ -17,6 +19,14 @@ function DashboardIcon() {
   );
 }
 
+function VisitorIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z" />
+    </svg>
+  );
+}
+
 function MenuIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
@@ -25,8 +35,15 @@ function MenuIcon() {
   );
 }
 
-export default function AuthButton({ hideWhenSignedOut = false }: { hideWhenSignedOut?: boolean }) {
+export default function AuthButton({
+  hideWhenSignedOut = false,
+  hostMode = false,
+}: {
+  hideWhenSignedOut?: boolean;
+  hostMode?: boolean;
+}) {
   const { t } = useLocale();
+  const router = useRouter();
   const [user, setUser] = useState<User>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -80,7 +97,7 @@ export default function AuthButton({ hideWhenSignedOut = false }: { hideWhenSign
   if (!user) {
     if (hideWhenSignedOut) return null;
     return (
-      <Link href="/sign-in" className="rounded-full bg-heading px-4 py-2 text-sm font-semibold text-white hover:bg-ink">{t("hostPortal")}</Link>
+      <Link href="/sign-in?next=%2Fadmin" onClick={() => setSiteMode("host")} className="rounded-full bg-heading px-4 py-2 text-sm font-semibold text-white hover:bg-ink">{t("hostPortal")}</Link>
     );
   }
 
@@ -96,15 +113,22 @@ export default function AuthButton({ hideWhenSignedOut = false }: { hideWhenSign
   return (
     <div className="flex items-center gap-2">
       <OwnerOnboarding userId={user.id} />
-      <Link
-        href="/admin"
-        aria-label={t("openDashboard")}
-        title={t("openDashboard")}
-        className="inline-flex items-center gap-1.5 rounded-full bg-heading px-3 py-2 text-sm font-semibold text-white hover:bg-ink"
+      <button
+        type="button"
+        aria-label={hostMode ? t("openVisitor") : t("openDashboard")}
+        title={hostMode ? t("openVisitor") : t("openDashboard")}
+        onClick={() => {
+          const next = hostMode ? "guest" : "host";
+          setSiteMode(next);
+          router.push(next === "host" ? "/admin" : "/");
+        }}
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold transition-colors duration-500 ${
+          hostMode ? "bg-paper text-heading hover:bg-white" : "bg-heading text-white hover:bg-ink"
+        }`}
       >
-        <DashboardIcon />
-        <span className="hidden sm:inline">{t("dashboard")}</span>
-      </Link>
+        {hostMode ? <VisitorIcon /> : <DashboardIcon />}
+        <span className="hidden sm:inline">{hostMode ? t("visitor") : t("dashboard")}</span>
+      </button>
       <div ref={menuRef} className="relative">
         <button
           type="button"

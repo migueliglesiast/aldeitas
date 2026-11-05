@@ -7,6 +7,7 @@ import NicknameEditor from "@/components/NicknameEditor";
 import AdminSignInForm from "@/components/AdminSignInForm";
 import { Suspense } from "react";
 import { OpenTourButton } from "@/components/onboarding/OwnerOnboarding";
+import HostPanelSection, { HostPanelSkeleton } from "@/components/host/HostPanelSection";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function AdminPage() {
   const hotels = hotelManagers.map((hm) => hm.hotel);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold mb-2">
@@ -75,6 +76,10 @@ export default async function AdminPage() {
           </Link>
         </div>
       </div>
+
+      <Suspense fallback={<HostPanelSkeleton />}>
+        <HostPanelSection userId={user.id} hotelIds={hotels.map((h) => h.id)} />
+      </Suspense>
 
       {/* Inline Nickname Editor - Only show if nickname doesn't exist */}
       {!user.nickname && (
