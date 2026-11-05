@@ -103,6 +103,7 @@ export default function AuthButton({
 
   async function onSignOut() {
     await fetch("/api/auth/sign-out", { method: "POST" });
+    setSiteMode("guest");
     window.location.reload();
   }
 
