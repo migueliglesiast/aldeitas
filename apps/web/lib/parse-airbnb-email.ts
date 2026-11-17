@@ -550,14 +550,16 @@ export function parseAirbnbBookingEmail(input: {
     checkIn && nights
       ? new Date(Date.parse(`${checkIn}T00:00:00Z`) + nights * 86400000).toISOString().slice(0, 10)
       : checkOutRaw?.iso ?? null;
+  // A checkout derived from the night count carries no year guesses of its own.
+  const checkOutFlags = checkIn && nights ? null : checkOutRaw;
   const yearInferred = Boolean(
-    checkInRaw?.yearInferred || checkOutRaw?.yearInferred
+    checkInRaw?.yearInferred || checkOutFlags?.yearInferred
   );
   const yearNeedsReview = Boolean(
-    checkInRaw?.uncertain || checkOutRaw?.uncertain
+    checkInRaw?.uncertain || checkOutFlags?.uncertain
   );
   const yearReviewNote =
-    [checkInRaw?.reason, checkOutRaw?.reason].filter(Boolean).join("; ") ||
+    [checkInRaw?.reason, checkOutFlags?.reason].filter(Boolean).join("; ") ||
     null;
 
   const airbnbListingId =
