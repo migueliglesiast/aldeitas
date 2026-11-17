@@ -150,6 +150,28 @@ function scheduleAirbnbReviewSync() {
   console.log("[aldeitas] airbnb review sync every %s h", hours);
 }
 
+function scheduleGmailBookingSync() {
+  // The Gmail cron route checks AIRBNB_PRICE_SYNC_SECRET first.
+  const secret = process.env.AIRBNB_PRICE_SYNC_SECRET || process.env.BOOKING_RECONCILE_SECRET;
+  const minutes = Number(process.env.GMAIL_SYNC_INTERVAL_MINUTES || 20);
+  if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
+
+  // Each call syncs the connected hotel that waited longest.
+  const url = `${schedulerBaseUrl()}/api/cron/sync-gmail-bookings`;
+  const intervalMs = minutes * 60 * 1000;
+  const run = () =>
+    claimJobSlot("gmail-booking-sync", intervalMs) &&
+    fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
+      .then((res) => {
+        if (!res.ok) console.error("[aldeitas] gmail booking sync returned %s", res.status);
+      })
+      .catch((error) => logError("gmail booking sync", error));
+
+  setTimeout(run, 7 * 60 * 1000).unref();
+  setInterval(run, intervalMs).unref();
+  console.log("[aldeitas] gmail booking sync every %s min", minutes);
+}
+
 // Lets every server process reuse recent Airbnb/iCal downloads (fewer 429s).
 process.env.ICAL_CACHE_DIR ||= path.join(os.tmpdir(), "aldeitas-ical-cache");
 const app = next({ dev: false, dir: appDir, hostname, port });
@@ -167,6 +189,7 @@ app
         scheduleBookingReconcile();
         scheduleAirbnbPriceSync();
         scheduleAirbnbReviewSync();
+        scheduleGmailBookingSync();
       })
       .on("error", (error) => fatal("listen error", error));
   })
