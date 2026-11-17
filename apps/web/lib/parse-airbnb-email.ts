@@ -420,7 +420,7 @@ function stripHtml(html: string) {
 function isReservationEmail(subject: string, text: string) {
   const hay = `${subject}\n${text}`.toLowerCase();
   const subjectOk =
-    /reservation confirmed|reserva confirmada|booking confirmed|new booking confirmed|nueva reserva|reservation altered|alteraci[oó]n de la reserva|pending reservation/i.test(
+    /reservation confirmed|reserva(?:ci[oó]n)? confirmada|booking confirmed|new booking confirmed|nueva reserva|reservation altered|alteraci[oó]n de la reserva|pending reservation/i.test(
       subject
     );
   if (!subjectOk && !hay.includes("airbnb")) return false;
@@ -472,7 +472,7 @@ export function parseAirbnbBookingEmail(input: {
 
   const guestName = cleanName(
     firstMatch(text, [
-      /(?:reservation confirmed|confirmaci[oó]n de reserva|reserva confirmada)\s*[-–:]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+(?:llega|arrives)/i,
+      /(?:reservation confirmed|confirmaci[oó]n de reserva|reserva(?:ci[oó]n)? confirmada)\s*[-–:]\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+(?:llega|arrives)/i,
       /new booking confirmed!\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,3})\s+arrives/i,
       /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+llega(?:\s+el)?\b/i,
       /([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'’\-]+){0,4})\s+arrives\b/i,
@@ -494,10 +494,10 @@ export function parseAirbnbBookingEmail(input: {
   // Subject / headline: "… arrives Aug 3" (do not use "confirm check-in details").
   const subjectOrHeadlineCheckIn = parseFlexibleDate(
     firstMatch(text, [
-      /(?:reservation confirmed|reserva confirmada)[^\n]*\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
+      /(?:reservation confirmed|reserva(?:ci[oó]n)? confirmada)[^\n]*\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
       /new booking confirmed![^\n]*\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
       /\barrives\s+([A-Z]{3,9}\s+\d{1,2}(?:,?\s*\d{4})?)/i,
-      /(?:reservation confirmed|reserva confirmada)[^\n]*\bllega(?:\s+el)?\s+([^\n.]{4,40})/i,
+      /(?:reservation confirmed|reserva(?:ci[oó]n)? confirmada)[^\n]*\bllega(?:\s+el)?\s+([^\n.]{4,40})/i,
       /\bllega(?:\s+el)?\s+([^\n.]{4,40})/i,
     ]),
     referenceDate
@@ -579,7 +579,7 @@ export function parseAirbnbBookingEmail(input: {
 
   const payoutRaw = firstMatch(text, [
     /you earn\s*[:\-–]?\s*\n?\s*([\$€]?[\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
-    /(?:you will earn|you'll earn|ganar[aá]s|ganaras)\s*[:\-–]?\s*\n?\s*([\$€]?[\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
+    /(?:you will earn|you'll earn|ganar[aá]s|ganaras|ganas)\s*[:\-–]?\s*\n?\s*([\$€]?[\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
     /(?:expected payout|host payout)\s*[:\-–]?\s*\n?\s*([\$€][\d.,]+(?:\s*(?:MXN|USD|EUR))?)/i,
   ]);
   let payout = payoutRaw ? parseMoneyAmount(payoutRaw) : null;
