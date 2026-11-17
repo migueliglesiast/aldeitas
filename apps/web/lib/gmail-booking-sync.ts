@@ -582,7 +582,7 @@ export async function testHotelGmailConnection(hotelId: string) {
 
   await client.connect();
   try {
-    const lock = await client.getMailboxLock("INBOX");
+    const lock = await client.getMailboxLock(await allMailPath(client));
     try {
       return {
         ok: true as const,
@@ -595,6 +595,16 @@ export async function testHotelGmailConnection(hotelId: string) {
     }
   } finally {
     await client.logout().catch(() => undefined);
+  }
+}
+
+// Hosts archive Airbnb mail, and the all-mail folder name is localized ("[Gmail]/Todos"), so find it by flag.
+async function allMailPath(client: ImapFlow) {
+  try {
+    const boxes = await client.list();
+    return boxes.find((b) => b.specialUse === "\\All")?.path ?? "INBOX";
+  } catch {
+    return "INBOX";
   }
 }
 
@@ -718,7 +728,7 @@ export async function syncHotelGmailBookings(
 
   await client.connect();
   try {
-    const lock = await client.getMailboxLock("INBOX");
+    const lock = await client.getMailboxLock(await allMailPath(client));
     try {
       if (timeLeft() < 5_000) {
         result.timedOut = true;
