@@ -67,7 +67,7 @@ export async function loadHotelPerformance(hotelId: string) {
   const backfillUntil = firstImport ? firstImport.createdAt.getTime() + 86400000 : 0;
   const mxn = (cents: number | null, currency: string | null) => (currency && currency !== "MXN" ? null : cents);
   const directKeys = new Set(
-    bookings.filter((b) => b.status !== "CANCELED").map((b) => `${b.listingId}|${dayKey(b.startDate)}|${dayKey(b.endDate)}`)
+    bookings.filter((b) => b.status === "CONFIRMED" || (b.status === "PENDING" && b.authorizedAt)).map((b) => `${b.listingId}|${dayKey(b.startDate)}|${dayKey(b.endDate)}`)
   );
 
   const stays: PerfStay[] = [
