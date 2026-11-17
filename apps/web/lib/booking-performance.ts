@@ -16,6 +16,7 @@ export type PerfStay = {
   status: PerfStatus;
   guestCount: number | null;
   bookingId: string | null;
+  estimated?: boolean;
 };
 
 export type PerfRoom = {
@@ -150,7 +151,8 @@ export function buildPerformanceReport(input: {
   }
 
   const leads = live.map((r) => r.leadDays).filter((v): v is number => v != null);
-  const losList = live.map((r) => r.nights);
+  // Estimated rows are public-calendar runs (could be host blocks), not known stay lengths.
+  const losList = live.filter((r) => !r.estimated).map((r) => r.nights);
 
   const months: PerformanceReport["months"] = [];
   for (let m = -2; m <= 3; m++) {

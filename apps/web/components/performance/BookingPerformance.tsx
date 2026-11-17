@@ -137,6 +137,7 @@ function StayTable({ rows, lang, dateLocale }: { rows: StayRow[]; lang: Lang; da
                   </td>
                   <td className="pr-3">
                     <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${CHANNEL[r.channel].cls}`}>{CHANNEL[r.channel][lang]}</span>
+                    {r.estimated ? <span className="ml-1 text-xs text-slate-500">{L(lang, "estimada", "estimated")}</span> : null}
                     {r.status === "pending" ? <span className="ml-1 text-xs text-amber-700">{L(lang, "por cobrar", "authorized")}</span> : null}
                   </td>
                   <td className="pr-3 text-right">{r.leadDays == null ? "—" : `${r.leadDays} d`}</td>
@@ -150,8 +151,8 @@ function StayTable({ rows, lang, dateLocale }: { rows: StayRow[]; lang: Lang; da
           </table>
           <p className="mt-2 text-xs text-slate-500">
             {L(lang,
-              "Aldeitas: lo que pagó el huésped vs la tarifa del hotel + 5% esas noches. Airbnb/Directa: pago al anfitrión vs la tarifa del hotel. El total puede incluir limpieza y extras.",
-              "Aldeitas: what the guest paid vs the hotel rate + 5% for those nights. Airbnb/Direct: host payout vs the hotel rate. Totals may include cleaning and extras.")}
+              "Aldeitas: lo que pagó el huésped vs la tarifa del hotel + 5% esas noches. Airbnb/Directa: pago al anfitrión vs la tarifa del hotel. El total puede incluir limpieza y extras. \"Estimada\": noches no disponibles en el calendario público de Airbnb (puede ser reserva o bloqueo); sin fecha de reserva ni precio hasta conectar el Gmail del hotel.",
+              "Aldeitas: what the guest paid vs the hotel rate + 5% for those nights. Airbnb/Direct: host payout vs the hotel rate. Totals may include cleaning and extras. \"Estimated\": nights unavailable on Airbnb's public calendar (a booking or a block); no booking date or price until the hotel's Gmail is connected.")}
           </p>
         </div>
       )}
