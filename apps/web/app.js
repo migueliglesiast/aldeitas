@@ -151,7 +151,8 @@ function scheduleAirbnbReviewSync() {
 }
 
 function scheduleGmailBookingSync() {
-  const secret = process.env.BOOKING_RECONCILE_SECRET;
+  // The Gmail cron route checks AIRBNB_PRICE_SYNC_SECRET first.
+  const secret = process.env.AIRBNB_PRICE_SYNC_SECRET || process.env.BOOKING_RECONCILE_SECRET;
   const minutes = Number(process.env.GMAIL_SYNC_INTERVAL_MINUTES || 20);
   if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
 
