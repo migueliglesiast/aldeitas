@@ -31,4 +31,13 @@ describe("parseAirbnbBookingEmail (Mexican Spanish)", () => {
       payoutCurrency: "MXN",
     });
   });
+
+  it("takes the stay length from the nightly price line when the checkout date is missing", () => {
+    const p = parseAirbnbBookingEmail({
+      subject: "Reservación confirmada - Ana Pérez llega el 23 nov.",
+      text: "CÓDIGO DE CONFIRMACIÓN\nHMTEST1234\nEL HUÉSPED PAGÓ\n$1,475.00 x 4 noches   $5,900.00",
+      referenceDate: new Date("2026-11-15T12:00:00Z"),
+    });
+    expect(p).toMatchObject({ checkIn: "2026-11-23", checkOut: "2026-11-27" });
+  });
 });

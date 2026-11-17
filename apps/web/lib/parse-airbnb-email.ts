@@ -440,6 +440,12 @@ function isReservationEmail(subject: string, text: string) {
 }
 
 /** Best-effort parse of Airbnb reservation confirmation / alteration emails. */
+function stayNights(text: string) {
+  const m = text.match(/[x×]\s*(\d{1,3})\s*(?:noches?|nights?)\b|\bpor\s+(\d{1,3})\s+noches?\b|\bfor\s+(\d{1,3})\s+nights?\b/i);
+  const n = m ? Number(m[1] || m[2] || m[3]) : 0;
+  return n > 0 && n <= 365 ? n : null;
+}
+
 export function parseAirbnbBookingEmail(input: {
   subject?: string | null;
   text?: string | null;
@@ -536,7 +542,12 @@ export function parseAirbnbBookingEmail(input: {
       : checkOutParsed;
 
   const checkIn = checkInRaw?.iso ?? null;
-  const checkOut = checkOutRaw?.iso ?? null;
+  // The price line ("$1,475.00 x 4 noches") is the most reliable stay length; checkout dates misparse.
+  const nights = stayNights(`${richText}\n${html.replace(/<[^>]+>/g, " ")}`);
+  const checkOut =
+    checkIn && nights
+      ? new Date(Date.parse(`${checkIn}T00:00:00Z`) + nights * 86400000).toISOString().slice(0, 10)
+      : checkOutRaw?.iso ?? null;
   const yearInferred = Boolean(
     checkInRaw?.yearInferred || checkOutRaw?.yearInferred
   );
