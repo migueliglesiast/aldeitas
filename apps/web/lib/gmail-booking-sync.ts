@@ -743,8 +743,8 @@ export async function syncHotelGmailBookings(
         }> = [
           { since, from: "airbnb.com", subject: "Reservation confirmed" },
           { since, from: "airbnb.mx", subject: "Reservation confirmed" },
-          { since, from: "airbnb.com", subject: "Reserva confirmada" },
-          { since, from: "airbnb.mx", subject: "Reserva confirmada" },
+          { since, from: "airbnb.com", subject: "confirmada" },
+          { since, from: "airbnb.mx", subject: "confirmada" },
         ];
         for (const from of ["airbnb.com", "airbnb.mx"]) {
           for (const subject of [
@@ -807,7 +807,7 @@ export async function syncHotelGmailBookings(
               continue;
             }
             if (
-              !/reservation confirmed|reserva confirmada|booking confirmed|new booking confirmed/i.test(
+              !/reservation confirmed|reserva(?:ci[oó]n)? confirmada|booking confirmed|new booking confirmed/i.test(
                 subject
               )
             ) {
@@ -899,7 +899,7 @@ export async function syncHotelGmailBookings(
             // Only process confirmation / alteration / cancellation emails.
             const looksLikeReservation =
               changeKind != null ||
-              /reservation confirmed|reserva confirmada|booking confirmed|new booking confirmed|nueva reserva|reservation altered|alteraci[oó]n de la reserva|pending reservation/i.test(
+              /reservation confirmed|reserva(?:ci[oó]n)? confirmada|booking confirmed|new booking confirmed|nueva reserva|reservation altered|alteraci[oó]n de la reserva|pending reservation/i.test(
                 envelopeSubject
               );
             if (!looksLikeReservation) {
