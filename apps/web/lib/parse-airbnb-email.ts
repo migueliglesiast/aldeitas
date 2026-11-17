@@ -551,7 +551,9 @@ export function parseAirbnbBookingEmail(input: {
       ? new Date(Date.parse(`${checkIn}T00:00:00Z`) + nights * 86400000).toISOString().slice(0, 10)
       : checkOutRaw?.iso ?? null;
   // A checkout derived from the night count carries no year guesses of its own.
-  const checkOutFlags = checkIn && nights ? null : checkOutRaw;
+  const explicitYearConflict =
+    checkOutRaw != null && !checkOutRaw.yearInferred && checkOut != null && checkOutRaw.iso.slice(0, 4) !== checkOut.slice(0, 4);
+  const checkOutFlags = checkIn && nights && !explicitYearConflict ? null : checkOutRaw;
   const yearInferred = Boolean(
     checkInRaw?.yearInferred || checkOutFlags?.yearInferred
   );
