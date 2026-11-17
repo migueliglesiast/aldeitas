@@ -44,6 +44,7 @@ export async function loadHotelPerformance(hotelId: string) {
         select: {
           id: true, title: true, icalUrl: true, airbnbId: true, airbnbUrl: true,
           _count: { select: { calendarSources: true } },
+          calendarSources: { select: { icalUrl: true } },
           dailyPrices: { where: { date: { gte: from } }, select: { date: true, priceCents: true } },
         },
       },
@@ -87,6 +88,8 @@ export async function loadHotelPerformance(hotelId: string) {
     })),
   ];
 
+  stays.push(...(await estimatedAirbnbStays(hotel.listings, stays, today)));
+
   const report = buildPerformanceReport({ rooms, stays, today, markupPercent: GUEST_MARKUP_PERCENT });
   const calendarsConnected = hotel.listings.some((l) => l.icalUrl || l._count.calendarSources > 0);
   const recs = buildPerformanceRecs(report, {
@@ -94,6 +97,41 @@ export async function loadHotelPerformance(hotelId: string) {
     calendarsConnected,
   });
   return { hotel: { id: hotel.id, name: hotel.name, location: hotel.location }, report, recs };
+}
+
+type EstListing = { id: string; title: string; airbnbId: string | null; airbnbUrl: string | null; icalUrl: string | null; calendarSources: Array<{ icalUrl: string }> };
+
+// Without Gmail/iCal imports, Airbnb's public calendar is the only view of a room's Airbnb stays:
+// each run of unavailable nights becomes one estimated stay (a host block looks the same).
+async function estimatedAirbnbStays(listings: EstListing[], known: PerfStay[], today: string): Promise<PerfStay[]> {
+  const t0 = parseISO(`${today}T00:00:00`);
+  const taken = new Set<string>();
+  for (const s of known) {
+    if (s.status === "cancelled") continue;
+    for (let d = parseISO(`${s.start}T00:00:00`); dayKey(d) < s.end; d = addDays(d, 1)) taken.add(`${s.listingId}|${format(d, "yyyy-MM-dd")}`);
+  }
+  const perRoom = await Promise.all(listings.map(async (l) => {
+    const airbnbId = resolveListingAirbnbId(l);
+    const days = airbnbId ? await airbnbCalendar(airbnbId) : null;
+    if (!days?.length) return [];
+    const strip = unavailableNights(days, today, HORIZON);
+    const out: PerfStay[] = [];
+    let i = 0;
+    while (i < strip.length) {
+      const key = (n: number) => format(addDays(t0, n), "yyyy-MM-dd");
+      if (strip[i] !== true || taken.has(`${l.id}|${key(i)}`)) { i++; continue; }
+      let j = i;
+      while (j < strip.length && strip[j] === true && !taken.has(`${l.id}|${key(j)}`)) j++;
+      out.push({
+        id: `est-${l.id}-${key(i)}`, listingId: l.id, roomTitle: l.title, channel: "airbnb",
+        bookedAt: null, start: key(i), end: key(j), totalCents: null, status: "confirmed",
+        guestCount: null, bookingId: null, estimated: true,
+      });
+      i = j;
+    }
+    return out;
+  }));
+  return perRoom.flat();
 }
 
 export type MarketRoom = { id: string; title: string; strip: Array<boolean | null>; rates: Array<number | null>; occ30: number | null; rate30: number | null };

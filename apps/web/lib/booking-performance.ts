@@ -16,6 +16,7 @@ export type PerfStay = {
   status: PerfStatus;
   guestCount: number | null;
   bookingId: string | null;
+  estimated?: boolean;
 };
 
 export type PerfRoom = {
