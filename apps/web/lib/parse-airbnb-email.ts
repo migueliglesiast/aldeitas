@@ -543,7 +543,9 @@ export function parseAirbnbBookingEmail(input: {
 
   const checkIn = checkInRaw?.iso ?? null;
   // The price line ("$1,475.00 x 4 noches") is the most reliable stay length; checkout dates misparse.
-  const nights = stayNights(`${richText}\n${html.replace(/<[^>]+>/g, " ")}`);
+  const nights = stayNights(
+    `${richText}\n${html.replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&times;|&#215;/gi, "×")}`
+  );
   const checkOut =
     checkIn && nights
       ? new Date(Date.parse(`${checkIn}T00:00:00Z`) + nights * 86400000).toISOString().slice(0, 10)
