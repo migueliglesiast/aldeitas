@@ -22,6 +22,7 @@ import {
 
 const AREA_RADIUS_KM = 8;
 const HORIZON = 90;
+const ESTIMATE_BUDGET_MS = 6000;
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const r = Math.PI / 180;
@@ -88,7 +89,12 @@ export async function loadHotelPerformance(hotelId: string) {
     })),
   ];
 
-  stays.push(...(await estimatedAirbnbStays(hotel.listings, stays, today)));
+  // Airbnb can be slow on a cold cache; never hold the booking report hostage to it.
+  const estimates = await Promise.race([
+    estimatedAirbnbStays(hotel.listings, stays, today).catch(() => [] as PerfStay[]),
+    new Promise<PerfStay[]>((resolve) => setTimeout(() => resolve([]), ESTIMATE_BUDGET_MS)),
+  ]);
+  stays.push(...estimates);
 
   const report = buildPerformanceReport({ rooms, stays, today, markupPercent: GUEST_MARKUP_PERCENT });
   const calendarsConnected = hotel.listings.some((l) => l.icalUrl || l._count.calendarSources > 0);
