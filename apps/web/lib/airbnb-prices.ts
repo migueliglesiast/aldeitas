@@ -9,7 +9,7 @@ const AIRBNB_API_KEY =
 /** Working persisted-query hash used by public Airbnb clients (may rotate). */
 const STAYS_PDP_SECTIONS_HASH =
   process.env.AIRBNB_STAYS_PDP_HASH ||
-  "80c7889b4b0027d99ffea830f6c0d4911a6e863a957cbe1044823f0fc746bf1f";
+  "026e666c78e0f4ce44dbbab864be124a5283494385a48919aa3af370ad587fa1";
 
 const AVAILABILITY_CALENDAR_HASH =
   process.env.AIRBNB_AVAILABILITY_HASH ||
@@ -165,18 +165,22 @@ export async function fetchAirbnbStayPrice(
     demandStayListingId: encodeRoomId(listingId, "DemandStayListing"),
     pdpSectionsRequest: {
       adults,
+      amenityFilters: null,
       bypassTargetings: false,
       categoryTag: null,
       causeId: null,
       children: null,
       disasterId: null,
       discountedGuestFeeVersion: null,
-      displayExtensions: null,
       federatedSearchId: null,
       forceBoostPriorityMessageType: null,
+      guestAges: null,
+      hostPreview: false,
       infants: null,
       interactionType: null,
       layouts: ["SIDEBAR", "SINGLE_COLUMN"],
+      omniPageId: null,
+      omniVersionId: null,
       pets: 0,
       pdpTypeOverride: null,
       photoId: null,
@@ -184,6 +188,9 @@ export async function fetchAirbnbStayPrice(
       previousStateCheckIn: null,
       previousStateCheckOut: null,
       priceDropSource: null,
+      partner: null,
+      partnerProgram: null,
+      directBookingParams: null,
       privateBooking: false,
       promotionUuid: null,
       relaxedAmenityIds: null,
@@ -194,10 +201,35 @@ export async function fetchAirbnbStayPrice(
       staysBookingMigrationEnabled: false,
       translateUgc: null,
       useNewSectionWrapperApi: false,
-      sectionIds: ["BOOK_IT_SIDEBAR", "BOOK_IT_FLOATING_FOOTER"],
+      sectionIds: ["BOOK_IT_SIDEBAR"],
       checkIn,
       checkOut,
+      p3ImpressionId: null,
+      targetPromotion: null,
+      logPricingViewEvent: false,
     },
+    categoryTag: null,
+    federatedSearchId: null,
+    federatedSearchSessionId: null,
+    p3ImpressionId: null,
+    photoId: null,
+    includePdpLayoutPipelineInputs: false,
+    amenityIds: null,
+    causeId: null,
+    dateRange: { startDate: checkIn, endDate: checkOut },
+    guestCounts: { numberOfAdults: Number(adults) || 1 },
+    numberOfChildren: null,
+    numberOfInfants: null,
+    numberOfPets: null,
+    includeRecentAskPdpQuestions: false,
+    includePdpOffers: false,
+    includeGpBookItFragment: true,
+    includeGpPropertyAvailableRoomsFragment: false,
+    includePdpMigrationBookItCalendarSheetFragment: false,
+    includePdpMigrationBookItFloatingFooterFragment: false,
+    includePdpMigrationBookItNavFragment: false,
+    includePdpMigrationBookItSidebarFragment: false,
+    includePdpMigrationPropertyAvailableRoomsFragment: false,
   };
 
   const extensions = {
