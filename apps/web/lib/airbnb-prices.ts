@@ -13,7 +13,9 @@ const STAYS_PDP_SECTIONS_HASH =
 
 const AVAILABILITY_CALENDAR_HASH =
   process.env.AIRBNB_AVAILABILITY_HASH ||
-  "8f08e03c7bd16fcad3c92a3592c19a8b559a0d0855a84028d1163d4733ed9ade";
+  "f959cc8f218edf71f437ad301eaa2ad974c62c5fbac8cc4a04611813e30d3fbd";
+
+const AVAILABILITY_CALENDAR_OPERATION = "PdpAvailabilityCalendarV2ExcludedQuery";
 
 export type AirbnbCalendarDay = {
   date: string;
@@ -112,26 +114,29 @@ export async function fetchAirbnbAvailabilityCalendar(
   const currency = options.currency ?? SITE_CURRENCY;
 
   const variables = JSON.stringify({
-    request: { count, listingId, month, year },
+    listingId: encodeRoomId(listingId, "DemandStayListing"),
+    input: { count, month, year, returnPropertyLevelCalendarIfApplicable: true },
   });
   const extensions = JSON.stringify({
     persistedQuery: { version: 1, sha256Hash: AVAILABILITY_CALENDAR_HASH },
   });
   const params = new URLSearchParams({
-    operationName: "PdpAvailabilityCalendar",
+    operationName: AVAILABILITY_CALENDAR_OPERATION,
     locale: "es-MX",
     currency,
     variables,
     extensions,
   });
-  const url = `https://www.airbnb.mx/api/v3/PdpAvailabilityCalendar/${AVAILABILITY_CALENDAR_HASH}?${params}`;
+  const url = `https://www.airbnb.mx/api/v3/${AVAILABILITY_CALENDAR_OPERATION}/${AVAILABILITY_CALENDAR_HASH}?${params}`;
   const res = await axios.get(url, {
     headers: airbnbHeaders(),
     timeout: 20000,
   });
 
   const months =
-    res.data?.data?.merlin?.pdpAvailabilityCalendar?.calendarMonths || [];
+    res.data?.data?.node?.pdpAvailabilityCalendar?.calendarMonths ||
+    res.data?.data?.merlin?.pdpAvailabilityCalendar?.calendarMonths ||
+    [];
   const days: AirbnbCalendarDay[] = [];
   for (const calendarMonth of months) {
     for (const day of calendarMonth.days || []) {

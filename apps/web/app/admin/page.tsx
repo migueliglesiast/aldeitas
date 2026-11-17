@@ -6,6 +6,7 @@ import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import NicknameEditor from "@/components/NicknameEditor";
 import AdminSignInForm from "@/components/AdminSignInForm";
 import { Suspense } from "react";
+import PerformanceButtons from "@/components/performance/PerformanceButtons";
 import { OpenTourButton } from "@/components/onboarding/OwnerOnboarding";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,7 @@ export default async function AdminPage() {
           <p className="text-gray-600">Manage your hotels and rooms</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <PerformanceButtons hotels={hotels.map((h) => ({ id: h.id, name: h.name }))} />
           <OpenTourButton className="rounded border border-aldeitas/30 px-4 py-2 text-sm text-aldeitas hover:bg-aldeitas/5" />
           <Link
             href="/admin/calendar"
