@@ -51,10 +51,10 @@ export async function loadHotelPerformance(hotelId: string) {
   });
   const ids = hotel.listings.map((l) => l.id);
   const titles = new Map(hotel.listings.map((l) => [l.id, l.title]));
-  const [bookings, metas, ghosts] = await Promise.all([
+  const [bookings, metas, firstImport] = await Promise.all([
     prisma.booking.findMany({ where: { listingId: { in: ids }, endDate: { gte: from } } }),
     prisma.calendarGuestMeta.findMany({ where: { listingId: { in: ids }, endDate: { gte: from } } }),
-    prisma.ghostBooking.findMany({ where: { hotelId, endDate: { gte: from } } }),
+    prisma.calendarGuestMeta.findFirst({ where: { listingId: { in: ids } }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
   ]);
 
   const rooms: PerfRoom[] = hotel.listings.map((l) => ({
@@ -63,26 +63,27 @@ export async function loadHotelPerformance(hotelId: string) {
     rates: Object.fromEntries(l.dailyPrices.map((p) => [dayKey(p.date), p.priceCents])),
   }));
 
+  // The first Gmail sync back-fills old reservations, so their import time says nothing about when they were booked.
+  const backfillUntil = firstImport ? firstImport.createdAt.getTime() + 86400000 : 0;
+  const mxn = (cents: number | null, currency: string | null) => (currency && currency !== "MXN" ? null : cents);
+  const directKeys = new Set(
+    bookings.filter((b) => b.status !== "CANCELED").map((b) => `${b.listingId}|${dayKey(b.startDate)}|${dayKey(b.endDate)}`)
+  );
+
   const stays: PerfStay[] = [
     ...bookings.map((b) => ({
       id: b.id, listingId: b.listingId, roomTitle: titles.get(b.listingId) ?? "", channel: "aldeitas" as const,
       bookedAt: toDateKey(b.createdAt), start: dayKey(b.startDate), end: dayKey(b.endDate),
-      totalCents: b.totalPriceCents,
+      totalCents: mxn(b.totalPriceCents, b.currency),
       status: b.status === "CONFIRMED" ? ("confirmed" as const) : b.status === "PENDING" && b.authorizedAt ? ("pending" as const) : ("cancelled" as const),
       guestCount: b.guestCount, bookingId: b.id,
     })),
-    ...metas.map((m) => ({
+    ...metas.filter((m) => !directKeys.has(`${m.listingId}|${dayKey(m.startDate)}|${dayKey(m.endDate)}`)).map((m) => ({
       id: m.id, listingId: m.listingId, roomTitle: titles.get(m.listingId) ?? "", channel: "airbnb" as const,
-      bookedAt: toDateKey(m.createdAt), start: dayKey(m.startDate), end: dayKey(m.endDate),
-      totalCents: m.payoutCurrency && m.payoutCurrency !== "MXN" ? null : m.payoutCents,
+      bookedAt: m.createdAt.getTime() < backfillUntil ? null : toDateKey(m.createdAt), start: dayKey(m.startDate), end: dayKey(m.endDate),
+      totalCents: mxn(m.payoutCents, m.payoutCurrency),
       status: m.canceledAt ? ("cancelled" as const) : ("confirmed" as const),
       guestCount: m.guestCount, bookingId: null,
-    })),
-    ...ghosts.map((g) => ({
-      id: g.id, listingId: g.listingId, roomTitle: titles.get(g.listingId) ?? "", channel: "direct" as const,
-      bookedAt: toDateKey(g.createdAt), start: dayKey(g.startDate), end: dayKey(g.endDate),
-      totalCents: g.payoutCurrency && g.payoutCurrency !== "MXN" ? null : g.payoutCents,
-      status: "confirmed" as const, guestCount: g.guestCount, bookingId: null,
     })),
   ];
 
@@ -123,8 +124,8 @@ export async function loadMarket(hotelId: string): Promise<MarketData> {
   });
   const me = hotels.find((h) => h.id === hotelId)!;
   const near = hotels.filter(
-    (h) => h.id !== hotelId && (me.latitude == null || h.latitude == null || h.longitude == null || me.longitude == null ||
-      distanceKm({ lat: me.latitude, lng: me.longitude }, { lat: h.latitude, lng: h.longitude }) <= AREA_RADIUS_KM)
+    (h) => h.id !== hotelId && me.latitude != null && me.longitude != null && h.latitude != null && h.longitude != null &&
+      distanceKm({ lat: me.latitude, lng: me.longitude }, { lat: h.latitude, lng: h.longitude }) <= AREA_RADIUS_KM
   );
 
   const withStrip = async (l: (typeof me.listings)[number]) => {
