@@ -599,6 +599,11 @@ export async function testHotelGmailConnection(hotelId: string) {
 }
 
 // Hosts archive Airbnb mail, and the all-mail folder name is localized ("[Gmail]/Todos"), so find it by flag.
+/** Null or a plain skip summary ("3× …") means the previous run read everything it found. */
+export function lastRunComplete(lastError: string | null | undefined) {
+  return !lastError || /^\d+× /.test(lastError);
+}
+
 async function allMailPath(client: ImapFlow) {
   try {
     const boxes = await client.list();
@@ -736,10 +741,14 @@ export async function syncHotelGmailBookings(
       } else {
         // IMPORTANT: On Gmail, subject searches return SEQUENCE numbers, not UIDs.
         // Fetch them WITHOUT `{ uid: true }`.
-        // Routine runs only need mail since the last sync: searching the whole
+        // Routine runs only need mail since the last clean sync: searching the whole
         // all-mail folder again ate the time budget before new bookings were read.
+        // A failed or partial run leaves gmailSyncLastError, so the next run rescans.
         const searchSince =
-          options.restart !== true && gaps.length === 0 && hotel.gmailSyncLastAt
+          options.restart !== true &&
+          gaps.length === 0 &&
+          hotel.gmailSyncLastAt &&
+          lastRunComplete(hotel.gmailSyncLastError)
             ? new Date(Math.max(since.getTime(), hotel.gmailSyncLastAt.getTime() - 3 * 86_400_000))
             : since;
         const subjectQueries: Array<{
@@ -1311,10 +1320,10 @@ export async function syncHotelGmailBookings(
       gmailSyncOffset: result.nextOffset ?? offset,
       gmailSyncLastError: result.errors.length
         ? result.errors.slice(0, 3).join("; ")
-        : result.updated > 0
-          ? null
-          : result.timedOut
-            ? `Partial sync (time limit). ${summarizeSkipReasons(result.samples) || ""}`.trim()
+        : result.timedOut
+          ? `Partial sync (time limit). ${summarizeSkipReasons(result.samples) || ""}`.trim()
+          : result.updated > 0
+            ? null
             : summarizeSkipReasons(result.samples),
     },
   });
