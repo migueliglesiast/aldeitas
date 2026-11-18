@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
-import { bookingPace, PACE_BUCKETS, type StayRow } from "@/lib/booking-performance";
+import { bookingPace, dayMonth, PACE_BUCKETS, type StayRow } from "@/lib/booking-performance";
 
 type Lang = "es" | "en";
 const L = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
@@ -12,7 +12,7 @@ const HISTORY_DAYS = 400;
 const day = (k: string) => parseISO(`${k}T00:00:00`);
 
 function label(k: string, dateLocale: string) {
-  return day(k).toLocaleDateString(dateLocale, { day: "numeric", month: "short" });
+  return dayMonth(k, dateLocale);
 }
 
 function colTitle(c: { date: string; counts: number[]; total: number }, lang: Lang, dateLocale: string) {
@@ -54,7 +54,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
   const xTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => days[Math.min(days.length - 1, Math.round(f * (days.length - 1)))]?.date).filter(Boolean) as string[];
 
   return (
-    <section className="rounded-lg border bg-white p-4 shadow-sm">
+    <section className="min-w-0 rounded-lg border bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-heading">{L(lang, "Ritmo de reservas", "Booking pace")}</h2>
@@ -65,7 +65,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
             {medianLead != null ? ` · ${L(lang, "anticipación mediana", "median lead")} ${medianLead} d` : ""}
           </p>
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {RANGES.map((r) => (
             <button key={r} type="button" onClick={() => setRange(r)}
               className={`rounded px-2 py-1 text-xs font-semibold ${r === range ? "bg-heading text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
@@ -89,7 +89,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
       </div>
 
       <p className="mb-1 mt-4 text-xs text-slate-500">{L(lang, "Día de reserva → fecha de llegada (cada punto es una reserva; tamaño = noches)", "Booking day → check-in date (each dot is a booking; size = nights)")}</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={L(lang, "Día de reserva contra fecha de llegada", "Booking day vs check-in date")}>
+      <div className="overflow-x-auto"><svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[560px]" role="img" aria-label={L(lang, "Día de reserva contra fecha de llegada", "Booking day vs check-in date")}>
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={PAD} x2={W - 8} y1={py(t)} y2={py(t)} stroke="#e2e8f0" />
@@ -103,7 +103,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
             <title>{`${p.room}: ${L(lang, "reservada", "booked")} ${label(p.booked, dateLocale)} → ${L(lang, "llega", "arrives")} ${label(p.checkIn, dateLocale)} · ${p.nights} ${L(lang, "noches", "nights")} · ${p.lead} d`}</title>
           </circle>
         ))}
-      </svg>
+      </svg></div>
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
         {PACE_BUCKETS.map((b, i) => (
           <span key={b.en} className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: FILL[i] }} />{L(lang, "llega en", "arrives in")} {b[lang]}</span>

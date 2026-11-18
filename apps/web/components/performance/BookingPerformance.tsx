@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { format } from "date-fns";
 import { useState, type ReactNode } from "react";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { formatMoney } from "@/lib/currency";
-import type { Bucket, PerfChannel, PerformanceReport, Rec, StayRow } from "@/lib/booking-performance";
+import { dayMonth, type Bucket, type PerfChannel, type PerformanceReport, type Rec, type StayRow } from "@/lib/booking-performance";
 import type { MarketData } from "@/lib/booking-performance-data";
 import BookingPace from "./BookingPace";
 
@@ -27,7 +28,7 @@ const TONE: Record<Rec["tone"], string> = {
 
 function Card({ title, children, className = "" }: { title?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white p-4 ${className}`}>
+    <section className={`min-w-0 rounded-xl border border-slate-200 bg-white p-4 ${className}`}>
       {title ? <h2 className="mb-3 text-sm font-semibold text-heading">{title}</h2> : null}
       {children}
     </section>
@@ -44,7 +45,7 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
-function Bars({ data, format = (v: number) => String(v), color = "bg-aldeitas" }: { data: Bucket[]; format?: (v: number) => string; color?: string }) {
+function Bars({ data, format = (v: number) => String(v), color = "bg-aldeitas", labelFmt = (l: string) => l }: { data: Bucket[]; format?: (v: number) => string; color?: string; labelFmt?: (l: string) => string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="flex h-36 items-end gap-1">
@@ -52,7 +53,7 @@ function Bars({ data, format = (v: number) => String(v), color = "bg-aldeitas" }
         <div key={d.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
           <span className="text-[10px] text-slate-500">{d.value ? format(d.value) : ""}</span>
           <div className={`w-full rounded-t ${color}`} style={{ height: `${Math.max(2, (d.value / max) * 100)}px` }} />
-          <span className="truncate text-[10px] text-slate-500">{d.label}</span>
+          <span className="truncate text-[10px] text-slate-500">{labelFmt(d.label)}</span>
         </div>
       ))}
     </div>
@@ -83,7 +84,7 @@ function monthLabel(key: string, dateLocale: string) {
 
 function shortDate(k: string | null, dateLocale: string) {
   if (!k) return "—";
-  return new Date(`${k}T00:00:00`).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "2-digit" });
+  return `${dayMonth(k, dateLocale)}-${k.slice(2, 4)}`;
 }
 
 function DeltaBadge({ delta }: { delta: number | null }) {
@@ -201,7 +202,7 @@ export default function BookingPerformance({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title={L(lang, "Cuándo se reserva (por semana)", "When bookings happen (per week)")} className="lg:col-span-2">
-          <Bars data={report.weekly} />
+          <Bars data={report.weekly} labelFmt={(l) => dayMonth(l, dateLocale)} />
         </Card>
         <Card title={L(lang, "Recomendaciones", "Recommendations")}>
           {recs.length ? <Recs recs={recs} lang={lang} /> : <p className="text-sm text-slate-500">{L(lang, "Todo en orden.", "All good.")}</p>}
@@ -264,7 +265,7 @@ function Compare({ label, own, area }: { label: string; own: string; area: strin
 }
 
 function cellTitle(t0: Date, i: number, v: boolean | null, rate: number | null | undefined, lang: Lang, dateLocale: string) {
-  const date = new Date(t0.getTime() + i * 86400000).toLocaleDateString(dateLocale);
+  const date = dayMonth(format(new Date(t0.getTime() + i * 86400000), "yyyy-MM-dd"), dateLocale);
   let state = L(lang, "cerrado", "closed");
   if (v === true) state = L(lang, "ocupado", "booked");
   else if (v === false) state = L(lang, "libre", "free");
@@ -294,7 +295,7 @@ export function MarketPanel({ data }: { data: MarketData }) {
           <div className="space-y-1.5">
             <div className="flex gap-0.5 pl-28 text-[10px] text-slate-400">
               {[0, 30, 60].map((i) => (
-                <span key={i} style={{ flex: 30 }}>{new Date(t0.getTime() + i * 86400000).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })}</span>
+                <span key={i} style={{ flex: 30 }}>{dayMonth(format(new Date(t0.getTime() + i * 86400000), "yyyy-MM-dd"), dateLocale)}</span>
               ))}
             </div>
             {data.rooms.map((r) => (

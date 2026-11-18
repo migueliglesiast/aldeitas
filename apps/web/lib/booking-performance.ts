@@ -147,7 +147,7 @@ export function buildPerformanceReport(input: {
   const weekly: Bucket[] = [];
   for (let w = 11; w >= 0; w--) {
     const start = addDays(t0, -7 * w - 6);
-    weekly.push({ label: format(start, "MM-dd"), value: bookedBetween(7 * w, 7 * w + 7) });
+    weekly.push({ label: key(start), value: bookedBetween(7 * w, 7 * w + 7) });
   }
 
   const leads = live.map((r) => r.leadDays).filter((v): v is number => v != null);
@@ -302,5 +302,12 @@ export function bookingPace(rows: StayRow[], today: string, days: number) {
     points.push({ id: r.id, booked, checkIn: r.start, nights: r.nights, lead, room: r.roomTitle, bucket });
   }
   return { days: [...byDay.values()], points };
+}
+
+/** "17-nov" style date label (easier to read than 11-17). */
+export function dayMonth(k: string, dateLocale: string) {
+  const d = day(k.slice(0, 10));
+  const month = d.toLocaleDateString(dateLocale, { month: "short" }).replace(".", "").toLowerCase();
+  return `${d.getDate()}-${month}`;
 }
 

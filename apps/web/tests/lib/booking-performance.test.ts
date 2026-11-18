@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingPace, buildPerformanceRecs, buildPerformanceReport, nightKeys, type PerfStay, type StayRow } from "@/lib/booking-performance";
+import { bookingPace, dayMonth, buildPerformanceRecs, buildPerformanceReport, nightKeys, type PerfStay, type StayRow } from "@/lib/booking-performance";
 import { firstSampleCheckIn, median, occupancyShare, unavailableNights } from "@/lib/airbnb-market";
 
 const room = (id: string, rate: number) => {
@@ -101,6 +101,13 @@ describe("bookingPace", () => {
     expect(days[6]).toMatchObject({ date: "2026-11-18", total: 2, counts: [1, 0, 0, 1] });
     expect(days[5]).toMatchObject({ date: "2026-11-17", total: 1, counts: [0, 1, 0, 0] });
     expect(points.map((p) => p.lead).sort((a, b) => a - b)).toEqual([2, 23, 103]);
+  });
+});
+
+describe("dayMonth", () => {
+  it("formats dates as 17-nov", () => {
+    expect(dayMonth("2026-11-17", "es-MX")).toBe("17-nov");
+    expect(dayMonth("2026-01-05", "en-US")).toBe("5-jan");
   });
 });
 
