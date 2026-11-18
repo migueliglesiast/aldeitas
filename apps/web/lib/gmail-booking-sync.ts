@@ -545,10 +545,12 @@ async function applyReservationChange(args: {
   return { meta: updated, reason: "changed on Airbnb" };
 }
 
+const NO_MATCHES = "No reservation emails matched rooms/dates.";
+
 function summarizeSkipReasons(
   samples: GmailSyncResult["samples"]
 ): string | null {
-  if (!samples.length) return "No reservation emails matched rooms/dates.";
+  if (!samples.length) return NO_MATCHES;
   const counts = new Map<string, number>();
   for (const sample of samples) {
     const key = sample.reason || "skipped";
@@ -599,9 +601,9 @@ export async function testHotelGmailConnection(hotelId: string) {
 }
 
 // Hosts archive Airbnb mail, and the all-mail folder name is localized ("[Gmail]/Todos"), so find it by flag.
-/** Null or a plain skip summary ("3× …") means the previous run read everything it found. */
+/** Null or a plain skip summary ("3× …", NO_MATCHES) means the previous run read everything it found. */
 export function lastRunComplete(lastError: string | null | undefined) {
-  return !lastError || /^\d+× /.test(lastError);
+  return !lastError || lastError === NO_MATCHES || /^\d+× /.test(lastError);
 }
 
 async function allMailPath(client: ImapFlow) {
