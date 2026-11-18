@@ -61,7 +61,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
           <p className="text-xs text-slate-500">
             {total} {L(lang, "reservas", "bookings")}
             {change != null ? <span className={change >= 0 ? "ml-1 font-semibold text-emerald-700" : "ml-1 font-semibold text-red-600"}>{change >= 0 ? "▲" : "▼"} {Math.abs(change)}%</span> : null}
-            {" "}{L(lang, `vs ${range} días previos`, `vs prior ${range} days`)}
+            {change != null ? ` ${L(lang, "vs período anterior", "vs prior period")}` : ""}
             {medianLead != null ? ` · ${L(lang, "anticipación mediana", "median lead")} ${medianLead} d` : ""}
           </p>
         </div>
