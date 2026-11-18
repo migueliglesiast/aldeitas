@@ -545,10 +545,12 @@ async function applyReservationChange(args: {
   return { meta: updated, reason: "changed on Airbnb" };
 }
 
+const NO_MATCHES = "No reservation emails matched rooms/dates.";
+
 function summarizeSkipReasons(
   samples: GmailSyncResult["samples"]
 ): string | null {
-  if (!samples.length) return "No reservation emails matched rooms/dates.";
+  if (!samples.length) return NO_MATCHES;
   const counts = new Map<string, number>();
   for (const sample of samples) {
     const key = sample.reason || "skipped";
@@ -599,6 +601,11 @@ export async function testHotelGmailConnection(hotelId: string) {
 }
 
 // Hosts archive Airbnb mail, and the all-mail folder name is localized ("[Gmail]/Todos"), so find it by flag.
+/** Null or a plain skip summary ("3× …", NO_MATCHES) means the previous run read everything it found. */
+export function lastRunComplete(lastError: string | null | undefined) {
+  return !lastError || lastError === NO_MATCHES || /^\d+× /.test(lastError);
+}
+
 async function allMailPath(client: ImapFlow) {
   try {
     const boxes = await client.list();
@@ -736,15 +743,25 @@ export async function syncHotelGmailBookings(
       } else {
         // IMPORTANT: On Gmail, subject searches return SEQUENCE numbers, not UIDs.
         // Fetch them WITHOUT `{ uid: true }`.
+        // Routine runs only need mail since the last clean sync: searching the whole
+        // all-mail folder again ate the time budget before new bookings were read.
+        // A failed or partial run leaves gmailSyncLastError, so the next run rescans.
+        const searchSince =
+          options.restart !== true &&
+          gaps.length === 0 &&
+          hotel.gmailSyncLastAt &&
+          lastRunComplete(hotel.gmailSyncLastError)
+            ? new Date(Math.max(since.getTime(), hotel.gmailSyncLastAt.getTime() - 3 * 86_400_000))
+            : since;
         const subjectQueries: Array<{
           since: Date;
           from: string;
           subject: string;
         }> = [
-          { since, from: "airbnb.com", subject: "Reservation confirmed" },
-          { since, from: "airbnb.mx", subject: "Reservation confirmed" },
-          { since, from: "airbnb.com", subject: "confirmada" },
-          { since, from: "airbnb.mx", subject: "confirmada" },
+          { since: searchSince, from: "airbnb.com", subject: "Reservation confirmed" },
+          { since: searchSince, from: "airbnb.mx", subject: "Reservation confirmed" },
+          { since: searchSince, from: "airbnb.com", subject: "confirmada" },
+          { since: searchSince, from: "airbnb.mx", subject: "confirmada" },
         ];
         for (const from of ["airbnb.com", "airbnb.mx"]) {
           for (const subject of [
@@ -755,7 +772,7 @@ export async function syncHotelGmailBookings(
             "alteraci",
             "change was accepted",
           ]) {
-            subjectQueries.push({ since, from, subject });
+            subjectQueries.push({ since: searchSince, from, subject });
           }
         }
         // Also hunt directly for gap check-in dates in the subject line.
@@ -764,7 +781,7 @@ export async function syncHotelGmailBookings(
           // "aug 3" → "Aug 3" for subject search
           const pretty = label.replace(/^\w/, (c) => c.toUpperCase());
           subjectQueries.push({
-            since,
+            since: searchSince,
             from: "airbnb.com",
             subject: `arrives ${pretty}`,
           });
@@ -1305,10 +1322,10 @@ export async function syncHotelGmailBookings(
       gmailSyncOffset: result.nextOffset ?? offset,
       gmailSyncLastError: result.errors.length
         ? result.errors.slice(0, 3).join("; ")
-        : result.updated > 0
-          ? null
-          : result.timedOut
-            ? `Partial sync (time limit). ${summarizeSkipReasons(result.samples) || ""}`.trim()
+        : result.timedOut
+          ? `Partial sync (time limit). ${summarizeSkipReasons(result.samples) || ""}`.trim()
+          : result.updated > 0
+            ? null
             : summarizeSkipReasons(result.samples),
     },
   });

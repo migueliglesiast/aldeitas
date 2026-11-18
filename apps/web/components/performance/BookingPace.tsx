@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { bookingPace, dayMonth, PACE_BUCKETS, type StayRow } from "@/lib/booking-performance";
 
@@ -22,6 +22,12 @@ function colTitle(c: { date: string; counts: number[]; total: number }, lang: La
 
 export default function BookingPace({ rows, today, lang, dateLocale }: { rows: StayRow[]; today: string; lang: Lang; dateLocale: string }) {
   const [range, setRange] = useState(90);
+  const scroller = useRef<HTMLDivElement>(null);
+  // On phones the scatter scrolls sideways; start at the most recent bookings.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [range]);
   const { days, points } = useMemo(() => bookingPace(rows, today, range), [rows, today, range]);
   const prev = useMemo(() => bookingPace(rows, format(addDays(day(today), -range), "yyyy-MM-dd"), range).points.length, [rows, today, range]);
 
@@ -89,7 +95,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
       </div>
 
       <p className="mb-1 mt-4 text-xs text-slate-500">{L(lang, "Día de reserva → fecha de llegada (cada punto es una reserva; tamaño = noches)", "Booking day → check-in date (each dot is a booking; size = nights)")}</p>
-      <div className="overflow-x-auto"><svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[560px]" role="img" aria-label={L(lang, "Día de reserva contra fecha de llegada", "Booking day vs check-in date")}>
+      <div ref={scroller} className="overflow-x-auto"><svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[560px]" role="img" aria-label={L(lang, "Día de reserva contra fecha de llegada", "Booking day vs check-in date")}>
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={PAD} x2={W - 8} y1={py(t)} y2={py(t)} stroke="#e2e8f0" />
