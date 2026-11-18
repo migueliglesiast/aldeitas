@@ -736,15 +736,21 @@ export async function syncHotelGmailBookings(
       } else {
         // IMPORTANT: On Gmail, subject searches return SEQUENCE numbers, not UIDs.
         // Fetch them WITHOUT `{ uid: true }`.
+        // Routine runs only need mail since the last sync: searching the whole
+        // all-mail folder again ate the time budget before new bookings were read.
+        const searchSince =
+          options.restart !== true && gaps.length === 0 && hotel.gmailSyncLastAt
+            ? new Date(Math.max(since.getTime(), hotel.gmailSyncLastAt.getTime() - 3 * 86_400_000))
+            : since;
         const subjectQueries: Array<{
           since: Date;
           from: string;
           subject: string;
         }> = [
-          { since, from: "airbnb.com", subject: "Reservation confirmed" },
-          { since, from: "airbnb.mx", subject: "Reservation confirmed" },
-          { since, from: "airbnb.com", subject: "confirmada" },
-          { since, from: "airbnb.mx", subject: "confirmada" },
+          { since: searchSince, from: "airbnb.com", subject: "Reservation confirmed" },
+          { since: searchSince, from: "airbnb.mx", subject: "Reservation confirmed" },
+          { since: searchSince, from: "airbnb.com", subject: "confirmada" },
+          { since: searchSince, from: "airbnb.mx", subject: "confirmada" },
         ];
         for (const from of ["airbnb.com", "airbnb.mx"]) {
           for (const subject of [
@@ -755,7 +761,7 @@ export async function syncHotelGmailBookings(
             "alteraci",
             "change was accepted",
           ]) {
-            subjectQueries.push({ since, from, subject });
+            subjectQueries.push({ since: searchSince, from, subject });
           }
         }
         // Also hunt directly for gap check-in dates in the subject line.
@@ -764,7 +770,7 @@ export async function syncHotelGmailBookings(
           // "aug 3" → "Aug 3" for subject search
           const pretty = label.replace(/^\w/, (c) => c.toUpperCase());
           subjectQueries.push({
-            since,
+            since: searchSince,
             from: "airbnb.com",
             subject: `arrives ${pretty}`,
           });
