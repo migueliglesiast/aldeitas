@@ -6,6 +6,7 @@ import { useLocale } from "@/lib/i18n/locale-context";
 import { formatMoney } from "@/lib/currency";
 import type { Bucket, PerfChannel, PerformanceReport, Rec, StayRow } from "@/lib/booking-performance";
 import type { MarketData } from "@/lib/booking-performance-data";
+import BookingPace from "./BookingPace";
 
 type Lang = "es" | "en";
 const L = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
@@ -195,6 +196,8 @@ export default function BookingPerformance({
           hint={k.avgNights == null ? undefined : `${k.avgNights} ${L(lang, "noches por estancia", "nights per stay")}`} />
         <Kpi label={L(lang, "Precio vs habitual", "Price vs usual")} value={k.avgDeltaPct == null ? "—" : `${k.avgDeltaPct > 0 ? "+" : ""}${k.avgDeltaPct}%`} />
       </div>
+
+      <BookingPace rows={report.rows} today={report.today} lang={lang} dateLocale={dateLocale} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title={L(lang, "Cuándo se reserva (por semana)", "When bookings happen (per week)")} className="lg:col-span-2">

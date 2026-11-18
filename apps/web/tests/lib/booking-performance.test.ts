@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPerformanceRecs, buildPerformanceReport, nightKeys, type PerfStay } from "@/lib/booking-performance";
+import { bookingPace, buildPerformanceRecs, buildPerformanceReport, nightKeys, type PerfStay, type StayRow } from "@/lib/booking-performance";
 import { firstSampleCheckIn, median, occupancyShare, unavailableNights } from "@/lib/airbnb-market";
 
 const room = (id: string, rate: number) => {
@@ -82,3 +82,25 @@ describe("airbnb market helpers", () => {
     expect(nightKeys("2026-12-30", "2027-01-02")).toEqual(["2026-12-30", "2026-12-31", "2027-01-01"]);
   });
 });
+
+describe("bookingPace", () => {
+  const row = (id: string, bookedAt: string | null, start: string, extra: Partial<StayRow> = {}): StayRow => ({
+    id, listingId: "a", roomTitle: "A", channel: "airbnb", bookedAt, start, end: start, totalCents: null, status: "confirmed",
+    guestCount: null, bookingId: null, nights: 2, leadDays: null, paidNightlyCents: null, usualNightlyCents: null, deltaPct: null, ...extra,
+  });
+  it("stacks bookings by booking day and lead bucket, skipping cancelled, estimated and out-of-range rows", () => {
+    const { days, points } = bookingPace([
+      row("1", "2026-11-18", "2026-11-20"),
+      row("2", "2026-11-18", "2027-03-01"),
+      row("3", "2026-11-17", "2026-12-10"),
+      row("4", "2026-11-18", "2026-11-19", { status: "cancelled" }),
+      row("5", null, "2026-11-25", { estimated: true }),
+      row("6", "2026-10-01", "2026-11-25"),
+    ], "2026-11-18", 7);
+    expect(days).toHaveLength(7);
+    expect(days[6]).toMatchObject({ date: "2026-11-18", total: 2, counts: [1, 0, 0, 1] });
+    expect(days[5]).toMatchObject({ date: "2026-11-17", total: 1, counts: [0, 1, 0, 0] });
+    expect(points.map((p) => p.lead).sort((a, b) => a - b)).toEqual([2, 23, 103]);
+  });
+});
+
