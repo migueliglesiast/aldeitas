@@ -8,6 +8,7 @@ type Lang = "es" | "en";
 const L = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
 const FILL = ["#f43f5e", "#f59e0b", "#0ea5e9", "#0f766e"];
 const RANGES = [30, 90, 180, 365];
+const HISTORY_DAYS = 400;
 const day = (k: string) => parseISO(`${k}T00:00:00`);
 
 function label(k: string, dateLocale: string) {
@@ -35,15 +36,16 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
   }, [days, step]);
   const maxCol = Math.max(1, ...cols.map((c) => c.total));
   const total = points.length;
-  const change = prev ? Math.round(((total - prev) / prev) * 100) : null;
+  // The report loads ~400 days of stays, so only compare when the prior window fits.
+  const change = prev && range * 2 <= HISTORY_DAYS ? Math.round(((total - prev) / prev) * 100) : null;
   const leads = points.map((p) => p.lead).sort((a, b) => a - b);
-  const medianLead = leads.length ? leads[Math.floor(leads.length / 2)] : null;
+  const mid = Math.floor(leads.length / 2);
+  const medianLead = leads.length ? (leads.length % 2 ? leads[mid] : Math.round((leads[mid - 1] + leads[mid]) / 2)) : null;
 
   const W = 800, H = 260, PAD = 34;
   const x0 = day(days[0]?.date ?? today);
   const yMin = x0;
-  const yMax = addDays(day(today), 365);
-  const checkIns = points.map((p) => day(p.checkIn)).filter((d) => d <= yMax);
+  const checkIns = points.map((p) => day(p.checkIn));
   const yTop = checkIns.length ? new Date(Math.max(...checkIns.map((d) => +d), +addDays(day(today), 30))) : addDays(day(today), 90);
   const ySpan = Math.max(1, differenceInCalendarDays(yTop, yMin));
   const px = (k: string) => PAD + (differenceInCalendarDays(day(k), x0) / Math.max(1, range - 1)) * (W - PAD - 8);
@@ -96,7 +98,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
         ))}
         {xTicks.map((t) => <text key={t} x={px(t)} y={H - PAD + 14} fontSize="9" textAnchor="middle" fill="#64748b">{label(t, dateLocale)}</text>)}
         <line x1={px(days[0]?.date ?? today)} y1={py(days[0]?.date ?? today)} x2={px(today)} y2={py(today)} stroke="#94a3b8" strokeDasharray="4 3" />
-        {points.filter((p) => day(p.checkIn) <= yTop).map((p) => (
+        {points.map((p) => (
           <circle key={p.id} cx={px(p.booked)} cy={py(p.checkIn)} r={2 + Math.min(p.nights, 14) / 3} fill={FILL[p.bucket]} fillOpacity={0.65} stroke="white" strokeWidth={0.5}>
             <title>{`${p.room}: ${L(lang, "reservada", "booked")} ${label(p.booked, dateLocale)} → ${L(lang, "llega", "arrives")} ${label(p.checkIn, dateLocale)} · ${p.nights} ${L(lang, "noches", "nights")} · ${p.lead} d`}</title>
           </circle>
