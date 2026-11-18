@@ -147,7 +147,7 @@ export function buildPerformanceReport(input: {
   const weekly: Bucket[] = [];
   for (let w = 11; w >= 0; w--) {
     const start = addDays(t0, -7 * w - 6);
-    weekly.push({ label: format(start, "MM-dd"), value: bookedBetween(7 * w, 7 * w + 7) });
+    weekly.push({ label: key(start), value: bookedBetween(7 * w, 7 * w + 7) });
   }
 
   const leads = live.map((r) => r.leadDays).filter((v): v is number => v != null);
@@ -266,3 +266,48 @@ export function buildPerformanceRecs(
   }
   return recs;
 }
+
+export const PACE_BUCKETS = [
+  { max: 7, es: "≤7 días", en: "≤7 days" },
+  { max: 30, es: "8–30 días", en: "8–30 days" },
+  { max: 90, es: "31–90 días", en: "31–90 days" },
+  { max: Infinity, es: "90+ días", en: "90+ days" },
+] as const;
+
+export type PacePoint = { id: string; booked: string; checkIn: string; nights: number; lead: number; room: string; bucket: number };
+export type PaceDay = { date: string; counts: number[]; total: number };
+
+export function paceBucket(lead: number) {
+  return PACE_BUCKETS.findIndex((b) => lead <= b.max);
+}
+
+/** Bookings per booking day (stacked by how far ahead the guest arrives) plus booked→check-in points. */
+export function bookingPace(rows: StayRow[], today: string, days: number) {
+  const first = key(addDays(day(today), -(days - 1)));
+  const byDay = new Map<string, PaceDay>();
+  for (let i = 0; i < days; i++) {
+    const d = key(addDays(day(first), i));
+    byDay.set(d, { date: d, counts: PACE_BUCKETS.map(() => 0), total: 0 });
+  }
+  const points: PacePoint[] = [];
+  for (const r of rows) {
+    if (r.status === "cancelled" || r.estimated || !r.bookedAt) continue;
+    const booked = r.bookedAt.slice(0, 10);
+    const slot = byDay.get(booked);
+    if (!slot) continue;
+    const lead = Math.max(0, differenceInCalendarDays(day(r.start), day(booked)));
+    const bucket = paceBucket(lead);
+    slot.counts[bucket] += 1;
+    slot.total += 1;
+    points.push({ id: r.id, booked, checkIn: r.start, nights: r.nights, lead, room: r.roomTitle, bucket });
+  }
+  return { days: [...byDay.values()], points };
+}
+
+/** "17-nov" style date label (easier to read than 11-17). */
+export function dayMonth(k: string, dateLocale: string) {
+  const d = day(k.slice(0, 10));
+  const month = d.toLocaleDateString(dateLocale, { month: "short" }).replace(".", "").toLowerCase();
+  return `${d.getDate()}-${month}`;
+}
+
