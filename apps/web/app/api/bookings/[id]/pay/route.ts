@@ -10,8 +10,8 @@ import { recordBookingEvent } from "@/lib/booking-events";
 import { getHotelMercadoPagoMerchant, marketplaceFeeCents } from "@/lib/mercadopago-merchant";
 import { isMercadoPagoConfigured } from "@/lib/payment-providers/config";
 import { createMercadoPagoCardAuthorization } from "@/lib/payment-providers";
-import {
 import { expireStaleUnpaidBookings } from "@/lib/booking-blocks";
+import {
   guestPaymentErrorMessage,
   MercadoPagoPaymentError,
   resolveCardPaymentMethod,
