@@ -11,6 +11,7 @@ import { getHotelMercadoPagoMerchant, marketplaceFeeCents } from "@/lib/mercadop
 import { isMercadoPagoConfigured } from "@/lib/payment-providers/config";
 import { createMercadoPagoCardAuthorization } from "@/lib/payment-providers";
 import {
+import { expireStaleUnpaidBookings } from "@/lib/booking-blocks";
   guestPaymentErrorMessage,
   MercadoPagoPaymentError,
   resolveCardPaymentMethod,
@@ -71,6 +72,12 @@ export async function POST(
 
   if (booking.status !== "PENDING" || booking.authorizedAt) {
     return NextResponse.json({ error: "Booking is not awaiting payment" }, { status: 409 });
+  }
+
+  // The reconcile sweep may run up to 30 min late; never take payment for an expired checkout.
+  if (booking.pendingExpiresAt && booking.pendingExpiresAt < new Date()) {
+    await expireStaleUnpaidBookings(booking.listingId);
+    return NextResponse.json({ error: "Checkout expired" }, { status: 409 });
   }
 
   await recordBookingEvent(
