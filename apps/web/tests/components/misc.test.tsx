@@ -8,6 +8,12 @@ import ListingGrid from "@/components/ListingGrid";
 import ParallaxBackground from "@/components/ParallaxBackground";
 import { HotelProvider, useHotel } from "@/lib/hotel-context";
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  usePathname: () => "/",
+}));
+
 vi.mock("next/image", () => ({
   default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
 }));
@@ -30,7 +36,7 @@ describe("AuthButton", () => {
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Hosting portal" })).toHaveAttribute("href", "/sign-in?next=%2Fadmin");
   });
 
   it("shows a dashboard shortcut and an account menu with sign out for signed-in users", async () => {
@@ -43,7 +49,9 @@ describe("AuthButton", () => {
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Open host dashboard" })).toHaveAttribute("href", "/admin");
+    await userEvent.click(await screen.findByRole("button", { name: "Open host dashboard" }));
+    expect(push).toHaveBeenCalledWith("/admin");
+    expect(window.localStorage.getItem("aldeitas-mode")).toBe("host");
     expect(screen.queryByText("Hi, owner")).not.toBeInTheDocument();
 
     const account = screen.getByRole("button", { name: "Account menu for owner" });
@@ -59,6 +67,22 @@ describe("AuthButton", () => {
       expect(fetchMock).toHaveBeenCalledWith("/api/auth/sign-out", { method: "POST" })
     );
     expect(reload).toHaveBeenCalled();
+  });
+
+  it("shows a Visitor button in host mode that returns to the guest site", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ user: { id: "u1", username: "owner", email: "o@e.com" } }))
+    );
+    window.localStorage.setItem("aldeitas-mode", "host");
+
+    render(<AuthButton hostMode />);
+
+    const visitor = await screen.findByRole("button", { name: "Back to the guest site" });
+    expect(visitor).toHaveTextContent("Visitor");
+    await userEvent.click(visitor);
+    expect(push).toHaveBeenCalledWith("/");
+    expect(window.localStorage.getItem("aldeitas-mode")).toBe("guest");
   });
 
   it("closes the account menu on Escape", async () => {
@@ -104,7 +128,7 @@ describe("AuthButton", () => {
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Hosting portal" })).toHaveAttribute("href", "/sign-in?next=%2Fadmin");
   });
 
   it("treats a network failure as signed out", async () => {
@@ -112,7 +136,7 @@ describe("AuthButton", () => {
 
     render(<AuthButton />);
 
-    expect(await screen.findByRole("link", { name: "Hosting portal" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Hosting portal" })).toHaveAttribute("href", "/sign-in?next=%2Fadmin");
   });
 });
 
