@@ -17,7 +17,9 @@ function addDaysKey(dateKey: string, days: number) {
   return localDateKey(date);
 }
 
-export default function SearchForm() {
+type SearchFormProps = { lockedLocation?: string };
+
+export default function SearchForm({ lockedLocation }: SearchFormProps = {}) {
   const { searchParams, setSearchParams, setAvailableListingIds } = useHotel();
   const { t, dateLocale } = useLocale();
   const [checkIn, setCheckIn] = useState<string>(() => searchParams?.checkIn || "");
@@ -140,6 +142,24 @@ export default function SearchForm() {
 
   return (
     <form onSubmit={handleSearch} className="w-full">
+      {lockedLocation ? (
+        <div className="flex justify-center sm:justify-start sm:pl-10">
+          <div
+            title={t("searchLocationFixed")}
+            className="relative z-10 -mb-px inline-flex cursor-default select-none items-center gap-2 rounded-t-2xl border border-b-0 border-line/80 bg-card px-4 pb-2 pt-2.5"
+          >
+            <svg aria-hidden className="h-4 w-4 text-aldeitas" viewBox="0 0 24 24" fill="currentColor">
+              <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm font-semibold tracking-tight text-heading">{lockedLocation}</span>
+            <span className="sr-only">{t("searchLocationFixed")}</span>
+            <svg aria-hidden className="h-3 w-3 text-muted/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V7a4 4 0 018 0v4" />
+            </svg>
+          </div>
+        </div>
+      ) : null}
       <div
         ref={datePickerRef}
         className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 bg-card rounded-3xl sm:rounded-full shadow-pill hover:shadow-card transition-shadow border border-line/80 overflow-visible sm:overflow-visible"
