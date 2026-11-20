@@ -12,6 +12,7 @@ import { createProviderCheckout } from "@/lib/payment-providers";
 import { AddonError, hotelChargedCents, priceAddonSelection } from "@/lib/addons";
 import { recordBookingEvent } from "@/lib/booking-events";
 import { findActiveOffer, offerAddonIds, offerDateKeys, offerPrice } from "@/lib/booking-offers";
+import { wakeReconcile } from "@/lib/reconcile-wake";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-06-20",
@@ -143,6 +144,7 @@ async function handleBooking(req: NextRequest) {
       ...(addons.length > 0 ? { addons: { create: addons } } : {}),
     },
   });
+  wakeReconcile();
 
   await recordBookingEvent(
     booking.id,

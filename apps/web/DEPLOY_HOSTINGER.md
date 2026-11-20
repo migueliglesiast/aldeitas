@@ -145,7 +145,7 @@ Do **not** set `MERCADOPAGO_TEST_PAYER_EMAIL` in production.
 
 ## 4. Booking reconcile (required)
 
-When `BOOKING_RECONCILE_SECRET` is set, `app.js` calls `POST /api/bookings/reconcile` in-process every `BOOKING_RECONCILE_INTERVAL_MINUTES` (default 5), which captures or releases authorized Mercado Pago holds and expires abandoned checkouts. No external cron is needed; [cron-job.org](https://cron-job.org) remains an optional backup:
+When `BOOKING_RECONCILE_SECRET` is set, `app.js` calls `POST /api/bookings/reconcile` in-process every `BOOKING_RECONCILE_INTERVAL_MINUTES` (default 5) while checkouts or held payments are open, and every `BOOKING_RECONCILE_IDLE_MINUTES` (default 30) otherwise so the Neon database can sleep. It captures or releases authorized Mercado Pago holds and expires abandoned checkouts. No external cron is needed; [cron-job.org](https://cron-job.org) remains an optional backup:
 
 ```http
 POST https://yourdomain.com/api/bookings/reconcile?secret=YOUR_BOOKING_RECONCILE_SECRET
@@ -220,7 +220,7 @@ If Hostinger cannot set root directory to `apps/web`:
 - [ ] Neon `DATABASE_URL` + `DIRECT_URL` in hPanel
 - [ ] `NEXT_PUBLIC_SITE_URL` = production HTTPS → redeploy
 - [ ] Mercado Pago production keys
-- [ ] `BOOKING_RECONCILE_SECRET` (app.js runs reconcile every 5 min)
+- [ ] `BOOKING_RECONCILE_SECRET` (app.js runs reconcile every 5 min while checkouts are open, else every 30 min)
 - [ ] Airbnb price sync cron every 1–2 hours (`/api/cron/sync-airbnb-prices`)
 - [ ] MP webhook → `https://yourdomain.com/api/mercadopago/webhook`, event **Order (Mercado Pago)**, secret in `MERCADOPAGO_WEBHOOK_SECRET`
 - [ ] Test booking end-to-end

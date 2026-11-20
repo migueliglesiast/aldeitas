@@ -98,13 +98,36 @@ function scheduleBookingReconcile() {
 
   const url = `${schedulerBaseUrl()}/api/bookings/reconcile`;
   const intervalMs = minutes * 60 * 1000;
-  const run = () =>
-    claimJobSlot("booking-reconcile", intervalMs) &&
+  // Every query wakes the Neon database (free plan has limited compute hours), so
+  // with no open checkouts or held payments only check every idle interval.
+  const idleMs = Number(process.env.BOOKING_RECONCILE_IDLE_MINUTES || 30) * 60 * 1000;
+  const idleFile = path.join(jobDir, "reconcile-idle");
+  const wakeFile = path.join(jobDir, "reconcile-wake");
+  const mtime = (file) => {
+    try {
+      return fs.statSync(file).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
+  const run = () => {
+    const recentCheckout = Date.now() - mtime(wakeFile) < 60 * 60 * 1000;
+    const idleAt = mtime(idleFile);
+    if (!recentCheckout && idleAt && Date.now() - idleAt < idleMs) return;
+    if (!claimJobSlot("booking-reconcile", intervalMs)) return;
     fetch(url, { method: "POST", headers: { "x-booking-reconcile-secret": secret } })
-      .then((res) => {
-        if (!res.ok) console.error("[aldeitas] booking reconcile returned %s", res.status);
+      .then(async (res) => {
+        if (!res.ok) {
+          console.error("[aldeitas] booking reconcile returned %s", res.status);
+          return;
+        }
+        const body = await res.json().catch(() => null);
+        const busy = !body || body.expiredUnpaid > 0 || (body.results || []).length > 0;
+        if (busy) fs.rmSync(idleFile, { force: true });
+        else fs.writeFileSync(idleFile, String(Date.now()));
       })
       .catch((error) => logError("booking reconcile", error));
+  };
 
   setInterval(run, intervalMs).unref();
   console.log("[aldeitas] booking reconcile every %s min", minutes);
@@ -153,7 +176,7 @@ function scheduleAirbnbReviewSync() {
 function scheduleGmailBookingSync() {
   // The Gmail cron route checks AIRBNB_PRICE_SYNC_SECRET first.
   const secret = process.env.AIRBNB_PRICE_SYNC_SECRET || process.env.BOOKING_RECONCILE_SECRET;
-  const minutes = Number(process.env.GMAIL_SYNC_INTERVAL_MINUTES || 20);
+  const minutes = Number(process.env.GMAIL_SYNC_INTERVAL_MINUTES || 60);
   if (!secret || !Number.isFinite(minutes) || minutes <= 0) return;
 
   // Each call syncs the connected hotel that waited longest.
