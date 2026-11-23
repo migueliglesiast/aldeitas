@@ -18,14 +18,15 @@ const ARRIVES: Array<[string, string]> = [
 ];
 
 function monthName(key: string, dateLocale: string) {
-  return day(`${key}-01`).toLocaleDateString(dateLocale, { month: "long", year: "numeric" });
+  const s = day(`${key}-01`).toLocaleDateString(dateLocale, { month: "long", year: "numeric" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function HBar({ label, value, max, total, color }: { label: string; value: number; max: number; total: number; color: string }) {
   return (
     <li className="text-sm">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="capitalize text-slate-700">{label}</span>
+        <span className="text-slate-700">{label}</span>
         <span className="shrink-0 font-semibold text-heading">
           {value} <span className="font-normal text-slate-500">({total ? Math.round((value / total) * 100) : 0}%)</span>
         </span>
@@ -54,6 +55,8 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
     return out;
   }, [days, step]);
   const maxCol = Math.max(1, ...cols.map((c) => c.total));
+  // Label every bar when few, otherwise every few counting back from the latest, so phone labels don't collide.
+  const labelEvery = cols.length <= 6 ? 1 : Math.ceil(cols.length / 5);
   const total = points.length;
   // The report loads ~400 days of stays, so only compare when the prior window fits.
   const change = prev && range * 2 <= HISTORY_DAYS ? Math.round(((total - prev) / prev) * 100) : null;
@@ -100,7 +103,7 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
           <p>{L(lang, "La mitad de los huéspedes reserva", "Half of guests book")} <strong>{medianLead} {L(lang, medianLead === 1 ? "día" : "días", medianLead === 1 ? "day" : "days")}</strong> {L(lang, "o menos antes de llegar.", "or less before arriving.")}</p>
         ) : null}
         {topMonth ? (
-          <p>{L(lang, "El mes con más llegadas reservadas es", "The month with the most arrivals booked is")} <strong className="capitalize">{monthName(topMonth[0], dateLocale)}</strong> ({topMonth[1]}).</p>
+          <p>{L(lang, "El mes con más llegadas reservadas es", "The month with the most arrivals booked is")} <strong>{monthName(topMonth[0], dateLocale)}</strong> ({topMonth[1]}).</p>
         ) : null}
       </div>
 
@@ -115,8 +118,8 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
       </div>
       <div className="mt-1 flex gap-1 border-t border-slate-200 pt-1 sm:gap-2">
         {cols.map((c, i) => (
-          <span key={c.date} className="min-w-0 flex-1 text-center text-xs text-slate-600">
-            {cols.length <= 8 || i % Math.ceil(cols.length / 6) === 0 || i === cols.length - 1 ? dayMonth(c.date, dateLocale) : ""}
+          <span key={c.date} className="min-w-0 flex-1 whitespace-nowrap text-center text-xs text-slate-600">
+            {(cols.length - 1 - i) % labelEvery === 0 ? dayMonth(c.date, dateLocale) : ""}
           </span>
         ))}
       </div>
