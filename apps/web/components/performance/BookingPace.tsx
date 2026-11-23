@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
+import { useMemo, useState } from "react";
+import { addDays, format, parseISO } from "date-fns";
 import { bookingPace, dayMonth, PACE_BUCKETS, type StayRow } from "@/lib/booking-performance";
 
 type Lang = "es" | "en";
@@ -10,33 +10,46 @@ const FILL = ["#f43f5e", "#f59e0b", "#0ea5e9", "#0f766e"];
 const RANGES = [30, 90, 180, 365];
 const HISTORY_DAYS = 400;
 const day = (k: string) => parseISO(`${k}T00:00:00`);
+const ARRIVES: Array<[string, string]> = [
+  ["Llegan en 7 días o menos", "Arrive within 7 days"],
+  ["Llegan en 8 a 30 días", "Arrive in 8–30 days"],
+  ["Llegan en 31 a 90 días", "Arrive in 31–90 days"],
+  ["Llegan en más de 90 días", "Arrive in more than 90 days"],
+];
 
-function label(k: string, dateLocale: string) {
-  return dayMonth(k, dateLocale);
+function monthName(key: string, dateLocale: string) {
+  return day(`${key}-01`).toLocaleDateString(dateLocale, { month: "long", year: "numeric" });
 }
 
-function colTitle(c: { date: string; counts: number[]; total: number }, lang: Lang, dateLocale: string) {
-  const parts = PACE_BUCKETS.map((b, i) => b[lang] + " " + c.counts[i]).join(" · ");
-  return `${label(c.date, dateLocale)}: ${c.total} · ${parts}`;
+function HBar({ label, value, max, total, color }: { label: string; value: number; max: number; total: number; color: string }) {
+  return (
+    <li className="text-sm">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="capitalize text-slate-700">{label}</span>
+        <span className="shrink-0 font-semibold text-heading">
+          {value} <span className="font-normal text-slate-500">({total ? Math.round((value / total) * 100) : 0}%)</span>
+        </span>
+      </div>
+      <div className="mt-1 h-3 rounded bg-slate-100">
+        <div className="h-3 rounded" style={{ width: `${(value / max) * 100}%`, background: color }} />
+      </div>
+    </li>
+  );
 }
 
 export default function BookingPace({ rows, today, lang, dateLocale }: { rows: StayRow[]; today: string; lang: Lang; dateLocale: string }) {
   const [range, setRange] = useState(90);
-  const scroller = useRef<HTMLDivElement>(null);
-  // On phones the scatter scrolls sideways; start at the most recent bookings.
-  useEffect(() => {
-    const el = scroller.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, [range]);
   const { days, points } = useMemo(() => bookingPace(rows, today, range), [rows, today, range]);
   const prev = useMemo(() => bookingPace(rows, format(addDays(day(today), -range), "yyyy-MM-dd"), range).points.length, [rows, today, range]);
 
-  const step = range > 120 ? 7 : 1;
+  // Few, wide bars so every one can carry its number and date.
+  const step = range <= 30 ? 3 : range <= 90 ? 7 : range <= 180 ? 14 : 30;
   const cols = useMemo(() => {
-    const out: Array<{ date: string; counts: number[]; total: number }> = [];
-    for (let i = 0; i < days.length; i += step) {
-      const chunk = days.slice(i, i + step);
-      out.push({ date: chunk[0].date, counts: PACE_BUCKETS.map((_, b) => chunk.reduce((a, d) => a + d.counts[b], 0)), total: chunk.reduce((a, d) => a + d.total, 0) });
+    const out: Array<{ date: string; end: string; total: number }> = [];
+    // Only whole periods, so a short leftover at the start doesn't look like a slow week.
+    for (let i = days.length; i >= step; i -= step) {
+      const chunk = days.slice(i - step, i);
+      out.unshift({ date: chunk[0].date, end: chunk[chunk.length - 1].date, total: chunk.reduce((a, d) => a + d.total, 0) });
     }
     return out;
   }, [days, step]);
@@ -48,73 +61,87 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
   const mid = Math.floor(leads.length / 2);
   const medianLead = leads.length ? (leads.length % 2 ? leads[mid] : Math.round((leads[mid - 1] + leads[mid]) / 2)) : null;
 
-  const W = 800, H = 260, PAD = 34;
-  const x0 = day(days[0]?.date ?? today);
-  const yMin = x0;
-  const checkIns = points.map((p) => day(p.checkIn));
-  const yTop = checkIns.length ? new Date(Math.max(...checkIns.map((d) => +d), +addDays(day(today), 30))) : addDays(day(today), 90);
-  const ySpan = Math.max(1, differenceInCalendarDays(yTop, yMin));
-  const px = (k: string) => PAD + (differenceInCalendarDays(day(k), x0) / Math.max(1, range - 1)) * (W - PAD - 8);
-  const py = (k: string) => H - PAD - (differenceInCalendarDays(day(k), yMin) / ySpan) * (H - PAD - 8);
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => format(addDays(yMin, Math.round(f * ySpan)), "yyyy-MM-dd"));
-  const xTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => days[Math.min(days.length - 1, Math.round(f * (days.length - 1)))]?.date).filter(Boolean) as string[];
+  const byBucket = PACE_BUCKETS.map((_, b) => points.filter((p) => p.bucket === b).length);
+  const byMonth = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of points) m.set(p.checkIn.slice(0, 7), (m.get(p.checkIn.slice(0, 7)) ?? 0) + 1);
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [points]);
+  const topMonth = byMonth.reduce<[string, number] | null>((best, e) => (!best || e[1] > best[1] ? e : best), null);
+  const unit = step === 3 ? L(lang, "cada 3 días", "every 3 days") : step === 7 ? L(lang, "por semana", "per week") : step === 14 ? L(lang, "cada 2 semanas", "every 2 weeks") : L(lang, "cada 30 días", "every 30 days");
+  const rangeLabel = (r: number) => (r === 365 ? L(lang, "1 año", "1 year") : `${r} ${L(lang, "días", "days")}`);
 
   return (
-    <section className="min-w-0 rounded-lg border bg-white p-4 shadow-sm">
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-heading">{L(lang, "Ritmo de reservas", "Booking pace")}</h2>
-          <p className="text-xs text-slate-500">
-            {total} {L(lang, "reservas", "bookings")}
-            {change != null ? <span className={change >= 0 ? "ml-1 font-semibold text-emerald-700" : "ml-1 font-semibold text-red-600"}>{change >= 0 ? "▲" : "▼"} {Math.abs(change)}%</span> : null}
-            {change != null ? ` ${L(lang, "vs período anterior", "vs prior period")}` : ""}
-            {medianLead != null ? ` · ${L(lang, "anticipación mediana", "median lead")} ${medianLead} d` : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1">
+        <h2 className="text-lg font-semibold text-heading">{L(lang, "Reservas recibidas", "Bookings received")}</h2>
+        <div className="flex flex-wrap gap-1" role="group" aria-label={L(lang, "Periodo", "Period")}>
           {RANGES.map((r) => (
-            <button key={r} type="button" onClick={() => setRange(r)}
-              className={`rounded px-2 py-1 text-xs font-semibold ${r === range ? "bg-heading text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-              {r} d
+            <button key={r} type="button" onClick={() => setRange(r)} aria-pressed={r === range}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${r === range ? "bg-heading text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
+              {rangeLabel(r)}
             </button>
           ))}
         </div>
       </div>
 
-      <p className="mb-1 text-xs text-slate-500">{L(lang, step === 7 ? "Reservas hechas por semana" : "Reservas hechas por día", step === 7 ? "Bookings made per week" : "Bookings made per day")}</p>
-      <div className="flex h-28 items-end gap-px">
-        {cols.map((c) => (
-          <div key={c.date} className="flex h-full min-w-0 flex-1 flex-col-reverse"
-            title={colTitle(c, lang, dateLocale)}>
-            {c.counts.map((n, b) => n ? <div key={b} style={{ height: `${(n / maxCol) * 100}%`, background: FILL[b] }} /> : null)}
+      <div className="mb-4 rounded-lg bg-slate-50 p-3 text-base leading-relaxed text-slate-700">
+        <p>
+          {L(lang, "En los últimos", "In the last")} <strong>{rangeLabel(range)}</strong> {L(lang, "recibiste", "you received")}{" "}
+          <strong className="text-heading">{total} {L(lang, total === 1 ? "reserva" : "reservas", total === 1 ? "booking" : "bookings")}</strong>.
+          {change === 0 ? <> {L(lang, `Igual que los ${range} días anteriores (${prev}).`, `Same as the previous ${range} days (${prev}).`)}</> : null}
+          {change ? (
+            <> <span className={change > 0 ? "font-semibold text-emerald-700" : "font-semibold text-red-600"}>
+              {change > 0 ? "▲" : "▼"} {Math.abs(change)}% {change > 0 ? L(lang, "más", "more") : L(lang, "menos", "fewer")}
+            </span> {L(lang, `que los ${range} días anteriores (${prev}).`, `than the previous ${range} days (${prev}).`)}</>
+          ) : null}
+        </p>
+        {medianLead != null ? (
+          <p>{L(lang, "La mitad de los huéspedes reserva", "Half of guests book")} <strong>{medianLead} {L(lang, medianLead === 1 ? "día" : "días", medianLead === 1 ? "day" : "days")}</strong> {L(lang, "o menos antes de llegar.", "or less before arriving.")}</p>
+        ) : null}
+        {topMonth ? (
+          <p>{L(lang, "El mes con más llegadas reservadas es", "The month with the most arrivals booked is")} <strong className="capitalize">{monthName(topMonth[0], dateLocale)}</strong> ({topMonth[1]}).</p>
+        ) : null}
+      </div>
+
+      <h3 className="mb-2 text-sm font-semibold text-slate-700">{L(lang, "Reservas recibidas", "Bookings received")} {unit}</h3>
+      <div className="flex h-44 items-end gap-1 sm:gap-2" role="img" aria-label={cols.map((c) => `${dayMonth(c.date, dateLocale)}: ${c.total}`).join(", ")}>
+        {cols.map((c, i) => (
+          <div key={c.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${dayMonth(c.date, dateLocale)} – ${dayMonth(c.end, dateLocale)}: ${c.total}`}>
+            <span className="text-xs font-semibold text-slate-700">{c.total || ""}</span>
+            <div className={`w-full rounded-t ${i === cols.length - 1 ? "bg-heading" : "bg-aldeitas"}`} style={{ height: `${Math.max(2, (c.total / maxCol) * 100)}%` }} />
           </div>
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
-        {xTicks.map((t) => <span key={t}>{label(t, dateLocale)}</span>)}
+      <div className="mt-1 flex gap-1 border-t border-slate-200 pt-1 sm:gap-2">
+        {cols.map((c, i) => (
+          <span key={c.date} className="min-w-0 flex-1 text-center text-xs text-slate-600">
+            {cols.length <= 8 || i % Math.ceil(cols.length / 6) === 0 || i === cols.length - 1 ? dayMonth(c.date, dateLocale) : ""}
+          </span>
+        ))}
       </div>
 
-      <p className="mb-1 mt-4 text-xs text-slate-500">{L(lang, "Día de reserva → fecha de llegada (cada punto es una reserva; tamaño = noches)", "Booking day → check-in date (each dot is a booking; size = nights)")}</p>
-      <div ref={scroller} className="overflow-x-auto"><svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[560px]" role="img" aria-label={L(lang, "Día de reserva contra fecha de llegada", "Booking day vs check-in date")}>
-        {yTicks.map((t) => (
-          <g key={t}>
-            <line x1={PAD} x2={W - 8} y1={py(t)} y2={py(t)} stroke="#e2e8f0" />
-            <text x={PAD - 4} y={py(t) + 3} fontSize="9" textAnchor="end" fill="#64748b">{label(t, dateLocale)}</text>
-          </g>
-        ))}
-        {xTicks.map((t) => <text key={t} x={px(t)} y={H - PAD + 14} fontSize="9" textAnchor="middle" fill="#64748b">{label(t, dateLocale)}</text>)}
-        <line x1={px(days[0]?.date ?? today)} y1={py(days[0]?.date ?? today)} x2={px(today)} y2={py(today)} stroke="#94a3b8" strokeDasharray="4 3" />
-        {points.map((p) => (
-          <circle key={p.id} cx={px(p.booked)} cy={py(p.checkIn)} r={2 + Math.min(p.nights, 14) / 3} fill={FILL[p.bucket]} fillOpacity={0.65} stroke="white" strokeWidth={0.5}>
-            <title>{`${p.room}: ${L(lang, "reservada", "booked")} ${label(p.booked, dateLocale)} → ${L(lang, "llega", "arrives")} ${label(p.checkIn, dateLocale)} · ${p.nights} ${L(lang, "noches", "nights")} · ${p.lead} d`}</title>
-          </circle>
-        ))}
-      </svg></div>
-      <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
-        {PACE_BUCKETS.map((b, i) => (
-          <span key={b.en} className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: FILL[i] }} />{L(lang, "llega en", "arrives in")} {b[lang]}</span>
-        ))}
-        <span className="inline-flex items-center gap-1 text-slate-500"><span className="inline-block w-4 border-t border-dashed border-slate-400" />{L(lang, "mismo día", "same day")}</span>
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">{L(lang, "¿Con cuánta anticipación reservan?", "How far ahead do they book?")}</h3>
+          <ul className="space-y-3">
+            {ARRIVES.map(([es, en], b) => (
+              <HBar key={en} label={L(lang, es, en)} value={byBucket[b]} max={Math.max(1, ...byBucket)} total={total} color={FILL[b]} />
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">{L(lang, "¿Para qué mes son esas reservas?", "Which month are those stays for?")}</h3>
+          {byMonth.length ? (
+            <ul className="space-y-3">
+              {byMonth.map(([k, n]) => (
+                <HBar key={k} label={monthName(k, dateLocale)} value={n} max={Math.max(1, ...byMonth.map((e) => e[1]))} total={total} color="#0f766e" />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">{L(lang, "Sin reservas en este periodo.", "No bookings in this period.")}</p>
+          )}
+        </div>
       </div>
     </section>
   );
