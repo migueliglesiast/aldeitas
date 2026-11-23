@@ -11,10 +11,10 @@ const RANGES = [30, 90, 180, 365];
 const HISTORY_DAYS = 400;
 const day = (k: string) => parseISO(`${k}T00:00:00`);
 const ARRIVES: Array<[string, string]> = [
-  ["Llegan en menos de 1 semana", "Arrive within 1 week"],
-  ["Llegan en 1 a 4 semanas", "Arrive in 1–4 weeks"],
-  ["Llegan en 1 a 3 meses", "Arrive in 1–3 months"],
-  ["Llegan en más de 3 meses", "Arrive in 3+ months"],
+  ["Llegan en 7 días o menos", "Arrive within 7 days"],
+  ["Llegan en 8 a 30 días", "Arrive in 8–30 days"],
+  ["Llegan en 31 a 90 días", "Arrive in 31–90 days"],
+  ["Llegan en más de 90 días", "Arrive in more than 90 days"],
 ];
 
 function monthName(key: string, dateLocale: string) {
@@ -46,8 +46,9 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
   const step = range <= 30 ? 3 : range <= 90 ? 7 : range <= 180 ? 14 : 30;
   const cols = useMemo(() => {
     const out: Array<{ date: string; end: string; total: number }> = [];
-    for (let i = days.length; i > 0; i -= step) {
-      const chunk = days.slice(Math.max(0, i - step), i);
+    // Only whole periods, so a short leftover at the start doesn't look like a slow week.
+    for (let i = days.length; i >= step; i -= step) {
+      const chunk = days.slice(i - step, i);
       out.unshift({ date: chunk[0].date, end: chunk[chunk.length - 1].date, total: chunk.reduce((a, d) => a + d.total, 0) });
     }
     return out;
@@ -88,9 +89,10 @@ export default function BookingPace({ rows, today, lang, dateLocale }: { rows: S
         <p>
           {L(lang, "En los últimos", "In the last")} <strong>{rangeLabel(range)}</strong> {L(lang, "recibiste", "you received")}{" "}
           <strong className="text-heading">{total} {L(lang, total === 1 ? "reserva" : "reservas", total === 1 ? "booking" : "bookings")}</strong>.
-          {change != null ? (
-            <> <span className={change >= 0 ? "font-semibold text-emerald-700" : "font-semibold text-red-600"}>
-              {change >= 0 ? "▲" : "▼"} {Math.abs(change)}% {change >= 0 ? L(lang, "más", "more") : L(lang, "menos", "fewer")}
+          {change === 0 ? <> {L(lang, `Igual que los ${range} días anteriores (${prev}).`, `Same as the previous ${range} days (${prev}).`)}</> : null}
+          {change ? (
+            <> <span className={change > 0 ? "font-semibold text-emerald-700" : "font-semibold text-red-600"}>
+              {change > 0 ? "▲" : "▼"} {Math.abs(change)}% {change > 0 ? L(lang, "más", "more") : L(lang, "menos", "fewer")}
             </span> {L(lang, `que los ${range} días anteriores (${prev}).`, `than the previous ${range} days (${prev}).`)}</>
           ) : null}
         </p>
