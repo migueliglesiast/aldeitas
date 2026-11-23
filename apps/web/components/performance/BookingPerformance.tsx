@@ -51,9 +51,9 @@ function Bars({ data, format = (v: number) => String(v), color = "bg-aldeitas", 
     <div className="flex h-36 items-end gap-1">
       {data.map((d) => (
         <div key={d.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-          <span className="text-[10px] text-slate-500">{d.value ? format(d.value) : ""}</span>
+          <span className="text-xs font-semibold text-slate-700">{d.value ? format(d.value) : ""}</span>
           <div className={`w-full rounded-t ${color}`} style={{ height: `${Math.max(2, (d.value / max) * 100)}px` }} />
-          <span className="truncate text-[10px] text-slate-500">{labelFmt(d.label)}</span>
+          <span className="truncate text-xs text-slate-600">{labelFmt(d.label)}</span>
         </div>
       ))}
     </div>
@@ -198,18 +198,16 @@ export default function BookingPerformance({
         <Kpi label={L(lang, "Precio vs habitual", "Price vs usual")} value={k.avgDeltaPct == null ? "—" : `${k.avgDeltaPct > 0 ? "+" : ""}${k.avgDeltaPct}%`} />
       </div>
 
-      <BookingPace rows={report.rows} today={report.today} lang={lang} dateLocale={dateLocale} />
-
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title={L(lang, "Cuándo se reserva (por semana)", "When bookings happen (per week)")} className="lg:col-span-2">
-          <Bars data={report.weekly} labelFmt={(l) => dayMonth(l, dateLocale)} />
-        </Card>
+        <div className="min-w-0 lg:col-span-2">
+          <BookingPace rows={report.rows} today={report.today} lang={lang} dateLocale={dateLocale} />
+        </div>
         <Card title={L(lang, "Recomendaciones", "Recommendations")}>
           {recs.length ? <Recs recs={recs} lang={lang} /> : <p className="text-sm text-slate-500">{L(lang, "Todo en orden.", "All good.")}</p>}
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card title={L(lang, "Ocupación y tarifa por mes", "Occupancy and rate by month")}>
           <div className="space-y-2">
             {report.months.map((m) => (
@@ -222,9 +220,6 @@ export default function BookingPerformance({
               </div>
             ))}
           </div>
-        </Card>
-        <Card title={L(lang, "Anticipación (días antes de llegar)", "Lead time (days before arrival)")}>
-          <Bars data={report.leadTime} color="bg-sky-500" />
         </Card>
         <Card title={L(lang, "Duración de estancia (noches)", "Length of stay (nights)")}>
           <Bars data={report.lengthOfStay} color="bg-amber-500" />
