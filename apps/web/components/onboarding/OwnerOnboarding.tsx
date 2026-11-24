@@ -14,6 +14,8 @@ import type { OnboardingContact, OnboardingRoom, OnboardingState } from "@/lib/o
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
+/** Opens the tour directly at one step; `detail` is the step id (e.g. "payouts"). */
+export const OPEN_STEP_EVENT = "aldeitas:open-step";
 const SEEN_KEY = "aldeitas-onboarding-seen";
 const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "payouts", "done"];
 const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
@@ -1135,9 +1137,21 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
   }, [userId, pathname]);
 
   useEffect(() => {
-    const open = () => setMode("full");
+    const open = () => {
+      setStartAt(null);
+      setMode("full");
+    };
+    // The full tour always has every step, so jumping to one never lands on an empty slideshow.
+    const openStep = (e: Event) => {
+      setStartAt(((e as CustomEvent).detail as DemoId) ?? null);
+      setMode("full");
+    };
     window.addEventListener(OPEN_TOUR_EVENT, open);
-    return () => window.removeEventListener(OPEN_TOUR_EVENT, open);
+    window.addEventListener(OPEN_STEP_EVENT, openStep);
+    return () => {
+      window.removeEventListener(OPEN_TOUR_EVENT, open);
+      window.removeEventListener(OPEN_STEP_EVENT, openStep);
+    };
   }, []);
 
   const close = useCallback(() => {
@@ -1236,7 +1250,7 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
       ) : null}
       {mode
         ? createPortal(
-            <Slideshow key={mode} t={t} mode={mode} startAt={startAt} state={state} setState={setState} onClose={close} importer={importer} />,
+            <Slideshow key={`${mode}-${startAt ?? ""}`} t={t} mode={mode} startAt={startAt} state={state} setState={setState} onClose={close} importer={importer} />,
             document.body
           )
         : null}
