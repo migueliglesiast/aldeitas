@@ -4,7 +4,7 @@ import Link from "next/link";
 import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { dayMonth } from "@/lib/booking-performance";
-import { OPEN_TOUR_EVENT } from "@/components/onboarding/OwnerOnboarding";
+import { OPEN_STEP_EVENT } from "@/components/onboarding/OwnerOnboarding";
 import type { AdminOverview, HotelOverview, OverviewStay } from "@/lib/admin-overview";
 
 type Lang = "es" | "en";
@@ -117,7 +117,7 @@ function HotelCard({ h, lang }: { h: HotelOverview; lang: Lang }) {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => window.dispatchEvent(new Event(OPEN_TOUR_EVENT))}
+                    onClick={() => window.dispatchEvent(new CustomEvent(OPEN_STEP_EVENT, { detail: "payouts" }))}
                     className="flex items-center gap-2 text-left text-sm text-amber-800 hover:underline"
                   >
                     <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />

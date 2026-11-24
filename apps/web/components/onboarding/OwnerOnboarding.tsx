@@ -14,6 +14,8 @@ import type { OnboardingContact, OnboardingRoom, OnboardingState } from "@/lib/o
 import OnboardingDemo, { type DemoId } from "./OnboardingDemos";
 
 export const OPEN_TOUR_EVENT = "aldeitas:open-tour";
+/** Opens the missing-info slideshow at one step; `detail` is the step id (e.g. "payouts"). */
+export const OPEN_STEP_EVENT = "aldeitas:open-step";
 const SEEN_KEY = "aldeitas-onboarding-seen";
 const FULL_TOUR: DemoId[] = ["you", "story", "map", "inbox", "airbnb", "calendars", "team", "payouts", "done"];
 const LISTING_STEPS: ReadonlySet<DemoId> = new Set(["airbnb", "calendars"]);
@@ -1136,8 +1138,16 @@ export default function OwnerOnboarding({ userId }: { userId: string }) {
 
   useEffect(() => {
     const open = () => setMode("full");
+    const openStep = (e: Event) => {
+      setStartAt(((e as CustomEvent).detail as DemoId) ?? null);
+      setMode("missing");
+    };
     window.addEventListener(OPEN_TOUR_EVENT, open);
-    return () => window.removeEventListener(OPEN_TOUR_EVENT, open);
+    window.addEventListener(OPEN_STEP_EVENT, openStep);
+    return () => {
+      window.removeEventListener(OPEN_TOUR_EVENT, open);
+      window.removeEventListener(OPEN_STEP_EVENT, openStep);
+    };
   }, []);
 
   const close = useCallback(() => {
