@@ -114,8 +114,11 @@ export async function loadAdminOverview(userId: string): Promise<AdminOverview> 
   // Income is spread per night so only nights inside the 30-day window count.
   const nights = new Map<string, Set<string>>();
   const income = new Map<string, number>();
-  // Priced stays first, so an unpriced overlapping stay never hides known income.
-  for (const s of [...stays].sort((a, b) => b.cents - a.cents)) {
+  // Direct bookings first, then the highest nightly rate, so an overlapping import
+  // (often unpriced or a changed reservation) never hides known income.
+  const perNight = (s: Stay) => s.cents / Math.max(1, differenceInCalendarDays(parseISO(s.end), parseISO(s.start)));
+  const rank = (s: Stay) => (s.channel === "aldeitas" ? 1 : 0);
+  for (const s of [...stays].sort((a, b) => rank(b) - rank(a) || perNight(b) - perNight(a))) {
     const set = nights.get(s.listingId) ?? new Set<string>();
     const from = parseISO(`${s.start}T00:00:00`);
     const n = differenceInCalendarDays(parseISO(`${s.end}T00:00:00`), from);
