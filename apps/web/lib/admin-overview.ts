@@ -26,12 +26,17 @@ export type HotelOverview = {
   arrivalsToday: number;
   departuresToday: number;
   occupancy30: number;
+  bookedNights30: number;
   payout30Cents: number;
   syncedRooms: number;
   gmailConnected: boolean;
   payoutsReady: boolean;
   pendingPayments: number;
 };
+
+/** A hotel is "active" once it has a synced room or any booking; the rest are still being set up. */
+export const isActiveHotel = (h: HotelOverview) =>
+  h.syncedRooms > 0 || h.bookedNights30 > 0 || h.inHouse > 0 || h.pendingPayments > 0;
 
 export type AdminOverview = {
   today: string;
@@ -144,6 +149,7 @@ export async function loadAdminOverview(userId: string): Promise<AdminOverview> 
       inHouse: new Set(mine.filter((s) => s.start <= today && s.end > today).map((s) => s.listingId)).size,
       arrivalsToday: mine.filter((s) => s.start === today).length,
       departuresToday: mine.filter((s) => s.end === today).length,
+      bookedNights30: booked,
       occupancy30: h.listings.length ? Math.round((booked / (h.listings.length * HORIZON)) * 100) : 0,
       payout30Cents: Math.round(income.get(h.id) ?? 0),
       syncedRooms: h.listings.filter((l) => l.icalUrl || l._count.calendarSources > 0).length,

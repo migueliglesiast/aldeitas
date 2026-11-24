@@ -240,6 +240,24 @@ function buildSpanFromNights(
   };
 }
 
+// Calendar views are display-only: reuse a feed for a few minutes and keep the
+// last good copy when Airbnb throttles (429) or times out.
+const FEED_CACHE_MS = Number(process.env.CALENDAR_VIEW_FEED_CACHE_MS || 5 * 60_000);
+const feedCache = new Map<string, { at: number; blocks: Awaited<ReturnType<typeof fetchIcalBlocks>> }>();
+
+async function cachedIcalBlocks(url: string) {
+  const hit = feedCache.get(url);
+  if (hit && Date.now() - hit.at < FEED_CACHE_MS) return hit.blocks;
+  try {
+    const blocks = await fetchIcalBlocks(url);
+    feedCache.set(url, { at: Date.now(), blocks });
+    return blocks;
+  } catch (error) {
+    if (hit) return hit.blocks;
+    throw error;
+  }
+}
+
 async function fetchExternalBlocks(listing: {
   icalUrl: string | null;
   calendarSources: { icalUrl: string; name: string }[];
@@ -252,6 +270,7 @@ async function fetchExternalBlocks(listing: {
     description?: string;
     uid?: string;
   }> = [];
+  let failed = false;
   const sources = [
     ...(listing.icalUrl ? [{ name: "Airbnb", icalUrl: listing.icalUrl }] : []),
     ...listing.calendarSources.map((source) => ({
@@ -262,7 +281,7 @@ async function fetchExternalBlocks(listing: {
 
   for (const source of sources) {
     try {
-      const fetched = await fetchIcalBlocks(source.icalUrl);
+      const fetched = await cachedIcalBlocks(source.icalUrl);
       blocks.push(
         ...fetched.map((block) => ({
           start: block.start,
@@ -274,11 +293,12 @@ async function fetchExternalBlocks(listing: {
         }))
       );
     } catch (error) {
+      failed = true;
       console.error(`[hotel-calendar] failed to fetch ${source.name}:`, error);
     }
   }
 
-  return blocks;
+  return { blocks, failed };
 }
 
 type GuestMetaRow = {
@@ -409,7 +429,7 @@ export async function buildHotelCalendarData(
       start,
       rangeEndExclusive
     );
-    const externalBlocks = await fetchExternalBlocks(listing);
+    const { blocks: externalBlocks, failed: feedFailed } = await fetchExternalBlocks(listing);
     const cells: Record<string, CalendarCell> = {};
     const spans: CalendarSpan[] = [];
     const guestMetas = listing.guestMetas as GuestMetaRow[];
@@ -536,16 +556,16 @@ export async function buildHotelCalendarData(
       if (span) spans.push(span);
     });
 
-    if (options.pastDays) {
-      // iCal exports drop past stays after a few days; fill history from the
-      // guest records saved by Gmail sync / host edits.
+    if (options.pastDays || feedFailed) {
+      // iCal exports drop past stays after a few days, and a feed can be
+      // unreachable: fill from the guest records saved by Gmail sync / host edits.
       const todayKey = toDateKey(calendarWindow.start);
       guestMetas.forEach((meta, index) => {
         const metaStart = toDateKey(meta.startDate);
         const metaEnd = toDateKey(meta.endDate);
-        if (metaStart >= todayKey) return;
+        if (metaStart >= todayKey && !feedFailed) return;
         const nights = days.filter(
-          (d) => d >= metaStart && d < metaEnd && d < todayKey
+          (d) => d >= metaStart && d < metaEnd && (feedFailed || d < todayKey)
         );
         if (nights.length === 0) return;
         const first = nights[0];
@@ -558,7 +578,7 @@ export async function buildHotelCalendarData(
         const span = buildSpanFromNights(nights, {
           id: `history-${listing.id}-${index}`,
           kind: "external",
-          label: "Past stay",
+          label: metaStart < todayKey ? "Past stay" : "Reserved",
           guestName: meta.guestName?.trim() || undefined,
           guestCount: meta.guestCount ?? null,
           payoutCents: meta.payoutCents ?? null,
