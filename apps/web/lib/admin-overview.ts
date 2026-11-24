@@ -33,6 +33,10 @@ export type HotelOverview = {
   pendingPayments: number;
 };
 
+/** A hotel is "active" once it has a synced room or any booking; the rest are still being set up. */
+export const isActiveHotel = (h: HotelOverview) =>
+  h.syncedRooms > 0 || h.occupancy30 > 0 || h.inHouse > 0 || h.pendingPayments > 0;
+
 export type AdminOverview = {
   today: string;
   hotels: HotelOverview[];

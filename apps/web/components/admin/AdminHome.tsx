@@ -5,7 +5,7 @@ import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { dayMonth } from "@/lib/booking-performance";
 import { OPEN_STEP_EVENT } from "@/components/onboarding/OwnerOnboarding";
-import type { AdminOverview, HotelOverview, OverviewStay } from "@/lib/admin-overview";
+import { isActiveHotel as isActive, type AdminOverview, type HotelOverview, type OverviewStay } from "@/lib/admin-overview";
 
 type Lang = "es" | "en";
 const L = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
@@ -149,16 +149,17 @@ function HotelCard({ h, lang }: { h: HotelOverview; lang: Lang }) {
   );
 }
 
-export default function AdminHome({ name, overview, tourButton, nicknameEditor }: {
+export default function AdminHome({ name, overview, tourButton, nicknameEditor, calendar }: {
   name: string;
   overview: AdminOverview;
   tourButton: React.ReactNode;
   nicknameEditor: React.ReactNode;
+  /** Cross-hotel calendar, streamed in between the summary and the arrival lists. */
+  calendar?: React.ReactNode;
 }) {
   const { locale, dateLocale } = useLocale();
   const lang: Lang = locale === "es" ? "es" : "en";
   const { hotels, arrivals, departures, today } = overview;
-  const isActive = (h: HotelOverview) => h.syncedRooms > 0 || h.occupancy30 > 0 || h.inHouse > 0 || h.pendingPayments > 0;
   const active = hotels.filter(isActive);
   const idle = hotels.filter((h) => !isActive(h));
   const rooms = active.reduce((a, h) => a + h.rooms, 0);
@@ -195,6 +196,8 @@ export default function AdminHome({ name, overview, tourButton, nicknameEditor }
             <Stat label={L(lang, "Reservado, próximos 30 días", "Booked, next 30 days")} value={`${occupancy}%`} hint={L(lang, `${rooms} cuartos en ${active.length} hoteles activos`, `${rooms} rooms in ${active.length} active hotels`)} />
             <Stat label={L(lang, "Ingresos esperados, 30 días", "Expected income, 30 days")} value={money(payout)} hint={L(lang, "Reservas de Aldeitas y Airbnb", "Aldeitas and Airbnb bookings")} />
           </section>
+
+          {calendar}
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
