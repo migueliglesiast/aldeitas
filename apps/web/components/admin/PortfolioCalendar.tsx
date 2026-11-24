@@ -148,7 +148,7 @@ function Grid({
                     </div>
                   );
                 })}
-                {room.spans.map((span) => {
+                {[...room.spans].sort((a, b) => Number(Boolean(a.bookingId)) - Number(Boolean(b.bookingId))).map((span) => {
                   const body = (
                     <>
                       <span className="truncate">{span.label}</span>
