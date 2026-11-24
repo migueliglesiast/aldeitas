@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/currency";
+import { useLocale } from "@/lib/i18n/locale-context";
+
+type Lang = "es" | "en";
+const L = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
 
 type AdminBooking = {
   id: string;
@@ -41,16 +45,29 @@ type Summary = {
   canceled: number;
 };
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, dateLocale: string) {
   if (!value) return "—";
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString(dateLocale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDateRange(startDate: string, endDate: string) {
-  const start = new Date(startDate).toLocaleDateString();
-  const end = new Date(endDate).toLocaleDateString();
-  return `${start} → ${end}`;
+function formatDateRange(startDate: string, endDate: string, dateLocale: string) {
+  const fmt = (v: string) => new Date(v).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return `${fmt(startDate)} → ${fmt(endDate)}`;
 }
+
+function statusText(b: AdminBooking, lang: Lang) {
+  if (b.isAwaitingPayment) return L(lang, "Esperando pago", "Awaiting payment");
+  if (b.isProcessing) return L(lang, "Confirmando pago", "Confirming payment");
+  if (b.status === "CONFIRMED") return L(lang, "Confirmada", "Confirmed");
+  return L(lang, "Cancelada", "Canceled");
+}
+
+const PAYMENT: Record<AdminBooking["paymentState"], [string, string]> = {
+  awaiting_payment: ["Sin pagar", "Not paid"],
+  authorized: ["Retenido, por cobrar", "Held, not charged yet"],
+  captured: ["Cobrado", "Charged"],
+  released: ["No cobrado (liberado)", "Not charged (released)"],
+};
 
 function statusBadgeClass(booking: AdminBooking) {
   if (booking.isAwaitingPayment || booking.isProcessing) {
@@ -63,6 +80,8 @@ function statusBadgeClass(booking: AdminBooking) {
 }
 
 export default function AdminBookingsPanel() {
+  const { locale, dateLocale } = useLocale();
+  const lang: Lang = locale === "es" ? "es" : "en";
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,9 +156,9 @@ export default function AdminBookingsPanel() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Bookings</h1>
+          <h1 className="text-2xl font-semibold text-heading">{L(lang, "Reservas directas", "Direct bookings")}</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Monitor pending, confirmed, and canceled direct bookings.
+            {L(lang, "Reservas hechas en Aldeitas o en la página de tu hotel. Las de Airbnb están en el Calendario.", "Bookings made on Aldeitas or your hotel's site. Airbnb bookings are in the Calendar.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -149,7 +168,7 @@ export default function AdminBookingsPanel() {
             disabled={loading || reconciling}
             className="rounded border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
           >
-            Refresh
+            {L(lang, "Actualizar", "Refresh")}
           </button>
           <button
             type="button"
@@ -157,18 +176,18 @@ export default function AdminBookingsPanel() {
             disabled={loading || reconciling}
             className="rounded bg-[#00a19c] px-4 py-2 text-sm text-white hover:bg-[#008a86] disabled:opacity-50"
           >
-            {reconciling ? "Reconciling..." : "Reconcile pending"}
+            {reconciling ? L(lang, "Revisando…", "Checking…") : L(lang, "Revisar pagos pendientes", "Check pending payments")}
           </button>
         </div>
       </div>
 
       {summary && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <SummaryCard label="Total" value={summary.total} />
-          <SummaryCard label="Awaiting payment" value={summary.awaitingPayment} />
-          <SummaryCard label="Processing" value={summary.processing} />
-          <SummaryCard label="Confirmed" value={summary.confirmed} />
-          <SummaryCard label="Canceled" value={summary.canceled} />
+          <SummaryCard label={L(lang, "Total", "Total")} value={summary.total} />
+          <SummaryCard label={L(lang, "Esperando pago", "Awaiting payment")} value={summary.awaitingPayment} />
+          <SummaryCard label={L(lang, "Confirmando pago", "Confirming payment")} value={summary.processing} />
+          <SummaryCard label={L(lang, "Confirmadas", "Confirmed")} value={summary.confirmed} />
+          <SummaryCard label={L(lang, "Canceladas", "Canceled")} value={summary.canceled} />
         </div>
       )}
 
@@ -185,24 +204,24 @@ export default function AdminBookingsPanel() {
       )}
 
       {loading ? (
-        <div className="rounded border p-6 text-gray-600">Loading bookings...</div>
+        <div className="rounded border p-6 text-gray-600">{L(lang, "Cargando reservas…", "Loading bookings…")}</div>
       ) : bookings.length === 0 ? (
         <div className="rounded border p-6 text-center text-gray-500">
-          No bookings yet.
+          {L(lang, "Todavía no hay reservas directas.", "No direct bookings yet.")}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded border">
+        <div className="overflow-x-auto rounded-xl border bg-white">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Property</th>
-                <th className="px-4 py-3 font-medium">Guest</th>
-                <th className="px-4 py-3 font-medium">Dates</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Payment</th>
-                <th className="px-4 py-3 font-medium">Updated</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Estado", "Status")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Cuarto", "Room")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Huésped", "Guest")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Fechas", "Dates")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Total", "Total")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Pago", "Payment")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Historial", "History")}</th>
+                <th className="px-4 py-3 font-medium">{L(lang, "Ver", "View")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -212,10 +231,10 @@ export default function AdminBookingsPanel() {
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass(booking)}`}
                     >
-                      {booking.statusLabel}
+                      {statusText(booking, lang)}
                     </span>
                     {booking.cancelReason && (
-                      <p className="mt-2 max-w-xs text-xs text-gray-500">{booking.cancelReason}</p>
+                      <p className="mt-2 max-w-xs text-xs text-gray-500">{booking.cancelReason === "Checkout was not completed in time." ? L(lang, "El huésped no terminó de pagar a tiempo.", booking.cancelReason) : booking.cancelReason}</p>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -227,13 +246,13 @@ export default function AdminBookingsPanel() {
                     <div className="text-gray-500">{booking.guestPhone}</div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {formatDateRange(booking.startDate, booking.endDate)}
+                    {formatDateRange(booking.startDate, booking.endDate, dateLocale)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {formatMoney(booking.totalPriceCents, booking.currency)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="capitalize">{booking.paymentState.replace("_", " ")}</div>
+                    <div>{L(lang, ...PAYMENT[booking.paymentState])}</div>
                     {booking.paymentProvider && booking.paymentOrderId && (
                       <div className="text-xs text-gray-500">
                         {booking.paymentProvider} · {booking.paymentOrderId}
@@ -241,11 +260,11 @@ export default function AdminBookingsPanel() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
-                    <div>Created: {formatDate(booking.createdAt)}</div>
-                    {booking.authorizedAt && <div>Authorized: {formatDate(booking.authorizedAt)}</div>}
-                    {booking.confirmedAt && <div>Confirmed: {formatDate(booking.confirmedAt)}</div>}
+                    <div>{L(lang, "Creada", "Created")}: {formatDate(booking.createdAt, dateLocale)}</div>
+                    {booking.authorizedAt && <div>{L(lang, "Pago retenido", "Payment held")}: {formatDate(booking.authorizedAt, dateLocale)}</div>}
+                    {booking.confirmedAt && <div>{L(lang, "Confirmada", "Confirmed")}: {formatDate(booking.confirmedAt, dateLocale)}</div>}
                     {booking.lastReconciledAt && (
-                      <div>Reconciled: {formatDate(booking.lastReconciledAt)}</div>
+                      <div>{L(lang, "Revisada", "Checked")}: {formatDate(booking.lastReconciledAt, dateLocale)}</div>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -254,13 +273,13 @@ export default function AdminBookingsPanel() {
                         href={booking.statusUrl}
                         className="text-[#00a19c] hover:underline"
                       >
-                        Guest view
+                        {L(lang, "Lo que ve el huésped", "Guest view")}
                       </Link>
                       <Link
                         href={`/admin/bookings/${booking.id}`}
                         className="text-[#00a19c] hover:underline"
                       >
-                        Progreso en vivo / Live progress
+                        {L(lang, "Progreso en vivo", "Live progress")}
                       </Link>
                       {booking.isProcessing && (
                         <button
@@ -269,7 +288,7 @@ export default function AdminBookingsPanel() {
                           disabled={reconciling}
                           className="text-left text-xs text-gray-700 hover:underline disabled:opacity-50"
                         >
-                          Reconcile
+                          {L(lang, "Revisar pago", "Check payment")}
                         </button>
                       )}
                     </div>
@@ -286,8 +305,8 @@ export default function AdminBookingsPanel() {
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded border bg-white p-4">
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+    <div className="rounded-xl border bg-white p-4">
+      <div className="text-sm text-gray-600">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div>
     </div>
   );

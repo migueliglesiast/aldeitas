@@ -3,6 +3,7 @@ import { signInUrl } from "@/lib/auth-redirect";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import AdminText from "@/components/admin/AdminText";
 import HotelAdminPanel from "@/components/HotelAdminPanel";
 import HotelCalendarDashboardPage from "@/components/HotelCalendarDashboardPage";
 import { getOrCreateHotelCalendarShareToken } from "@/lib/hotel-calendar-data";
@@ -64,19 +65,23 @@ export default async function HotelEditPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-        >
-          ← Back to Admin
-        </Link>
-        <h1 className="text-3xl font-semibold">{hotel.name}</h1>
-        <p className="text-gray-600">{hotel.location}</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold text-heading">{hotel.name}</h1>
+            <p className="text-gray-600">{hotel.location}</p>
+          </div>
+          <Link
+            href={`/admin/hotel/${hotel.id}/performance`}
+            className="rounded-lg bg-heading px-4 py-2 text-sm font-semibold text-white hover:bg-ink"
+          >
+            <AdminText es="Ver rendimiento" en="View performance" />
+          </Link>
+        </div>
       </div>
 
       <HotelAdminPanel
         hotel={hotel}
-        initialTab={tab === "calendar" || tab === "maintenance" ? tab : "general"}
+        initialTab={tab === "general" || tab === "maintenance" ? tab : "calendar"}
         dashboard={
           <HotelCalendarDashboardPage
             hotelId={hotel.id}

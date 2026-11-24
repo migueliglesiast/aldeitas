@@ -9,6 +9,7 @@ import HotelImageUpload from "./HotelImageUpload";
 import HotelMultiCalendar from "./HotelMultiCalendar";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import RoomList from "./RoomList";
+import { useLocale } from "@/lib/i18n/locale-context";
 
 type Hotel = {
   id: string;
@@ -38,10 +39,10 @@ type Hotel = {
 
 export type TabId = "general" | "calendar" | "maintenance";
 
-const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "general", label: "General Info" },
-  { id: "calendar", label: "Calendario y panel" },
-  { id: "maintenance", label: "Maintenance" },
+const tabs: Array<{ id: TabId; es: string; en: string }> = [
+  { id: "calendar", es: "Calendario y reservas", en: "Calendar & bookings" },
+  { id: "general", es: "Hotel y cuartos", en: "Hotel & rooms" },
+  { id: "maintenance", es: "Mantenimiento", en: "Maintenance" },
 ];
 
 export default function HotelAdminPanel({
@@ -55,6 +56,7 @@ export default function HotelAdminPanel({
   initialTab?: TabId;
 }) {
   const [tab, setTab] = useState<TabId>(initialTab);
+  const { locale } = useLocale();
   const [description, setDescription] = useState(hotel.description);
   const [mainContact, setMainContact] = useState(hotel.mainContactNumber || "");
   const [logoImageUrl, setLogoImageUrl] = useState(hotel.logoImageUrl || "");
@@ -111,13 +113,13 @@ export default function HotelAdminPanel({
             type="button"
             onClick={() => setTab(item.id)}
             className={[
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition",
+              "px-4 py-2.5 text-base font-medium border-b-2 -mb-px transition",
               tab === item.id
                 ? "border-[#00a19c] text-[#00a19c]"
                 : "border-transparent text-gray-600 hover:text-gray-900",
             ].join(" ")}
           >
-            {item.label}
+            {locale === "es" ? item.es : item.en}
           </button>
         ))}
       </div>

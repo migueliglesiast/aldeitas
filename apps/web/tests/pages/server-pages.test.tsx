@@ -9,6 +9,7 @@ const dataMock = {
 const prismaMock = {
   listing: { findMany: vi.fn() },
   calendarSource: { findMany: vi.fn() },
+  hotel: { findMany: vi.fn() },
 };
 
 vi.mock("@/lib/data", () => dataMock);
@@ -155,13 +156,19 @@ describe("listing detail page", () => {
 
 describe("calendars admin page", () => {
   it("renders the empty state and the existing sources", async () => {
+    const hotels = [{ id: "h1", name: "Casa", listings: [{ id: "l1", title: "Room 1", icalUrl: null }, { id: "l2", title: "Room 2", icalUrl: null }] }];
+    prismaMock.hotel.findMany.mockResolvedValueOnce(hotels);
     prismaMock.calendarSource.findMany.mockResolvedValueOnce([]);
     const { unmount } = render(await CalendarsAdminPage());
-    expect(screen.getByText(/No calendar sources yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Room 1, Room 2/)).toBeInTheDocument();
     unmount();
 
-    prismaMock.calendarSource.findMany.mockResolvedValueOnce([{ id: "c1", name: "Guesty" }]);
+    prismaMock.hotel.findMany.mockResolvedValueOnce(hotels);
+    prismaMock.calendarSource.findMany.mockResolvedValueOnce([
+      { id: "c1", name: "Guesty", icalUrl: "https://api.guesty.com/c.ics", listingId: "l1", createdAt: "2026-01-01", listing: { id: "l1", title: "Room 1", hotel: { id: "h1", name: "Casa" } } },
+    ]);
     render(await CalendarsAdminPage());
     expect(screen.getByText("Guesty")).toBeInTheDocument();
+    expect(screen.getByText(/1\/2/)).toBeInTheDocument();
   });
 });

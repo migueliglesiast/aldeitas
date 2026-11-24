@@ -36,7 +36,7 @@ describe("CalendarForm", () => {
     await userEvent.type(textbox(0), "Guesty Room 1");
     await userEvent.type(textbox(1), "https://api.guesty.com/c.ics");
     await userEvent.selectOptions(screen.getByRole("combobox"), "l1");
-    await userEvent.click(screen.getByRole("button", { name: "Add Calendar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add calendar" }));
 
     await waitFor(() => expect(screen.getByText("Added")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith(
@@ -65,7 +65,7 @@ describe("CalendarForm", () => {
     render(<CalendarForm />);
     await userEvent.type(textbox(0), "Internal");
     await userEvent.type(textbox(1), "https://169.254.169.254/x.ics");
-    await userEvent.click(screen.getByRole("button", { name: "Add Calendar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add calendar" }));
 
     await waitFor(() => expect(screen.getByText("Invalid")).toBeInTheDocument());
     expect(window.location.reload).not.toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe("CalendarForm", () => {
     render(<CalendarForm />);
     await userEvent.type(textbox(0), "Guesty");
     await userEvent.type(textbox(1), "https://api.guesty.com/c.ics");
-    await userEvent.click(screen.getByRole("button", { name: "Add Calendar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add calendar" }));
 
     await waitFor(() => expect(screen.getByText("Bad gateway")).toBeInTheDocument());
     expect(screen.queryByRole("option", { name: /Hotel Uno/ })).toBeNull();
@@ -114,13 +114,13 @@ describe("CalendarSourceItem", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<CalendarSourceItem source={SOURCE} />);
-    expect(screen.getByText(/Not linked to any listing/)).toBeInTheDocument();
+    expect(screen.getByText(/Not linked to any room/)).toBeInTheDocument();
 
     const select = await screen.findByRole("combobox");
-    expect(screen.getByRole("button", { name: "Update Link" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     await screen.findByRole("option", { name: "Hotel Uno - Suite Mar" });
     await userEvent.selectOptions(select, "l1");
-    await userEvent.click(screen.getByRole("button", { name: "Update Link" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(screen.getByText("Updated successfully")).toBeInTheDocument());
     await vi.advanceTimersByTimeAsync(1000);
@@ -151,7 +151,7 @@ describe("CalendarSourceItem", () => {
 
     expect(screen.getByText(/Hotel Uno - Suite Mar/)).toBeInTheDocument();
     await userEvent.selectOptions(await screen.findByRole("combobox"), "");
-    await userEvent.click(screen.getByRole("button", { name: "Update Link" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(screen.getByText("Failed to update")).toBeInTheDocument());
   });
