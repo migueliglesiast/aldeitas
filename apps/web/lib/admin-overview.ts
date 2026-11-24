@@ -40,6 +40,10 @@ export type AdminOverview = {
   departures: OverviewStay[];
 };
 
+const USD_TO_MXN = Number(process.env.OWNER_DASHBOARD_USD_MXN || 18.5);
+const toMxn = (cents: number, currency: string | null) =>
+  !currency || currency === "MXN" ? cents : currency === "USD" ? Math.round(cents * USD_TO_MXN) : 0;
+
 /** Today's arrivals/check-outs and the next 30 days' occupancy for every hotel the user manages. */
 export async function loadAdminOverview(userId: string): Promise<AdminOverview> {
   const today = hotelTodayKey();
@@ -93,7 +97,7 @@ export async function loadAdminOverview(userId: string): Promise<AdminOverview> 
     stays.push({
       listingId: b.listingId, hotelId: l.hotelId, hotelName: l.hotelName, roomTitle: l.title, guestName: b.guestName,
       start: dayKey(b.startDate), end: dayKey(b.endDate), channel: "aldeitas",
-      cents: b.currency === "MXN" ? b.totalPriceCents : 0,
+      cents: toMxn(b.totalPriceCents, b.currency),
     });
   }
   for (const m of metas) {
@@ -102,19 +106,23 @@ export async function loadAdminOverview(userId: string): Promise<AdminOverview> 
     stays.push({
       listingId: m.listingId, hotelId: l.hotelId, hotelName: l.hotelName, roomTitle: l.title, guestName: m.guestName,
       start: dayKey(m.startDate), end: dayKey(m.endDate), channel: "airbnb",
-      cents: !m.payoutCurrency || m.payoutCurrency === "MXN" ? m.payoutCents ?? 0 : 0,
+      cents: toMxn(m.payoutCents ?? 0, m.payoutCurrency),
     });
   }
 
   // Imported stays can overlap (changed reservations); count each room-night once.
+  // Income is spread per night so only nights inside the 30-day window count.
   const nights = new Map<string, Set<string>>();
+  const income = new Map<string, number>();
   for (const s of stays) {
     const set = nights.get(s.listingId) ?? new Set<string>();
     const from = parseISO(`${s.start}T00:00:00`);
     const n = differenceInCalendarDays(parseISO(`${s.end}T00:00:00`), from);
     for (let i = 0; i < n; i++) {
       const k = toDateKey(addDays(from, i));
-      if (k >= today && k < toDateKey(until)) set.add(k);
+      if (k < today || k >= toDateKey(until) || set.has(k)) continue;
+      set.add(k);
+      income.set(s.hotelId, (income.get(s.hotelId) ?? 0) + s.cents / n);
     }
     nights.set(s.listingId, set);
   }
@@ -133,7 +141,7 @@ export async function loadAdminOverview(userId: string): Promise<AdminOverview> 
       arrivalsToday: mine.filter((s) => s.start === today).length,
       departuresToday: mine.filter((s) => s.end === today).length,
       occupancy30: h.listings.length ? Math.round((booked / (h.listings.length * HORIZON)) * 100) : 0,
-      payout30Cents: mine.filter((s) => s.start >= today && s.start < toDateKey(until)).reduce((a, s) => a + s.cents, 0),
+      payout30Cents: Math.round(income.get(h.id) ?? 0),
       syncedRooms: h.listings.filter((l) => l.icalUrl || l._count.calendarSources > 0).length,
       gmailConnected: Boolean(h.gmailSyncEnabled && h.gmailSyncEmail),
       payoutsReady: Boolean(h.mercadoPagoConnectedAt || h.payoutClabe || h.payoutMercadoPagoEmail),
