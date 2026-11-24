@@ -4,6 +4,7 @@ import Link from "next/link";
 import CoverImageWithFallback from "@/components/CoverImageWithFallback";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { dayMonth } from "@/lib/booking-performance";
+import { OPEN_TOUR_EVENT } from "@/components/onboarding/OwnerOnboarding";
 import type { AdminOverview, HotelOverview, OverviewStay } from "@/lib/admin-overview";
 
 type Lang = "es" | "en";
@@ -47,11 +48,11 @@ function StayList({ stays, empty, lang, dateLocale, today, showDate }: {
 }
 
 function todos(h: HotelOverview, lang: Lang) {
-  const out: Array<{ text: string; href: string }> = [];
+  const out: Array<{ text: string; href?: string }> = [];
   if (h.pendingPayments) out.push({ text: L(lang, `${h.pendingPayments} pago(s) por confirmar`, `${h.pendingPayments} payment(s) to confirm`), href: "/admin/bookings" });
   if (h.rooms && h.syncedRooms < h.rooms) out.push({ text: L(lang, `${h.rooms - h.syncedRooms} de ${h.rooms} cuartos sin calendario de Airbnb`, `${h.rooms - h.syncedRooms} of ${h.rooms} rooms without an Airbnb calendar`), href: "/admin/calendars" });
-  if (!h.payoutsReady) out.push({ text: L(lang, "Falta cuenta para recibir pagos", "Payout account missing"), href: `/admin/hotel/${h.id}` });
-  if (!h.gmailConnected) out.push({ text: L(lang, "Gmail no conectado (reservas de Airbnb)", "Gmail not connected (Airbnb bookings)"), href: `/admin/hotel/${h.id}?tab=calendar` });
+  if (!h.payoutsReady) out.push({ text: L(lang, "Falta cuenta para recibir pagos", "Payout account missing") });
+  if (!h.gmailConnected) out.push({ text: L(lang, "Gmail no conectado (reservas de Airbnb)", "Gmail not connected (Airbnb bookings)"), href: `/admin/hotel/${h.id}?tab=maintenance` });
   return out;
 }
 
@@ -108,10 +109,21 @@ function HotelCard({ h, lang }: { h: HotelOverview; lang: Lang }) {
           <ul className="space-y-1">
             {pending.map((p) => (
               <li key={p.text}>
-                <Link href={p.href} className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
-                  <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-                  {p.text}
-                </Link>
+                {p.href ? (
+                  <Link href={p.href} className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
+                    <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                    {p.text}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event(OPEN_TOUR_EVENT))}
+                    className="flex items-center gap-2 text-left text-sm text-amber-800 hover:underline"
+                  >
+                    <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                    {p.text}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
